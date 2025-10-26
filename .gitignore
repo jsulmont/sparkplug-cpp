@@ -1,0 +1,14 @@
+.claude/
+CLAUDE.md
+build/
+build-*/
+.cache/
+compile_commands.json
+*.o
+*.a
+*.so
+*.dylib
+.DS_Store
+.vscode/launch.json
+.vscode/tasks.json
+_deps/

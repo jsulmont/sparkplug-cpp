@@ -1,0 +1,8 @@
+# Ignore all certificate and key files (regenerate with ./generate_certs.sh)
+*.crt
+*.key
+*.csr
+*.srl
+
+# Keep the scripts and configuration
+!.gitignore

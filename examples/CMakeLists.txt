@@ -1,0 +1,44 @@
+# examples/CMakeLists.txt
+add_executable(publisher_example publisher_example.cpp)
+target_link_libraries(publisher_example PRIVATE sparkplug_cpp)
+
+add_executable(publisher_dynamic_metrics publisher_dynamic_metrics.cpp)
+target_link_libraries(publisher_dynamic_metrics PRIVATE sparkplug_cpp)
+
+add_executable(publisher_device_example publisher_device_example.cpp)
+target_link_libraries(publisher_device_example PRIVATE sparkplug_cpp)
+
+add_executable(command_handling_example command_handling_example.cpp)
+target_link_libraries(command_handling_example PRIVATE sparkplug_cpp)
+
+add_executable(host_application_example host_application_example.cpp)
+target_link_libraries(host_application_example PRIVATE sparkplug_cpp)
+
+add_executable(subscriber_example subscriber_example.cpp)
+target_link_libraries(subscriber_example PRIVATE sparkplug_cpp)
+
+add_executable(subscriber_example_debug subscriber_example_debug.cpp)
+target_link_libraries(subscriber_example_debug PRIVATE sparkplug_cpp)
+
+add_executable(subscriber_multi_group_cli subscriber_multi_group_cli.cpp)
+target_link_libraries(subscriber_multi_group_cli PRIVATE sparkplug_cpp)
+
+add_executable(publisher_tls_example publisher_tls_example.cpp)
+target_link_libraries(publisher_tls_example PRIVATE sparkplug_cpp)
+
+add_executable(subscriber_tls_example subscriber_tls_example.cpp)
+target_link_libraries(subscriber_tls_example PRIVATE sparkplug_cpp)
+
+# Torture test examples
+add_executable(torture_test_publisher torture_test_publisher.cpp)
+target_link_libraries(torture_test_publisher PRIVATE sparkplug_cpp)
+
+add_executable(torture_test_subscriber torture_test_subscriber.cpp)
+target_link_libraries(torture_test_subscriber PRIVATE sparkplug_cpp)
+
+# C API examples
+add_executable(publisher_example_c publisher_example_c.c)
+target_link_libraries(publisher_example_c PRIVATE sparkplug_c)
+
+add_executable(subscriber_example_c subscriber_example_c.c)
+target_link_libraries(subscriber_example_c PRIVATE sparkplug_c)

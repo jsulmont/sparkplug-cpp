@@ -1,0 +1,48 @@
+# src/CMakeLists.txt
+add_library(sparkplug_cpp
+    payload_builder.cpp
+    publisher.cpp
+    subscriber.cpp
+    topic.cpp
+    host_application.cpp
+)
+
+# Enable PIC for linking into shared libraries
+set_target_properties(sparkplug_cpp PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+target_include_directories(sparkplug_cpp
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+)
+
+target_link_libraries(sparkplug_cpp
+    PUBLIC
+        sparkplug_proto
+        protobuf::libprotobuf
+    PRIVATE
+        eclipse-paho-mqtt-c::paho-mqtt3as
+)
+
+add_library(sparkplug_c SHARED
+    c_bindings.cpp
+)
+
+target_include_directories(sparkplug_c
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+)
+
+target_link_libraries(sparkplug_c PRIVATE sparkplug_cpp)
+
+install(TARGETS sparkplug_cpp sparkplug_c sparkplug_proto
+    EXPORT SparkplugTargets
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION bin
+)
+
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/
+    DESTINATION include
+)

@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  format-check:
+    name: Check code formatting
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install clang-format-18
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format-18
+
+      - name: Check C++ formatting
+        run: ./scripts/format.sh --check
+
+  tidy-check:
+    name: Run clang-tidy checks
+    runs-on: ubuntu-latest
+    container: fedora:42
+    needs: [format-check]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          dnf install -y \
+            gcc-c++ \
+            clang \
+            clang-tools-extra \
+            cmake \
+            ninja-build \
+            git \
+            protobuf-devel \
+            abseil-cpp-devel \
+            paho-c-devel \
+            openssl-devel
+
+      - name: Configure CMake
+        env:
+          CC: clang
+          CXX: clang++
+        run: cmake --preset default
+
+      - name: Build (for compile_commands.json)
+        run: cmake --build build -j$(nproc)
+
+      - name: Run clang-tidy
+        run: ./scripts/tidy.sh --quiet
+
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    container: fedora:42
+    needs: [tidy-check]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          dnf install -y \
+            gcc-c++ \
+            clang \
+            cmake \
+            ninja-build \
+            git \
+            protobuf-devel \
+            abseil-cpp-devel \
+            paho-c-devel \
+            openssl-devel \
+            mosquitto
+
+      - name: Start Mosquitto broker
+        run: |
+          # Create minimal config
+          echo "listener 1883" > /tmp/mosquitto.conf
+          echo "allow_anonymous true" >> /tmp/mosquitto.conf
+          mosquitto -c /tmp/mosquitto.conf -d
+          sleep 2
+          # Verify broker is accessible
+          timeout 1 mosquitto_sub -h localhost -t test || true
+
+      - name: Configure CMake
+        env:
+          CC: clang
+          CXX: clang++
+        run: cmake --preset default
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure

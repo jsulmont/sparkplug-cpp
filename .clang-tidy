@@ -1,0 +1,106 @@
+---
+# clang-tidy configuration for sparkplug-cpp
+# Modern C++-23 linting with focus on correctness, performance, and readability
+
+Checks: >
+  bugprone-assert-side-effect,
+  bugprone-dangling-handle,
+  bugprone-inaccurate-erase,
+  bugprone-incorrect-roundings,
+  bugprone-infinite-loop,
+  bugprone-move-forwarding-reference,
+  bugprone-string-constructor,
+  bugprone-undefined-memory-manipulation,
+  bugprone-use-after-move,
+  cppcoreguidelines-init-variables,
+  cppcoreguidelines-interfaces-global-init,
+  cppcoreguidelines-narrowing-conversions,
+  cppcoreguidelines-no-malloc,
+  cppcoreguidelines-slicing,
+  modernize-avoid-bind,
+  modernize-deprecated-headers,
+  modernize-loop-convert,
+  modernize-make-shared,
+  modernize-make-unique,
+  modernize-pass-by-value,
+  modernize-redundant-void-arg,
+  modernize-replace-auto-ptr,
+  modernize-shrink-to-fit,
+  modernize-use-auto,
+  modernize-use-bool-literals,
+  modernize-use-default-member-init,
+  modernize-use-emplace,
+  modernize-use-equals-default,
+  modernize-use-equals-delete,
+  modernize-use-nullptr,
+  modernize-use-override,
+  performance-faster-string-find,
+  performance-for-range-copy,
+  performance-implicit-conversion-in-loop,
+  performance-inefficient-algorithm,
+  performance-inefficient-string-concatenation,
+  performance-inefficient-vector-operation,
+  performance-move-const-arg,
+  performance-move-constructor-init,
+  performance-no-automatic-move,
+  performance-trivially-destructible,
+  performance-unnecessary-copy-initialization,
+  performance-unnecessary-value-param,
+  readability-container-size-empty,
+  readability-delete-null-pointer,
+  readability-misleading-indentation,
+  readability-redundant-control-flow,
+  readability-redundant-smartptr-get,
+  readability-redundant-string-cstr,
+  readability-simplify-boolean-expr,
+  readability-string-compare
+
+# Treat all warnings as errors (strict mode for CI/CD)
+WarningsAsErrors: '*'
+
+# Check options
+CheckOptions:
+  # Naming conventions
+  readability-identifier-naming.NamespaceCase: lower_case
+  readability-identifier-naming.ClassCase: CamelCase
+  readability-identifier-naming.StructCase: CamelCase
+  readability-identifier-naming.EnumCase: CamelCase
+  readability-identifier-naming.FunctionCase: lower_case
+  readability-identifier-naming.VariableCase: lower_case
+  readability-identifier-naming.ParameterCase: lower_case
+  readability-identifier-naming.MemberCase: lower_case
+  readability-identifier-naming.PrivateMemberSuffix: '_'
+  readability-identifier-naming.ProtectedMemberSuffix: '_'
+  readability-identifier-naming.ConstantCase: UPPER_CASE
+  readability-identifier-naming.EnumConstantCase: UPPER_CASE
+  readability-identifier-naming.GlobalConstantCase: UPPER_CASE
+  readability-identifier-naming.StaticConstantCase: UPPER_CASE
+
+  # Performance
+  performance-move-const-arg.CheckTriviallyCopyableMove: true
+  performance-unnecessary-value-param.AllowedTypes: ''
+
+  # Readability
+  readability-braces-around-statements.ShortStatementLines: 0
+  readability-function-size.LineThreshold: 150
+  readability-function-size.StatementThreshold: 100
+  readability-simplify-boolean-expr.ChainedConditionalReturn: true
+  readability-simplify-boolean-expr.ChainedConditionalAssignment: true
+
+  # Modern C++
+  modernize-use-nullptr.NullMacros: 'NULL'
+  modernize-use-override.IgnoreDestructors: true
+
+  # Bug detection
+  bugprone-argument-comment.StrictMode: false
+  bugprone-suspicious-string-compare.WarnOnImplicitComparison: true
+
+# Header filter - only report issues from project headers (not third-party code)
+# This regex matches: include/sparkplug/*.hpp and src/*.hpp or src/*.h
+HeaderFilterRegex: '(include/sparkplug|src)/.*'
+
+# Format style (should match .clang-format)
+FormatStyle: file
+
+# System headers to ignore
+SystemHeaders: false
