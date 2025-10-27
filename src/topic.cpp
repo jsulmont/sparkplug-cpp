@@ -15,7 +15,7 @@ using namespace std::string_view_literals;
 constexpr auto NAMESPACE = "spBv1.0"sv;
 
 // Constexpr for potential compile-time evaluation when possible
-constexpr std::string_view message_type_to_string(MessageType type) {
+constexpr std::string_view message_type_to_string(MessageType type) noexcept {
   switch (type) {
   case MessageType::NBIRTH:
     return "NBIRTH";

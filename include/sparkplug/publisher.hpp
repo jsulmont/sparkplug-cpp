@@ -40,8 +40,20 @@ using CommandCallback =
  * - Birth/Death sequence (bdSeq) tracking for session management
  *
  * @par Thread Safety
- * This class is thread-safe. All methods may be called from any thread concurrently.
- * Internal synchronization is handled via mutex locking.
+ * This class is fully thread-safe with coarse-grained locking:
+ * - All public methods use a single internal mutex to protect shared state
+ * - Methods can be safely called from any thread concurrently
+ * - Callbacks (e.g., command_callback) are invoked on the MQTT client thread
+ * - Performance: Suitable for typical IIoT applications; not optimized for ultra-high-frequency
+ *   (>10kHz) publishing from multiple threads
+ *
+ * @par Threading Model
+ * - **Application threads**: Call Publisher methods (connect, publish_*, disconnect)
+ * - **MQTT client thread**: Handles network I/O and invokes callbacks
+ * - **Synchronization**: Single std::mutex protects all mutable state (seq_num_, bd_seq_num_,
+ *   device_states_, last_birth_payload_, etc.)
+ * - **Lock scope**: Entire method execution (coarse-grained)
+ * - **Blocking operations**: connect() and disconnect() block until completion or timeout
  *
  * @par Example Usage
  * @code

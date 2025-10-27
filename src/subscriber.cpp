@@ -68,7 +68,7 @@ Subscriber& Subscriber::operator=(Subscriber&& other) noexcept {
   return *this;
 }
 
-void Subscriber::log(LogLevel level, std::string_view message) const {
+void Subscriber::log(LogLevel level, std::string_view message) const noexcept {
   if (config_.log_callback) {
     config_.log_callback(level, message);
   }

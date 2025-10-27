@@ -317,6 +317,8 @@ std::expected<void, std::string> Publisher::publish_message(const Topic& topic,
   auto topic_str = topic.to_string();
 
   MQTTAsync_message msg = MQTTAsync_message_initializer;
+  // Note: const_cast required due to Paho MQTT C API (non-const payload pointer).
+  // This is safe because MQTTAsync_sendMessage does not modify the payload.
   msg.payload = const_cast<void*>(reinterpret_cast<const void*>(payload_data.data()));
   msg.payloadlen = static_cast<int>(payload_data.size());
   msg.qos = config_.data_qos;
@@ -364,12 +366,13 @@ std::expected<void, std::string> Publisher::publish_birth(PayloadBuilder& payloa
               .device_id = ""};
 
   auto payload_data = payload.build();
-  last_birth_payload_ = payload_data;
 
   auto result = publish_message(topic, payload_data);
   if (!result) {
     return result;
   }
+
+  last_birth_payload_ = std::move(payload_data);
 
   seq_num_ = 0;
   bd_seq_num_++;
@@ -508,7 +511,7 @@ std::expected<void, std::string> Publisher::publish_device_birth(std::string_vie
 
   auto& device_state = device_states_[std::string(device_id)];
   device_state.seq_num = 0;
-  device_state.last_birth_payload = payload_data;
+  device_state.last_birth_payload = std::move(payload_data);
   device_state.is_online = true;
 
   return {};
@@ -617,6 +620,8 @@ Publisher::publish_raw_message(std::string_view topic, std::span<const uint8_t> 
   }
 
   MQTTAsync_message msg = MQTTAsync_message_initializer;
+  // Note: const_cast required due to Paho MQTT C API (non-const payload pointer).
+  // This is safe because MQTTAsync_sendMessage does not modify the payload.
   msg.payload = const_cast<void*>(reinterpret_cast<const void*>(payload_data.data()));
   msg.payloadlen = static_cast<int>(payload_data.size());
   msg.qos = qos;

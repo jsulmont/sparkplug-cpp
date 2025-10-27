@@ -51,6 +51,8 @@ struct Topic {
    * @brief Converts the topic back to a string.
    *
    * @return Formatted topic string (e.g., "spBv1.0/Energy/NBIRTH/Gateway01")
+   *
+   * @note May throw if std::format throws (e.g., out of memory), but this is rare.
    */
   [[nodiscard]] std::string to_string() const;
 

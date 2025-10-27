@@ -26,7 +26,7 @@ std::vector<uint8_t> PayloadBuilder::build() const {
   return buffer;
 }
 
-const org::eclipse::tahu::protobuf::Payload& PayloadBuilder::payload() const {
+const org::eclipse::tahu::protobuf::Payload& PayloadBuilder::payload() const noexcept {
   return payload_;
 }
 

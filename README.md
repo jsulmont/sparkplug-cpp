@@ -564,6 +564,15 @@ Examples:
 - **Alias Support** - Reduces bandwidth by 60-80%
 - **Async I/O** - Non-blocking MQTT operations
 
+### Threading Model
+The library uses coarse-grained locking (single mutex per Publisher/Subscriber) for simplicity and correctness. This is suitable for typical IIoT applications with message rates up to ~1kHz. All public methods are thread-safe and can be called from any thread concurrently. Callbacks execute on the MQTT client thread.
+
+### Future Optimizations
+If profiling reveals performance bottlenecks in high-throughput scenarios (>10kHz):
+- **Topic string allocation**: Pre-compute topic strings at initialization instead of per-message
+- **Fine-grained locking**: Separate locks for node state vs MQTT client operations
+- **Zero-copy API**: Alternative `std::string_view`-based API for advanced users (would complicate C bindings)
+
 ## Troubleshooting
 
 ### Issue: Sequence validation warnings
@@ -599,12 +608,38 @@ at your option.
 - [MQTT Protocol](https://mqtt.org/)
 - [Protocol Buffers](https://protobuf.dev/)
 
-## Roadmap
+## Feature Coverage
 
-- mTLS support
-- Sparkplug Templates support
-- Historical data buffering
+### Fully Implemented
+- All Sparkplug B 2.2 message types (NBIRTH, NDATA, NDEATH, DBIRTH, DDATA, DDEATH, NCMD, DCMD, STATE)
+- Sequence number management and validation
+- Birth/Death sequence (bdSeq) tracking
+- Metric aliases for bandwidth efficiency (Report by Exception)
+- TLS/SSL support with mutual authentication (client certificates)
+- Thread-safe Publisher and Subscriber classes
+- Device management APIs
+- Command handling (NCMD/DCMD callbacks)
+- Host Application STATE messages
+
+### Partially Implemented
+The following Sparkplug B data types are defined but not yet supported in PayloadBuilder:
+- **Templates** (DataType 19) - Reusable metric definitions
+- **DataSet** (DataType 16) - Tabular data structures
+- **PropertySet** (DataType 20) - Key-value property collections
+- **PropertySetList** (DataType 21) - Lists of property sets
+- **UUID** (DataType 15) - Universally unique identifiers
+- **DateTime** (DataType 13) - Explicit date/time values
+- **Bytes** (DataType 17) - Raw binary data
+- **File** (DataType 18) - File transfer support
+
+Currently supported types: Int8-64, UInt8-64, Float, Double, Boolean, String, Text
+
+### Roadmap
+- Full Template support (metric definitions, instances)
+- DataSet and PropertySet builders
+- Historical data buffering for offline operation
 - Metrics dashboard example
+- Additional language bindings (Python, Node.js)
 
 ---
 

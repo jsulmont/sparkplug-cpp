@@ -61,7 +61,7 @@ concept SparkplugMetricType =
 namespace detail {
 
 template <SparkplugMetricType T>
-consteval DataType get_datatype() {
+consteval DataType get_datatype() noexcept {
   using BaseT = std::remove_cvref_t<T>;
   if constexpr (std::is_same_v<BaseT, int8_t>)
     return DataType::Int8;
@@ -327,16 +327,16 @@ public:
   }
 
   // Query methods
-  [[nodiscard]] bool has_seq() const {
+  [[nodiscard]] bool has_seq() const noexcept {
     return seq_explicitly_set_;
   }
-  [[nodiscard]] bool has_timestamp() const {
+  [[nodiscard]] bool has_timestamp() const noexcept {
     return timestamp_explicitly_set_;
   }
 
   // Build and access
   [[nodiscard]] std::vector<uint8_t> build() const;
-  [[nodiscard]] const org::eclipse::tahu::protobuf::Payload& payload() const;
+  [[nodiscard]] const org::eclipse::tahu::protobuf::Payload& payload() const noexcept;
   [[nodiscard]] org::eclipse::tahu::protobuf::Payload& mutable_payload() noexcept {
     return payload_;
   }

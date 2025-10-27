@@ -101,9 +101,22 @@ using CommandCallback =
  * - Node state tracking per edge node
  *
  * @par Thread Safety
- * This class is thread-safe. All methods may be called from any thread concurrently.
- * Internal synchronization is handled via mutex locking.
- * Note: Callbacks are invoked on the MQTT client thread.
+ * This class is fully thread-safe with coarse-grained locking:
+ * - All public methods use a single internal mutex to protect shared state
+ * - Methods can be safely called from any thread concurrently
+ * - Callbacks (callback_, command_callback_) are invoked on the MQTT client thread
+ * - Keep callback execution fast to avoid blocking message reception
+ * - Performance: Suitable for typical IIoT applications; not optimized for ultra-high-frequency
+ *   message processing
+ *
+ * @par Threading Model
+ * - **Application threads**: Call Subscriber methods (connect, subscribe_*, get_node_state, etc.)
+ * - **MQTT client thread**: Handles network I/O, decodes messages, invokes callbacks
+ * - **Synchronization**: Single std::mutex protects all mutable state (node_states_, etc.)
+ * - **Lock scope**: Entire method execution (coarse-grained)
+ * - **Callback execution**: Callbacks execute on MQTT thread while holding NO locks (to prevent
+ *   deadlock if callback calls back into Subscriber)
+ * - **Blocking operations**: connect() and disconnect() block until completion or timeout
  *
  * @par Example Usage
  * @code
@@ -394,8 +407,9 @@ public:
    * @param message Log message
    *
    * @note Public for technical reasons (accessed by static MQTT callbacks).
+   * @note noexcept because callback exceptions are user responsibility.
    */
-  void log(LogLevel level, std::string_view message) const;
+  void log(LogLevel level, std::string_view message) const noexcept;
 
   /**
    * @brief User-provided callback for received messages.
@@ -419,7 +433,7 @@ private:
     std::string group_id;
     std::string edge_node_id;
 
-    bool operator==(const NodeKey& other) const noexcept {
+    [[nodiscard]] bool operator==(const NodeKey& other) const noexcept {
       return group_id == other.group_id && edge_node_id == other.edge_node_id;
     }
   };
