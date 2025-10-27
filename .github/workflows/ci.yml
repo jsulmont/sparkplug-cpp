@@ -83,15 +83,34 @@ jobs:
             openssl-devel \
             mosquitto
 
-      - name: Start Mosquitto broker
+      - name: Generate TLS certificates
         run: |
-          # Create minimal config
-          echo "listener 1883" > /tmp/mosquitto.conf
-          echo "allow_anonymous true" >> /tmp/mosquitto.conf
-          mosquitto -c /tmp/mosquitto.conf -d
-          sleep 2
-          # Verify broker is accessible
-          timeout 1 mosquitto_sub -h localhost -t test || true
+          cd certs
+          chmod +x generate_certs.sh
+          ./generate_certs.sh
+          echo "Certificates generated:"
+          ls -la *.crt *.key
+
+      - name: Create password file for authentication tests
+        run: |
+          cd certs
+          mosquitto_passwd -c -b passwordfile admin admin
+          chmod 600 passwordfile
+          echo "Password file created with admin/admin"
+
+      - name: Start Mosquitto broker with TLS and authentication
+        run: |
+          # Use the test configuration which supports:
+          # - Port 1883: Plain MQTT (anonymous) for existing tests
+          # - Port 8883: TLS with password auth for authentication tests
+          mosquitto -c certs/mosquitto_test.conf -d
+          sleep 3
+          # Verify plain broker is accessible
+          timeout 1 mosquitto_sub -h localhost -p 1883 -t test || true
+          # Verify TLS broker is running
+          timeout 1 mosquitto_sub -h localhost -p 8883 \
+            --cafile certs/ca.crt -u admin -P admin -t test || true
+          echo "Mosquitto started on ports 1883 (plain) and 8883 (TLS)"
 
       - name: Configure CMake
         env:
@@ -104,3 +123,27 @@ jobs:
 
       - name: Run tests
         run: ctest --test-dir build --output-on-failure
+
+      - name: Run authentication tests
+        run: |
+          echo "=========================================="
+          echo "Testing Username/Password Authentication"
+          echo "=========================================="
+          ./build/examples/test_auth_password
+
+          echo ""
+          echo "=========================================="
+          echo "Testing mTLS Authentication"
+          echo "=========================================="
+          ./build/examples/test_auth_mtls
+
+          echo ""
+          echo "=========================================="
+          echo "Testing Combined Authentication (Production Config)"
+          echo "=========================================="
+          ./build/examples/test_auth_combined
+
+          echo ""
+          echo "=========================================="
+          echo "All Authentication Tests Passed!"
+          echo "=========================================="

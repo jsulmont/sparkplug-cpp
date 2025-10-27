@@ -149,6 +149,16 @@ public:
   void set_credentials(std::optional<std::string> username, std::optional<std::string> password);
 
   /**
+   * @brief Configures TLS/SSL options for secure MQTT connections.
+   *
+   * @param tls TLS configuration options
+   *
+   * @note Must be called before connect().
+   * @note broker_url must use ssl:// prefix for TLS connections.
+   */
+  void set_tls(std::optional<TlsOptions> tls);
+
+  /**
    * @brief Connects to the MQTT broker and establishes a Sparkplug B session.
    *
    * Sets the NDEATH message as the MQTT Last Will Testament before connecting.

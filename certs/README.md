@@ -173,3 +173,23 @@ Then restart Mosquitto:
 ```bash
 ./start_mosquitto_test.sh
 ```
+
+## CI/CD Integration
+
+The CI workflow automatically tests all authentication methods:
+
+1. Generates certificates using `generate_certs.sh`
+2. Creates password file with admin/admin credentials
+3. Starts Mosquitto with the test configuration (both plain and TLS listeners)
+4. Runs three authentication test suites:
+   - Username/Password authentication (port 1883)
+   - mTLS authentication (port 8883)
+   - Combined authentication - mTLS + Username/Password (port 8883)
+
+The `mosquitto_test.conf` uses relative paths for portability across development and CI environments.
+
+Port 8883 allows both anonymous and authenticated connections to support testing all authentication combinations:
+- TLS-only (server authentication)
+- TLS + Username/Password
+- TLS + mTLS (client certificates)
+- TLS + mTLS + Username/Password (production configuration)

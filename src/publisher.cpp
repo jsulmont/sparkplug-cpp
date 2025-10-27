@@ -12,48 +12,41 @@
 namespace sparkplug {
 
 namespace {
-// Timeout and connection constants
 constexpr int CONNECTION_TIMEOUT_MS = 5000;
 constexpr int DISCONNECT_TIMEOUT_MS = 11000;
 constexpr int SUBSCRIBE_TIMEOUT_MS = 5000;
 constexpr uint64_t SEQ_NUMBER_MAX = 256;
 
-// Callback for successful connection
 void on_connect_success(void* context, MQTTAsync_successData* response) {
   (void)response;
   auto* promise = static_cast<std::promise<void>*>(context);
   promise->set_value();
 }
 
-// Callback for failed connection
 void on_connect_failure(void* context, MQTTAsync_failureData* response) {
   auto* promise = static_cast<std::promise<void>*>(context);
   auto error = std::format("Connection failed: code={}", response ? response->code : -1);
   promise->set_exception(std::make_exception_ptr(std::runtime_error(error)));
 }
 
-// Callback for successful disconnection
 void on_disconnect_success(void* context, MQTTAsync_successData* response) {
   (void)response;
   auto* promise = static_cast<std::promise<void>*>(context);
   promise->set_value();
 }
 
-// Callback for failed disconnection
 void on_disconnect_failure(void* context, MQTTAsync_failureData* response) {
   auto* promise = static_cast<std::promise<void>*>(context);
   auto error = std::format("Disconnect failed: code={}", response ? response->code : -1);
   promise->set_exception(std::make_exception_ptr(std::runtime_error(error)));
 }
 
-// Callback for successful subscription
 void on_subscribe_success(void* context, MQTTAsync_successData* response) {
   (void)response;
   auto* promise = static_cast<std::promise<void>*>(context);
   promise->set_value();
 }
 
-// Callback for failed subscription
 void on_subscribe_failure(void* context, MQTTAsync_failureData* response) {
   auto* promise = static_cast<std::promise<void>*>(context);
   auto error = std::format("Subscribe failed: code={}", response ? response->code : -1);
@@ -153,6 +146,11 @@ void Publisher::set_credentials(std::optional<std::string> username,
   config_.password = std::move(password);
 }
 
+void Publisher::set_tls(std::optional<TlsOptions> tls) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  config_.tls = std::move(tls);
+}
+
 std::expected<void, std::string> Publisher::connect() {
   std::lock_guard<std::mutex> lock(mutex_);
 
@@ -173,7 +171,6 @@ std::expected<void, std::string> Publisher::connect() {
   conn_opts.keepAliveInterval = config_.keep_alive_interval;
   conn_opts.cleansession = config_.clean_session;
 
-  // Set credentials if provided
   if (config_.username.has_value()) {
     conn_opts.username = config_.username.value().c_str();
   }
@@ -181,7 +178,6 @@ std::expected<void, std::string> Publisher::connect() {
     conn_opts.password = config_.password.value().c_str();
   }
 
-  // Setup TLS/SSL if configured
   MQTTAsync_SSLOptions ssl_opts = MQTTAsync_SSLOptions_initializer;
   if (config_.tls.has_value()) {
     const auto& tls = config_.tls.value();
@@ -242,15 +238,12 @@ std::expected<void, std::string> Publisher::connect() {
 
   is_connected_ = true;
 
-  // If command callback is configured, subscribe to NCMD before allowing NBIRTH
   if (config_.command_callback.has_value()) {
-    // Set message callback
     rc = MQTTAsync_setCallbacks(client_.get(), this, nullptr, on_message_arrived, nullptr);
     if (rc != MQTTASYNC_SUCCESS) {
       return std::unexpected(std::format("Failed to set message callback: {}", rc));
     }
 
-    // Subscribe to NCMD topic
     Topic ncmd_topic{.group_id = config_.group_id,
                      .message_type = MessageType::NCMD,
                      .edge_node_id = config_.edge_node_id,

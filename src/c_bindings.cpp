@@ -174,6 +174,25 @@ int sparkplug_publisher_set_credentials(sparkplug_publisher_t* pub, const char* 
   return 0;
 }
 
+int sparkplug_publisher_set_tls(sparkplug_publisher_t* pub, const char* trust_store,
+                                const char* key_store, const char* private_key,
+                                const char* private_key_password, int enable_server_cert_auth) {
+  if (!pub || !trust_store) {
+    return -1;
+  }
+
+  sparkplug::Publisher::TlsOptions tls{
+      .trust_store = trust_store,
+      .key_store = key_store ? std::string(key_store) : "",
+      .private_key = private_key ? std::string(private_key) : "",
+      .private_key_password = private_key_password ? std::string(private_key_password) : "",
+      .enabled_cipher_suites = "",
+      .enable_server_cert_auth = enable_server_cert_auth != 0};
+
+  pub->impl.set_tls(tls);
+  return 0;
+}
+
 int sparkplug_publisher_connect(sparkplug_publisher_t* pub) {
   if (!pub)
     return -1;

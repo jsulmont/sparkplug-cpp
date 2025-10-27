@@ -160,6 +160,38 @@ int sparkplug_publisher_set_credentials(sparkplug_publisher_t* pub, const char* 
                                         const char* password);
 
 /**
+ * @brief Configures TLS/SSL for secure MQTT connections.
+ *
+ * @param pub Publisher handle
+ * @param trust_store Path to CA certificate file (PEM format) - REQUIRED for TLS
+ * @param key_store Path to client certificate file (PEM format, NULL for server-only TLS)
+ * @param private_key Path to client private key file (PEM format, NULL for server-only TLS)
+ * @param private_key_password Password for encrypted private key (NULL if not encrypted)
+ * @param enable_server_cert_auth Enable server certificate verification (1=yes, 0=no)
+ *
+ * @return 0 on success, -1 on failure
+ *
+ * @note Must be called before sparkplug_publisher_connect().
+ * @note For mTLS (mutual authentication), provide key_store and private_key.
+ * @note For TLS-only (server authentication), set key_store and private_key to NULL.
+ * @note broker_url must use ssl:// prefix (e.g., "ssl://localhost:8883")
+ *
+ * @par Example (TLS only)
+ * @code
+ * sparkplug_publisher_set_tls(pub, "certs/ca.crt", NULL, NULL, NULL, 1);
+ * @endcode
+ *
+ * @par Example (mTLS)
+ * @code
+ * sparkplug_publisher_set_tls(pub, "certs/ca.crt", "certs/client.crt",
+ *                            "certs/client.key", NULL, 1);
+ * @endcode
+ */
+int sparkplug_publisher_set_tls(sparkplug_publisher_t* pub, const char* trust_store,
+                                const char* key_store, const char* private_key,
+                                const char* private_key_password, int enable_server_cert_auth);
+
+/**
  * @brief Connects the publisher to the MQTT broker.
  *
  * @param pub Publisher handle

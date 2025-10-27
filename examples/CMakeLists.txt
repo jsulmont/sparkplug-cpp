@@ -29,6 +29,16 @@ target_link_libraries(publisher_tls_example PRIVATE sparkplug_cpp)
 add_executable(subscriber_tls_example subscriber_tls_example.cpp)
 target_link_libraries(subscriber_tls_example PRIVATE sparkplug_cpp)
 
+# Authentication test examples
+add_executable(test_auth_password test_auth_password.cpp)
+target_link_libraries(test_auth_password PRIVATE sparkplug_cpp)
+
+add_executable(test_auth_mtls test_auth_mtls.cpp)
+target_link_libraries(test_auth_mtls PRIVATE sparkplug_cpp)
+
+add_executable(test_auth_combined test_auth_combined.cpp)
+target_link_libraries(test_auth_combined PRIVATE sparkplug_cpp)
+
 # Torture test examples
 add_executable(torture_test_publisher torture_test_publisher.cpp)
 target_link_libraries(torture_test_publisher PRIVATE sparkplug_cpp)
@@ -42,3 +52,6 @@ target_link_libraries(publisher_example_c PRIVATE sparkplug_c)
 
 add_executable(subscriber_example_c subscriber_example_c.c)
 target_link_libraries(subscriber_example_c PRIVATE sparkplug_c)
+
+add_executable(test_auth_combined_c test_auth_combined_c.c)
+target_link_libraries(test_auth_combined_c PRIVATE sparkplug_c)
