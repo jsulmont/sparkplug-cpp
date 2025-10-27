@@ -445,6 +445,39 @@ int sparkplug_host_application_set_credentials(sparkplug_host_application_t* hos
                                                const char* username, const char* password);
 
 /**
+ * @brief Configures TLS/SSL for secure MQTT connections.
+ *
+ * @param host Host Application handle
+ * @param trust_store Path to CA certificate file (PEM format) - REQUIRED for TLS
+ * @param key_store Path to client certificate file (PEM format, NULL for server-only TLS)
+ * @param private_key Path to client private key file (PEM format, NULL for server-only TLS)
+ * @param private_key_password Password for encrypted private key (NULL if not encrypted)
+ * @param enable_server_cert_auth Enable server certificate verification (1=yes, 0=no)
+ *
+ * @return 0 on success, -1 on failure
+ *
+ * @note Must be called before sparkplug_host_application_connect().
+ * @note For mTLS (mutual authentication), provide key_store and private_key.
+ * @note For TLS-only (server authentication), set key_store and private_key to NULL.
+ * @note broker_url must use ssl:// prefix (e.g., "ssl://localhost:8883")
+ *
+ * @par Example (TLS only)
+ * @code
+ * sparkplug_host_application_set_tls(host, "certs/ca.crt", NULL, NULL, NULL, 1);
+ * @endcode
+ *
+ * @par Example (mTLS)
+ * @code
+ * sparkplug_host_application_set_tls(host, "certs/ca.crt", "certs/client.crt",
+ *                                   "certs/client.key", NULL, 1);
+ * @endcode
+ */
+int sparkplug_host_application_set_tls(sparkplug_host_application_t* host, const char* trust_store,
+                                       const char* key_store, const char* private_key,
+                                       const char* private_key_password,
+                                       int enable_server_cert_auth);
+
+/**
  * @brief Connects the Host Application to the MQTT broker.
  *
  * Unlike Edge Nodes, this does NOT automatically publish any messages.
@@ -570,6 +603,38 @@ void sparkplug_subscriber_destroy(sparkplug_subscriber_t* sub);
  */
 int sparkplug_subscriber_set_credentials(sparkplug_subscriber_t* sub, const char* username,
                                          const char* password);
+
+/**
+ * @brief Configures TLS/SSL for secure MQTT connections.
+ *
+ * @param sub Subscriber handle
+ * @param trust_store Path to CA certificate file (PEM format) - REQUIRED for TLS
+ * @param key_store Path to client certificate file (PEM format, NULL for server-only TLS)
+ * @param private_key Path to client private key file (PEM format, NULL for server-only TLS)
+ * @param private_key_password Password for encrypted private key (NULL if not encrypted)
+ * @param enable_server_cert_auth Enable server certificate verification (1=yes, 0=no)
+ *
+ * @return 0 on success, -1 on failure
+ *
+ * @note Must be called before sparkplug_subscriber_connect().
+ * @note For mTLS (mutual authentication), provide key_store and private_key.
+ * @note For TLS-only (server authentication), set key_store and private_key to NULL.
+ * @note broker_url must use ssl:// prefix (e.g., "ssl://localhost:8883")
+ *
+ * @par Example (TLS only)
+ * @code
+ * sparkplug_subscriber_set_tls(sub, "certs/ca.crt", NULL, NULL, NULL, 1);
+ * @endcode
+ *
+ * @par Example (mTLS)
+ * @code
+ * sparkplug_subscriber_set_tls(sub, "certs/ca.crt", "certs/client.crt",
+ *                             "certs/client.key", NULL, 1);
+ * @endcode
+ */
+int sparkplug_subscriber_set_tls(sparkplug_subscriber_t* sub, const char* trust_store,
+                                 const char* key_store, const char* private_key,
+                                 const char* private_key_password, int enable_server_cert_auth);
 
 /**
  * @brief Connects the subscriber to the MQTT broker.

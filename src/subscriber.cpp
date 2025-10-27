@@ -344,6 +344,11 @@ void Subscriber::set_credentials(std::optional<std::string> username,
   config_.password = std::move(password);
 }
 
+void Subscriber::set_tls(std::optional<TlsOptions> tls) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  config_.tls = std::move(tls);
+}
+
 std::expected<void, std::string> Subscriber::connect() {
   std::lock_guard<std::mutex> lock(mutex_);
 

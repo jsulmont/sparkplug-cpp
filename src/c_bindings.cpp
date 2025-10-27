@@ -414,6 +414,25 @@ int sparkplug_subscriber_set_credentials(sparkplug_subscriber_t* sub, const char
   return 0;
 }
 
+int sparkplug_subscriber_set_tls(sparkplug_subscriber_t* sub, const char* trust_store,
+                                 const char* key_store, const char* private_key,
+                                 const char* private_key_password, int enable_server_cert_auth) {
+  if (!sub || !sub->impl || !trust_store) {
+    return -1;
+  }
+
+  sparkplug::Subscriber::TlsOptions tls{
+      .trust_store = trust_store,
+      .key_store = key_store ? std::string(key_store) : "",
+      .private_key = private_key ? std::string(private_key) : "",
+      .private_key_password = private_key_password ? std::string(private_key_password) : "",
+      .enabled_cipher_suites = "",
+      .enable_server_cert_auth = enable_server_cert_auth != 0};
+
+  sub->impl->set_tls(tls);
+  return 0;
+}
+
 int sparkplug_subscriber_connect(sparkplug_subscriber_t* sub) {
   if (!sub || !sub->impl)
     return -1;
@@ -887,6 +906,26 @@ int sparkplug_host_application_set_credentials(sparkplug_host_application_t* hos
   std::optional<std::string> user = username ? std::optional<std::string>(username) : std::nullopt;
   std::optional<std::string> pass = password ? std::optional<std::string>(password) : std::nullopt;
   host->impl.set_credentials(std::move(user), std::move(pass));
+  return 0;
+}
+
+int sparkplug_host_application_set_tls(sparkplug_host_application_t* host, const char* trust_store,
+                                       const char* key_store, const char* private_key,
+                                       const char* private_key_password,
+                                       int enable_server_cert_auth) {
+  if (!host || !trust_store) {
+    return -1;
+  }
+
+  sparkplug::HostApplication::TlsOptions tls{
+      .trust_store = trust_store,
+      .key_store = key_store ? std::string(key_store) : "",
+      .private_key = private_key ? std::string(private_key) : "",
+      .private_key_password = private_key_password ? std::string(private_key_password) : "",
+      .enabled_cipher_suites = "",
+      .enable_server_cert_auth = enable_server_cert_auth != 0};
+
+  host->impl.set_tls(tls);
   return 0;
 }
 

@@ -83,6 +83,11 @@ void HostApplication::set_credentials(std::optional<std::string> username,
   config_.password = std::move(password);
 }
 
+void HostApplication::set_tls(std::optional<TlsOptions> tls) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  config_.tls = std::move(tls);
+}
+
 std::expected<void, std::string> HostApplication::connect() {
   std::lock_guard<std::mutex> lock(mutex_);
 
