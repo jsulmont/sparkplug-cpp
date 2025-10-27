@@ -337,6 +337,13 @@ static void on_connection_lost(void* context, char* cause) {
   }
 }
 
+void Subscriber::set_credentials(std::optional<std::string> username,
+                                 std::optional<std::string> password) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  config_.username = std::move(username);
+  config_.password = std::move(password);
+}
+
 std::expected<void, std::string> Subscriber::connect() {
   std::lock_guard<std::mutex> lock(mutex_);
 
@@ -359,6 +366,14 @@ std::expected<void, std::string> Subscriber::connect() {
   MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
   conn_opts.keepAliveInterval = DEFAULT_KEEP_ALIVE_INTERVAL;
   conn_opts.cleansession = config_.clean_session;
+
+  // Set credentials if provided
+  if (config_.username.has_value()) {
+    conn_opts.username = config_.username.value().c_str();
+  }
+  if (config_.password.has_value()) {
+    conn_opts.password = config_.password.value().c_str();
+  }
 
   MQTTAsync_SSLOptions ssl_opts = MQTTAsync_SSLOptions_initializer;
   if (config_.tls.has_value()) {

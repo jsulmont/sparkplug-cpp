@@ -170,7 +170,9 @@ public:
     bool clean_session = true;       ///< MQTT clean session flag
     bool validate_sequence = true;   ///< Enable sequence number validation (detects packet loss)
     std::optional<TlsOptions> tls{}; ///< TLS/SSL options (required if broker_url uses ssl://)
-    LogCallback log_callback{};      ///< Optional callback for library log messages
+    std::optional<std::string> username{}; ///< MQTT username for authentication (optional)
+    std::optional<std::string> password{}; ///< MQTT password for authentication (optional)
+    LogCallback log_callback{};            ///< Optional callback for library log messages
   };
 
   /**
@@ -238,6 +240,16 @@ public:
   Subscriber& operator=(const Subscriber&) = delete;
   Subscriber(Subscriber&&) noexcept;
   Subscriber& operator=(Subscriber&&) noexcept;
+
+  /**
+   * @brief Sets MQTT username and password for authentication.
+   *
+   * @param username MQTT username (empty string or std::nullopt to unset)
+   * @param password MQTT password (empty string or std::nullopt to unset)
+   *
+   * @note Must be called before connect().
+   */
+  void set_credentials(std::optional<std::string> username, std::optional<std::string> password);
 
   /**
    * @brief Connects to the MQTT broker.

@@ -162,6 +162,18 @@ void sparkplug_publisher_destroy(sparkplug_publisher_t* pub) {
   delete pub;
 }
 
+int sparkplug_publisher_set_credentials(sparkplug_publisher_t* pub, const char* username,
+                                        const char* password) {
+  if (!pub) {
+    return -1;
+  }
+
+  std::optional<std::string> user = username ? std::optional<std::string>(username) : std::nullopt;
+  std::optional<std::string> pass = password ? std::optional<std::string>(password) : std::nullopt;
+  pub->impl.set_credentials(std::move(user), std::move(pass));
+  return 0;
+}
+
 int sparkplug_publisher_connect(sparkplug_publisher_t* pub) {
   if (!pub)
     return -1;
@@ -369,6 +381,18 @@ sparkplug_subscriber_t* sparkplug_subscriber_create(const char* broker_url, cons
 
 void sparkplug_subscriber_destroy(sparkplug_subscriber_t* sub) {
   delete sub;
+}
+
+int sparkplug_subscriber_set_credentials(sparkplug_subscriber_t* sub, const char* username,
+                                         const char* password) {
+  if (!sub || !sub->impl) {
+    return -1;
+  }
+
+  std::optional<std::string> user = username ? std::optional<std::string>(username) : std::nullopt;
+  std::optional<std::string> pass = password ? std::optional<std::string>(password) : std::nullopt;
+  sub->impl->set_credentials(std::move(user), std::move(pass));
+  return 0;
 }
 
 int sparkplug_subscriber_connect(sparkplug_subscriber_t* sub) {
@@ -833,6 +857,18 @@ sparkplug_host_application_t* sparkplug_host_application_create(const char* brok
 
 void sparkplug_host_application_destroy(sparkplug_host_application_t* host) {
   delete host;
+}
+
+int sparkplug_host_application_set_credentials(sparkplug_host_application_t* host,
+                                               const char* username, const char* password) {
+  if (!host) {
+    return -1;
+  }
+
+  std::optional<std::string> user = username ? std::optional<std::string>(username) : std::nullopt;
+  std::optional<std::string> pass = password ? std::optional<std::string>(password) : std::nullopt;
+  host->impl.set_credentials(std::move(user), std::move(pass));
+  return 0;
 }
 
 int sparkplug_host_application_connect(sparkplug_host_application_t* host) {

@@ -84,6 +84,8 @@ public:
     bool clean_session = true;       ///< MQTT clean session flag
     int keep_alive_interval = 60;    ///< MQTT keep-alive interval in seconds (default: 60)
     std::optional<TlsOptions> tls{}; ///< TLS/SSL options (required if broker_url uses ssl://)
+    std::optional<std::string> username{}; ///< MQTT username for authentication (optional)
+    std::optional<std::string> password{}; ///< MQTT password for authentication (optional)
   };
 
   /**
@@ -105,6 +107,16 @@ public:
   HostApplication& operator=(const HostApplication&) = delete;
   HostApplication(HostApplication&&) noexcept;
   HostApplication& operator=(HostApplication&&) noexcept;
+
+  /**
+   * @brief Sets MQTT username and password for authentication.
+   *
+   * @param username MQTT username (empty string or std::nullopt to unset)
+   * @param password MQTT password (empty string or std::nullopt to unset)
+   *
+   * @note Must be called before connect().
+   */
+  void set_credentials(std::optional<std::string> username, std::optional<std::string> password);
 
   /**
    * @brief Connects to the MQTT broker.

@@ -146,6 +146,13 @@ Publisher& Publisher::operator=(Publisher&& other) noexcept {
   return *this;
 }
 
+void Publisher::set_credentials(std::optional<std::string> username,
+                                std::optional<std::string> password) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  config_.username = std::move(username);
+  config_.password = std::move(password);
+}
+
 std::expected<void, std::string> Publisher::connect() {
   std::lock_guard<std::mutex> lock(mutex_);
 
@@ -165,6 +172,14 @@ std::expected<void, std::string> Publisher::connect() {
   MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
   conn_opts.keepAliveInterval = config_.keep_alive_interval;
   conn_opts.cleansession = config_.clean_session;
+
+  // Set credentials if provided
+  if (config_.username.has_value()) {
+    conn_opts.username = config_.username.value().c_str();
+  }
+  if (config_.password.has_value()) {
+    conn_opts.password = config_.password.value().c_str();
+  }
 
   // Setup TLS/SSL if configured
   MQTTAsync_SSLOptions ssl_opts = MQTTAsync_SSLOptions_initializer;

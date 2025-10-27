@@ -147,6 +147,19 @@ sparkplug_publisher_t* sparkplug_publisher_create(const char* broker_url, const 
 void sparkplug_publisher_destroy(sparkplug_publisher_t* pub);
 
 /**
+ * @brief Sets MQTT username and password for authentication.
+ *
+ * @param pub Publisher handle
+ * @param username MQTT username (may be NULL to unset)
+ * @param password MQTT password (may be NULL to unset)
+ * @return 0 on success, -1 on failure
+ *
+ * @note Must be called before sparkplug_publisher_connect().
+ */
+int sparkplug_publisher_set_credentials(sparkplug_publisher_t* pub, const char* username,
+                                        const char* password);
+
+/**
  * @brief Connects the publisher to the MQTT broker.
  *
  * @param pub Publisher handle
@@ -387,6 +400,19 @@ sparkplug_host_application_t* sparkplug_host_application_create(const char* brok
 void sparkplug_host_application_destroy(sparkplug_host_application_t* host);
 
 /**
+ * @brief Sets MQTT username and password for authentication.
+ *
+ * @param host Host Application handle
+ * @param username MQTT username (may be NULL to unset)
+ * @param password MQTT password (may be NULL to unset)
+ * @return 0 on success, -1 on failure
+ *
+ * @note Must be called before sparkplug_host_application_connect().
+ */
+int sparkplug_host_application_set_credentials(sparkplug_host_application_t* host,
+                                               const char* username, const char* password);
+
+/**
  * @brief Connects the Host Application to the MQTT broker.
  *
  * Unlike Edge Nodes, this does NOT automatically publish any messages.
@@ -499,6 +525,19 @@ sparkplug_subscriber_t* sparkplug_subscriber_create(const char* broker_url, cons
  * @param sub Subscriber handle (may be NULL)
  */
 void sparkplug_subscriber_destroy(sparkplug_subscriber_t* sub);
+
+/**
+ * @brief Sets MQTT username and password for authentication.
+ *
+ * @param sub Subscriber handle
+ * @param username MQTT username (may be NULL to unset)
+ * @param password MQTT password (may be NULL to unset)
+ * @return 0 on success, -1 on failure
+ *
+ * @note Must be called before sparkplug_subscriber_connect().
+ */
+int sparkplug_subscriber_set_credentials(sparkplug_subscriber_t* sub, const char* username,
+                                         const char* password);
 
 /**
  * @brief Connects the subscriber to the MQTT broker.

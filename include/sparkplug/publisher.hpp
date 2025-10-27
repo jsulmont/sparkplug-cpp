@@ -111,7 +111,9 @@ public:
     int death_qos = 1;            ///< MQTT QoS for NDEATH Will Message. Sparkplug requires 1.
     bool clean_session = true;    ///< MQTT clean session flag
     int keep_alive_interval = 60; ///< MQTT keep-alive interval in seconds (Sparkplug recommends 60)
-    std::optional<TlsOptions> tls{}; ///< TLS/SSL options (required if broker_url uses ssl://)
+    std::optional<TlsOptions> tls{};       ///< TLS/SSL options (required if broker_url uses ssl://)
+    std::optional<std::string> username{}; ///< MQTT username for authentication (optional)
+    std::optional<std::string> password{}; ///< MQTT password for authentication (optional)
     std::optional<CommandCallback>
         command_callback{}; ///< Optional callback for NCMD messages (subscribed before NBIRTH)
   };
@@ -135,6 +137,16 @@ public:
   Publisher& operator=(const Publisher&) = delete;
   Publisher(Publisher&&) noexcept;
   Publisher& operator=(Publisher&&) noexcept;
+
+  /**
+   * @brief Sets MQTT username and password for authentication.
+   *
+   * @param username MQTT username (empty string or std::nullopt to unset)
+   * @param password MQTT password (empty string or std::nullopt to unset)
+   *
+   * @note Must be called before connect().
+   */
+  void set_credentials(std::optional<std::string> username, std::optional<std::string> password);
 
   /**
    * @brief Connects to the MQTT broker and establishes a Sparkplug B session.
