@@ -6,7 +6,7 @@
 #include <utility>
 
 #include <sparkplug/datatype.hpp>
-#include <sparkplug/subscriber.hpp>
+#include <sparkplug/host_application.hpp>
 
 std::atomic<bool> running{true};
 
@@ -74,11 +74,6 @@ int main() {
     std::cerr << "[" << level_str << "] " << message << "\n";
   };
 
-  sparkplug::Subscriber::Config config{.broker_url = "tcp://localhost:1883",
-                                       .client_id = "sparkplug_subscriber_example",
-                                       .group_id = "Energy",
-                                       .log_callback = log_callback};
-
   auto message_handler = [](const sparkplug::Topic& topic,
                             const org::eclipse::tahu::protobuf::Payload& payload) {
     std::cout << "\n=== Message Received ===\n";
@@ -103,7 +98,13 @@ int main() {
     std::cout << "=======================\n";
   };
 
-  sparkplug::Subscriber subscriber(std::move(config), std::move(message_handler));
+  sparkplug::HostApplication::Config config{.broker_url = "tcp://localhost:1883",
+                                            .client_id = "sparkplug_subscriber_example",
+                                            .host_id = "SubscriberExample",
+                                            .message_callback = message_handler,
+                                            .log_callback = log_callback};
+
+  sparkplug::HostApplication subscriber(std::move(config));
 
   auto connect_result = subscriber.connect();
   if (!connect_result) {
@@ -113,13 +114,13 @@ int main() {
 
   std::cout << "Connected to broker\n";
 
-  auto subscribe_result = subscriber.subscribe_all();
+  auto subscribe_result = subscriber.subscribe_all_groups();
   if (!subscribe_result) {
     std::cerr << "Failed to subscribe: " << subscribe_result.error() << "\n";
     return 1;
   }
 
-  std::cout << "Subscribed to all Sparkplug messages in group 'Energy'\n";
+  std::cout << "Subscribed to all Sparkplug messages (all groups)\n";
   std::cout << "Press Ctrl+C to exit...\n\n";
 
   while (running) {

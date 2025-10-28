@@ -5,8 +5,8 @@
 #include <iostream>
 #include <thread>
 
+#include <sparkplug/edge_node.hpp>
 #include <sparkplug/payload_builder.hpp>
-#include <sparkplug/publisher.hpp>
 
 std::atomic<bool> running{true};
 std::atomic<bool> do_rebirth{false};
@@ -21,14 +21,14 @@ void signal_handler(int signal) {
 void scada_host_thread() {
   std::this_thread::sleep_for(std::chrono::seconds(2));
 
-  sparkplug::Publisher::Config scada_config{.broker_url = "tcp://localhost:1883",
-                                            .client_id = "scada_host",
-                                            .group_id = "Factory",
-                                            .edge_node_id = "ScadaHost",
-                                            .data_qos = 0,
-                                            .death_qos = 1};
+  sparkplug::EdgeNode::Config scada_config{.broker_url = "tcp://localhost:1883",
+                                           .client_id = "scada_host",
+                                           .group_id = "Factory",
+                                           .edge_node_id = "ScadaHost",
+                                           .data_qos = 0,
+                                           .death_qos = 1};
 
-  sparkplug::Publisher scada(std::move(scada_config));
+  sparkplug::EdgeNode scada(std::move(scada_config));
 
   auto connect_result = scada.connect();
   if (!connect_result) {
@@ -128,18 +128,18 @@ int main() {
     }
   };
 
-  sparkplug::Publisher::Config pub_config{.broker_url = "tcp://localhost:1883",
-                                          .client_id = "gateway_publisher",
-                                          .group_id = "Factory",
-                                          .edge_node_id = "Gateway01",
-                                          .data_qos = 0,
-                                          .death_qos = 1,
-                                          .clean_session = true,
-                                          .keep_alive_interval = 60,
-                                          .tls = {},
-                                          .command_callback = command_callback};
+  sparkplug::EdgeNode::Config pub_config{.broker_url = "tcp://localhost:1883",
+                                         .client_id = "gateway_publisher",
+                                         .group_id = "Factory",
+                                         .edge_node_id = "Gateway01",
+                                         .data_qos = 0,
+                                         .death_qos = 1,
+                                         .clean_session = true,
+                                         .keep_alive_interval = 60,
+                                         .tls = {},
+                                         .command_callback = command_callback};
 
-  auto publisher = std::make_shared<sparkplug::Publisher>(std::move(pub_config));
+  auto publisher = std::make_shared<sparkplug::EdgeNode>(std::move(pub_config));
 
   auto connect_result = publisher->connect();
   if (!connect_result) {

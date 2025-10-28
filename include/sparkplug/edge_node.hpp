@@ -1,4 +1,4 @@
-// include/sparkplug/publisher.hpp
+// include/sparkplug/edge_node.hpp
 #pragma once
 
 #include "mqtt_handle.hpp"
@@ -30,9 +30,9 @@ using CommandCallback =
     std::function<void(const Topic&, const org::eclipse::tahu::protobuf::Payload&)>;
 
 /**
- * @brief Sparkplug B edge node publisher implementing the complete message lifecycle.
+ * @brief Sparkplug B Edge Node implementing the complete message lifecycle.
  *
- * The Publisher class manages the full Sparkplug B protocol for an edge node:
+ * The EdgeNode class manages the full Sparkplug B protocol for an edge node:
  * - NBIRTH: Initial birth certificate with all metrics and aliases
  * - NDATA: Subsequent data updates using aliases for bandwidth efficiency
  * - NDEATH: Death certificate (sent via MQTT Last Will Testament)
@@ -48,7 +48,7 @@ using CommandCallback =
  *   (>10kHz) publishing from multiple threads
  *
  * @par Threading Model
- * - **Application threads**: Call Publisher methods (connect, publish_*, disconnect)
+ * - **Application threads**: Call EdgeNode methods (connect, publish_*, disconnect)
  * - **MQTT client thread**: Handles network I/O and invokes callbacks
  * - **Synchronization**: Single std::mutex protects all mutable state (seq_num_, bd_seq_num_,
  *   device_states_, last_birth_payload_, etc.)
@@ -57,33 +57,33 @@ using CommandCallback =
  *
  * @par Example Usage
  * @code
- * sparkplug::Publisher::Config config{
+ * sparkplug::EdgeNode::Config config{
  *   .broker_url = "tcp://localhost:1883",
  *   .client_id = "my_edge_node",
  *   .group_id = "Energy",
  *   .edge_node_id = "Gateway01"
  * };
  *
- * sparkplug::Publisher publisher(std::move(config));
- * publisher.connect();
+ * sparkplug::EdgeNode edge_node(std::move(config));
+ * edge_node.connect();
  *
  * // Publish NBIRTH (required first message)
  * sparkplug::PayloadBuilder birth;
  * birth.add_metric_with_alias("Temperature", 1, 20.5);
- * publisher.publish_birth(birth);
+ * edge_node.publish_birth(birth);
  *
  * // Publish NDATA updates
  * sparkplug::PayloadBuilder data;
  * data.add_metric_by_alias(1, 21.0);  // Temperature changed
- * publisher.publish_data(data);
+ * edge_node.publish_data(data);
  *
- * publisher.disconnect();  // Sends NDEATH automatically
+ * edge_node.disconnect();  // Sends NDEATH automatically
  * @endcode
  *
  * @see PayloadBuilder for constructing metric payloads
  * @see Subscriber for consuming Sparkplug B messages
  */
-class Publisher {
+class EdgeNode {
 public:
   /**
    * @brief TLS/SSL configuration options for secure MQTT connections.
@@ -98,7 +98,7 @@ public:
   };
 
   /**
-   * @brief Configuration parameters for the Sparkplug B publisher.
+   * @brief Configuration parameters for the Sparkplug B Edge Node.
    */
   struct Config {
     std::string
@@ -119,24 +119,24 @@ public:
   };
 
   /**
-   * @brief Constructs a Publisher with the given configuration.
+   * @brief Constructs an EdgeNode with the given configuration.
    *
-   * @param config Publisher configuration (moved)
+   * @param config EdgeNode configuration (moved)
    *
    * @note The NDEATH payload is prepared during construction and will be
    *       sent automatically when the MQTT connection is lost.
    */
-  Publisher(Config config);
+  EdgeNode(Config config);
 
   /**
-   * @brief Destroys the Publisher and cleans up MQTT resources.
+   * @brief Destroys the EdgeNode and cleans up MQTT resources.
    */
-  ~Publisher();
+  ~EdgeNode();
 
-  Publisher(const Publisher&) = delete;
-  Publisher& operator=(const Publisher&) = delete;
-  Publisher(Publisher&&) noexcept;
-  Publisher& operator=(Publisher&&) noexcept;
+  EdgeNode(const EdgeNode&) = delete;
+  EdgeNode& operator=(const EdgeNode&) = delete;
+  EdgeNode(EdgeNode&&) noexcept;
+  EdgeNode& operator=(EdgeNode&&) noexcept;
 
   /**
    * @brief Sets MQTT username and password for authentication.
@@ -167,7 +167,7 @@ public:
    * @return void on success, error message on failure
    *
    * @note Must be called before publish_birth().
-   * @warning The Publisher must remain in scope while connected, or NDEATH
+   * @warning The EdgeNode must remain in scope while connected, or NDEATH
    *          may not be delivered properly.
    */
   [[nodiscard]] std::expected<void, std::string> connect();
@@ -351,7 +351,7 @@ public:
    * @code
    * sparkplug::PayloadBuilder cmd;
    * cmd.add_metric("Node Control/Rebirth", true);
-   * publisher.publish_node_command("Gateway01", cmd);
+   * edge_node.publish_node_command("Gateway01", cmd);
    * @endcode
    */
   [[nodiscard]] std::expected<void, std::string>
@@ -372,7 +372,7 @@ public:
    * @code
    * sparkplug::PayloadBuilder cmd;
    * cmd.add_metric("SetPoint", 75.0);
-   * publisher.publish_device_command("Gateway01", "Motor01", cmd);
+   * edge_node.publish_device_command("Gateway01", "Motor01", cmd);
    * @endcode
    */
   [[nodiscard]] std::expected<void, std::string>
@@ -399,7 +399,7 @@ public:
    * @code
    * auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
    *     std::chrono::system_clock::now().time_since_epoch()).count();
-   * publisher.publish_state_birth("SCADA01", timestamp);
+   * edge_node.publish_state_birth("SCADA01", timestamp);
    * @endcode
    *
    * @see publish_state_death() for declaring Host Application offline
@@ -427,7 +427,7 @@ public:
    * @code
    * auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
    *     std::chrono::system_clock::now().time_since_epoch()).count();
-   * publisher.publish_state_death("SCADA01", timestamp);
+   * edge_node.publish_state_death("SCADA01", timestamp);
    * @endcode
    *
    * @see publish_state_birth() for declaring Host Application online

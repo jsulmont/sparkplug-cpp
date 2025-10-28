@@ -4,8 +4,8 @@
 #include <iostream>
 #include <thread>
 
+#include <sparkplug/edge_node.hpp>
 #include <sparkplug/payload_builder.hpp>
-#include <sparkplug/publisher.hpp>
 
 std::atomic<bool> running{true};
 
@@ -21,17 +21,17 @@ int main() {
   std::cout << "Sparkplug B Username/Password Authentication Test\n";
   std::cout << "==================================================\n\n";
 
-  sparkplug::Publisher::Config config{.broker_url = "tcp://localhost:1883",
-                                      .client_id = "test_auth_client",
-                                      .group_id = "TestGroup",
-                                      .edge_node_id = "TestNode",
-                                      .data_qos = 0,
-                                      .death_qos = 1,
-                                      .clean_session = true,
-                                      .keep_alive_interval = 60,
-                                      .tls = std::nullopt,
-                                      .username = "admin",
-                                      .password = "admin"};
+  sparkplug::EdgeNode::Config config{.broker_url = "tcp://localhost:1883",
+                                     .client_id = "test_auth_client",
+                                     .group_id = "TestGroup",
+                                     .edge_node_id = "TestNode",
+                                     .data_qos = 0,
+                                     .death_qos = 1,
+                                     .clean_session = true,
+                                     .keep_alive_interval = 60,
+                                     .tls = std::nullopt,
+                                     .username = "admin",
+                                     .password = "admin"};
 
   std::cout << "Configuration:\n";
   std::cout << "  Broker URL: " << config.broker_url << "\n";
@@ -39,7 +39,7 @@ int main() {
   std::cout << "  Username: " << config.username.value_or("(none)") << "\n";
   std::cout << "  Password: " << (config.password.has_value() ? "***" : "(none)") << "\n\n";
 
-  sparkplug::Publisher publisher(std::move(config));
+  sparkplug::EdgeNode publisher(std::move(config));
 
   std::cout << "Connecting with username/password authentication...\n";
   auto connect_result = publisher.connect();

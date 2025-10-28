@@ -6,6 +6,81 @@ Based on the Eclipse Sparkplug 2.2 specification.
 
 ## Message Types Overview
 
+## Protocol Participants
+
+### MQTT Server (Broker)
+**Role:** Transport backbone for all Sparkplug traffic. Maintains session state, delivers retained Will (Death) messages, and enforces ACLs.  
+**Responsibilities:**
+- Maintain client sessions and deliver **Will** messages on ungraceful disconnects.
+- Retain Host `STATE/host_id` messages per QoS/retain rules.
+- Optionally enforce ACLs to constrain who may publish/subscribe to `NCMD`/`DCMD`/`STATE`.
+
+**Key Interactions:**
+- Delivers **NDEATH** on behalf of Edge Nodes via MQTT Will.
+- Retains latest **STATE** per Host for Primary Host discovery in multi-broker topologies.
+
+---
+
+### Sparkplug Host Application
+**Role:** Primary consumer/command source for Edge/Device metrics; authoritative view of topology and state.  
+**Responsibilities:**
+- Establish a **clean** MQTT session (`Clean Session=true` for 3.1.1; `Clean Start=true`, `Session Expiry=0` for 5.0).
+- Register **Will** on topic `STATE/<host_id>` with payload `{"online": false, "timestamp": <ts>}`.
+- **Subscribe** to Sparkplug namespace and `STATE/<host_id>` **before** publishing own `STATE` online.
+- Publish **STATE** (JSON UTF‑8) with `{"online": true, "timestamp": <same_ts_as_Will>}`.
+- On Edge **NDEATH**, immediately mark: Edge **offline**, Node/Device metrics **STALE** (Host **UTC** time).
+
+**Publishes:**
+- `STATE/<host_id>` (online/offline).  
+- `NCMD` and `DCMD` commands (when authorized).
+
+**Subscribes:**
+- `spBv1.0/#`, `STATE/<host_id>` (and optionally other Hosts’ STATE for HA awareness).
+
+**QoS/Retain:**
+- `STATE` typically **QoS 1**, **Retain=true**.
+
+---
+
+### Primary Host Application (Concept)
+**Role:** The designated Host allowed to command nodes/devices; used by Edges for broker selection in multi-server topologies.  
+**Responsibilities:**
+- Same as Host, plus: remain **discoverable** via retained `STATE` across all active brokers.
+- Coordinate **message ordering** so Edges can verify Host liveness and migrate brokers if needed.
+
+**Edge Behavior w.r.t. Primary Host:**
+- If retained `STATE/<primary_host_id>` shows `online=false` (with >= timestamp), Edge **MUST** publish **NDEATH** and reconnect/select another broker.
+
+---
+
+### Sparkplug Edge Node
+**Role:** Gateway or MQTT-native publisher that hosts one or more Devices and their metrics.  
+**Responsibilities:**
+- Establish a **clean** session and register **Will** as **NDEATH** on `spBv1.0/<group_id>/NDEATH/<edge_node_id>` with **Protobuf** payload containing **`bdSeq`**.
+- Before **NBIRTH**, **subscribe** `spBv1.0/<group_id>/NCMD/<edge_node_id>` (**QoS 1**) and, if applicable, `STATE/<primary_host_id>` and `spBv1.0/<group_id>/DCMD/#`.
+- Publish **NBIRTH** first after connect: **QoS 0**, **Retain=false**, payload includes **`seq ∈ [0..255]`**.
+- Publish **NDATA** on **RBE** (not periodic) with incrementing `seq` (wrap at 255).
+
+**Publishes:** `NBIRTH`, `NDATA`, `NDEATH`.  
+**Subscribes:** `NCMD` (mandatory), `DCMD` (optional, if proxying commands to devices), `STATE/<primary_host_id>`.  
+**Disconnects:** On intentional disconnect, **publish NDEATH first**; optional DISCONNECT to suppress Will. Duplicate NDEATH (same `bdSeq`) **must be ignored** by receivers.
+
+---
+
+### Sparkplug Device (MQTT-Enabled Device)
+**Role:** Optional leaf that publishes its own metrics via the Edge’s namespace.  
+**Responsibilities:**
+- If outputs are writable, **subscribe** `spBv1.0/<group_id>/DCMD/<edge_node_id>/<device_id>` (**QoS 1**).
+- Publish **DBIRTH** only **after** the parent **NBIRTH** (same session) and with matching `group_id`/`edge_node_id`.
+- **DBIRTH** payload Protobuf with **`seq ∈ [0..255]`**, **QoS 0**, **Retain=false**; publish **DDATA** on RBE; **DDEATH** on offline.
+
+**Publishes:** `DBIRTH`, `DDATA`, `DDEATH`.  
+**Subscribes:** `DCMD` (**QoS 1** when applicable).
+
+---
+
+
+
 | Message Type | Sender | QoS | Retain | Purpose |
 |--------------|--------|-----|--------|---------|
 | **NBIRTH** | Edge Node | 0 | false | Node birth certificate, announces Edge Node online |
@@ -286,3 +361,226 @@ This specification is based on the Eclipse Sparkplug 2.2 standard. The implement
 - **PayloadBuilder** provides type-safe metric construction
 - **Topic** parses and validates Sparkplug topic namespace
 - Thread-safe operations allow concurrent method calls from multiple threads
+
+---
+# Developer Addendum: Payloads and Messaging Rules
+
+# Sparkplug Payloads and Messaging Rules (Developer Addendum)
+
+This document consolidates the **normative payload and messaging rules** relevant to Sparkplug B
+Host Applications and Edge Nodes. It omits DataSet and Template definitions and represents payloads in **JSON**.
+
+---
+
+## 1. Payload Definition
+
+### 1.1 Payload Object
+
+A Sparkplug payload contains:
+
+```json
+{
+  "timestamp": 1668612345678,
+  "seq": 42,
+  "metrics": [ ... ]
+}
+```
+
+- `timestamp` — UTC milliseconds since epoch.  
+  - **MUST** be present in NBIRTH, DBIRTH, NDATA, and DDATA.  
+  - **MAY** be included in NCMD and DCMD.  
+- `seq` — unsigned 8-bit integer (0–255). Used for message sequencing.  
+- `metrics[]` — array of Metric objects (see below).
+
+---
+
+## 2. Metric Definition
+
+A **Metric** object conveys a single point of data or metadata.
+
+```json
+{
+  "name": "Temperature",
+  "alias": 1,
+  "datatype": "Float",
+  "value": 23.4,
+  "timestamp": 1668612345678,
+  "metadata": {
+    "units": "°C"
+  },
+  "properties": { ... }
+}
+```
+
+### Normative rules
+
+- Each metric **MUST** have a `name` and `datatype` in NBIRTH/DBIRTH.  
+- Each metric **MUST** have a `value` in NBIRTH/DBIRTH messages.  
+- A metric `timestamp`, if present, **MUST** be UTC.  
+- Subsequent NDATA/DDATA updates **SHOULD NOT** repeat the `datatype` unless it changes.  
+- Hierarchical naming using `/` separators **MAY** be used.  
+- Boolean, numeric, string, and bytes datatypes are supported.  
+- Arrays **MAY** be used if both producer and consumer agree on type.  
+
+---
+
+## 3. PropertySet and PropertyValue
+
+Properties provide metadata extensibility for metrics or components.
+
+### PropertyValue
+
+```json
+{
+  "key": "scaleFactor",
+  "value": 0.1,
+  "type": "Double"
+}
+```
+
+Rules:
+
+- `key` (string) — **MUST** be unique within the property set.  
+- `value` — **MUST** match the declared `type`.  
+- `type` — **MUST** be one of the standard Sparkplug scalar datatypes.  
+
+### PropertySet
+
+```json
+{
+  "keys": ["scaleFactor", "displayPrecision"],
+  "values": [
+    { "key": "scaleFactor", "value": 0.1, "type": "Double" },
+    { "key": "displayPrecision", "value": 2, "type": "Int32" }
+  ]
+}
+```
+
+Rules:
+
+- A PropertySet **MAY** appear in a Metric or in MetaData.  
+- A PropertySet **MUST NOT** contain duplicate keys.  
+- PropertySets **MAY** be nested if referenced by name.  
+
+---
+
+## 4. MetaData
+
+Optional context for metrics.
+
+```json
+{
+  "units": "°C",
+  "displayFormat": "%.1f",
+  "description": "Ambient temperature",
+  "enableHistorical": true
+}
+```
+
+Rules:
+
+- All MetaData fields are optional.  
+- `units` and `displayFormat` **SHOULD** be consistent with datatype.  
+- Host Applications **MUST** preserve unknown metadata fields.  
+
+---
+
+## 5. Normative Messaging Rules
+
+### 5.1 QoS and Retain
+
+| Message Type | QoS | Retain | Notes |
+|---------------|-----|--------|-------|
+| NBIRTH / DBIRTH | 1 | true | Defines entity and metrics. |
+| NDATA / DDATA | 0 or 1 | false | Report-by-exception updates. |
+| NCMD / DCMD | 0 or 1 | false | Commands to edge node or device. |
+| NDEATH / DDEATH | 1 | false | Sent on controlled shutdown. |
+| STATE | 1 | true | Host STATE indication (JSON payload). |
+
+Rules:
+
+- All BIRTH and DEATH messages **MUST** use QoS 1.  
+- All BIRTH messages **MUST** be published with `retain=true`.  
+- All DEATH messages **MUST** be published with `retain=false`.  
+- NDATA/DDATA **MAY** use QoS 0 for performance but SHOULD use QoS 1 when reliability is required.  
+- Host STATE topics **MUST** be retained to indicate last-known host status.  
+
+### 5.2 Sequence Numbers
+
+- Each Edge Node **MUST** maintain an 8‑bit `seq` counter incremented for every NDATA, NCMD, or DDATA message.  
+- Counter wraps from 255 → 0.  
+- Host Applications **MUST** detect gaps to identify missing messages.  
+- The first NBIRTH after connection **MUST** start at `seq=0`.  
+
+### 5.3 Timestamp Semantics
+
+- All timestamps are milliseconds since epoch (UTC).  
+- Edge Nodes **MUST** timestamp metrics as close to acquisition as possible.  
+- Host Applications **MUST NOT** rewrite metric timestamps unless acting as data originators.  
+
+---
+
+## 6. Example
+
+### NBIRTH Example
+
+```json
+{
+  "timestamp": 1668612000000,
+  "seq": 0,
+  "metrics": [
+    {
+      "name": "Temperature",
+      "datatype": "Float",
+      "value": 23.4,
+      "metadata": { "units": "°C" },
+      "properties": {
+        "scaleFactor": { "value": 0.1, "type": "Double" }
+      }
+    },
+    {
+      "name": "Humidity",
+      "datatype": "Float",
+      "value": 41.2,
+      "metadata": { "units": "%" }
+    }
+  ]
+}
+```
+
+---
+
+### NDATA Example
+
+```json
+{
+  "timestamp": 1668612010000,
+  "seq": 1,
+  "metrics": [
+    { "name": "Temperature", "value": 23.6 },
+    { "name": "Humidity", "value": 41.5 }
+  ]
+}
+```
+
+---
+
+### STATE Example
+
+```json
+{
+  "online": true,
+  "timestamp": 1668612050000,
+  "bdSeq": 42
+}
+```
+
+Rules:
+
+- Published by Host Application to `spBv1.0/STATE/<GroupId>` with QoS 1 and `retain=true`.  
+- `online` **MUST** be `true` on startup and `false` on orderly shutdown.  
+- `bdSeq` identifies the current BIRTH/DEATH sequence counter for the node.  
+
+---
+
+**End of Developer Addendum**

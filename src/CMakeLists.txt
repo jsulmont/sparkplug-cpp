@@ -1,8 +1,7 @@
 # src/CMakeLists.txt
 add_library(sparkplug_cpp
     payload_builder.cpp
-    publisher.cpp
-    subscriber.cpp
+    edge_node.cpp
     topic.cpp
     host_application.cpp
 )

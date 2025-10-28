@@ -10,7 +10,7 @@ A modern C++-23 implementation of the Eclipse Sparkplug B 2.2 specification for 
 - **Modern C++-23** - Uses latest C++ features (std::expected, ranges, modules-ready)
 - **Type Safe** - Leverages strong typing and compile-time checks
 - **TLS/SSL Support** - Secure MQTT connections with optional mutual authentication
-- **Easy Integration** - Simple Publisher/Subscriber API
+- **Easy Integration** - Simple EdgeNode/Subscriber API
 - **Tested** - Comprehensive compliance test suite included
 - **Cross Platform** - Works on macOS and Linux
 
@@ -111,7 +111,7 @@ cmake --build build -j$(nproc)
 
 **Note:** This project requires full C++-23 support including `std::expected` and `std::ranges::to`. Fedora 40+ ships GCC 14 with complete implementations. Arch Linux also works but is less stable for production.
 
-### Basic Publisher Example
+### Basic EdgeNode Example
 
 ```cpp
 #include <sparkplug/publisher.hpp>
@@ -119,14 +119,14 @@ cmake --build build -j$(nproc)
 
 int main() {
   // Configure publisher
-  sparkplug::Publisher::Config config{
+  sparkplug::EdgeNode::Config config{
     .broker_url = "tcp://localhost:1883",
     .client_id = "my_edge_node",
     .group_id = "MyGroup",
     .edge_node_id = "Edge01"
   };
 
-  sparkplug::Publisher publisher(std::move(config));
+  sparkplug::EdgeNode publisher(std::move(config));
   
   // Connect to broker
   if (auto result = publisher.connect(); !result) {
@@ -240,7 +240,7 @@ The `examples/` directory contains:
 
 **C API Examples:**
 
-- **publisher_example_c.c** - Publisher using C bindings
+- **publisher_example_c.c** - EdgeNode using C bindings
 - **subscriber_example_c.c** - Subscriber using C bindings
 
 **TLS Examples:**
@@ -270,12 +270,12 @@ The library supports secure MQTT connections using TLS/SSL encryption. This incl
 ```cpp
 #include <sparkplug/publisher.hpp>
 
-sparkplug::Publisher::TlsOptions tls{
+sparkplug::EdgeNode::TlsOptions tls{
     .trust_store = "/path/to/ca.crt",          // CA certificate (required)
     .enable_server_cert_auth = true            // Verify server (default)
 };
 
-sparkplug::Publisher::Config config{
+sparkplug::EdgeNode::Config config{
     .broker_url = "ssl://localhost:8883",      // Use ssl:// prefix for TLS
     .client_id = "secure_publisher",
     .group_id = "Energy",
@@ -283,14 +283,14 @@ sparkplug::Publisher::Config config{
     .tls = tls                                 // Enable TLS
 };
 
-sparkplug::Publisher publisher(std::move(config));
+sparkplug::EdgeNode publisher(std::move(config));
 publisher.connect();
 ```
 
 ### Mutual TLS (Client Certificates)
 
 ```cpp
-sparkplug::Publisher::TlsOptions tls{
+sparkplug::EdgeNode::TlsOptions tls{
     .trust_store = "/path/to/ca.crt",          // CA certificate
     .key_store = "/path/to/client.crt",        // Client certificate
     .private_key = "/path/to/client.key",      // Client private key
@@ -403,10 +403,10 @@ All public APIs are documented with:
 
 ## API Documentation
 
-### Publisher
+### EdgeNode
 
 ```cpp
-class Publisher {
+class EdgeNode {
   // Connect to MQTT broker and establish session
   std::expected<void, std::string> connect();
   
@@ -498,7 +498,7 @@ sparkplug_publisher_destroy(pub);
 +---------------------------------------------+
 |  Sparkplug B C++ Library                    |
 |  +----------------+  +------------------+   |
-|  |  Publisher     |  |  Subscriber      |   |
+|  |  EdgeNode     |  |  Subscriber      |   |
 |  +----------------+  +------------------+   |
 |            |                 |               |
 |            v                 v               |
@@ -565,7 +565,7 @@ Examples:
 - **Async I/O** - Non-blocking MQTT operations
 
 ### Threading Model
-The library uses coarse-grained locking (single mutex per Publisher/Subscriber) for simplicity and correctness. This is suitable for typical IIoT applications with message rates up to ~1kHz. All public methods are thread-safe and can be called from any thread concurrently. Callbacks execute on the MQTT client thread.
+The library uses coarse-grained locking (single mutex per EdgeNode/Subscriber) for simplicity and correctness. This is suitable for typical IIoT applications with message rates up to ~1kHz. All public methods are thread-safe and can be called from any thread concurrently. Callbacks execute on the MQTT client thread.
 
 ### Future Optimizations
 If profiling reveals performance bottlenecks in high-throughput scenarios (>10kHz):
@@ -616,7 +616,7 @@ at your option.
 - Birth/Death sequence (bdSeq) tracking
 - Metric aliases for bandwidth efficiency (Report by Exception)
 - TLS/SSL support with mutual authentication (client certificates)
-- Thread-safe Publisher and Subscriber classes
+- Thread-safe EdgeNode and Subscriber classes
 - Device management APIs
 - Command handling (NCMD/DCMD callbacks)
 - Host Application STATE messages

@@ -1,4 +1,11 @@
-// examples/subscriber_example_debug.cpp
+// examples/subscriber_mimic_debug.cpp
+// Connects to the public MIMIC MQTT Lab broker to test Sparkplug implementation
+// against real edge nodes publishing temperature telemetry data.
+//
+// MIMIC Lab: https://mqttlab.iotsim.io/sparkplug/
+// Broker: broker.hivemq.com:1883
+// Topics: spBv1.0/# (100 EON nodes with Sparkplug B sensors)
+
 #include <atomic>
 #include <csignal>
 #include <iomanip>
@@ -11,6 +18,9 @@
 
 std::atomic<bool> running{true};
 std::atomic<int> message_count{0};
+std::atomic<int> nbirth_count{0};
+std::atomic<int> ndata_count{0};
+std::atomic<int> ndeath_count{0};
 
 void signal_handler(int signal) {
   (void)signal;
@@ -91,9 +101,35 @@ int main() {
   std::signal(SIGINT, signal_handler);
   std::signal(SIGTERM, signal_handler);
 
+  std::cout << "=================================================================\n";
+  std::cout << "  MIMIC MQTT Lab Sparkplug Subscriber (Debug Mode)\n";
+  std::cout << "=================================================================\n";
+  std::cout << "Connecting to: broker.hivemq.com:1883\n";
+  std::cout << "Description: Public test broker with 100 simulated EON nodes\n";
+  std::cout << "             publishing temperature telemetry via Sparkplug B\n";
+  std::cout << "Info: https://mqttlab.iotsim.io/sparkplug/\n";
+  std::cout << "=================================================================\n\n";
+
+  // Use "+" as group_id (MQTT single-level wildcard)
+  // This will expand to "spBv1.0/+/#" to catch all groups
   auto message_handler = [](const sparkplug::Topic& topic,
                             const org::eclipse::tahu::protobuf::Payload& payload) {
     int count = ++message_count;
+
+    // Count message types
+    switch (topic.message_type) {
+    case sparkplug::MessageType::NBIRTH:
+      ++nbirth_count;
+      break;
+    case sparkplug::MessageType::NDATA:
+      ++ndata_count;
+      break;
+    case sparkplug::MessageType::NDEATH:
+      ++ndeath_count;
+      break;
+    default:
+      break;
+    }
 
     std::cout << "\n╔════════════════════════════════════════════════════════════╗\n";
     std::cout << "║ Message #" << std::setw(3) << count << " - " << std::setw(7)
@@ -129,64 +165,73 @@ int main() {
     std::cout << std::endl; // Flush immediately
   };
 
-  sparkplug::HostApplication::Config config{.broker_url = "tcp://localhost:1883",
-                                            .client_id = "sparkplug_subscriber_debug",
-                                            .host_id = "Energy",
-                                            .qos = 1,
-                                            .clean_session = true,
-                                            .validate_sequence =
-                                                true, // Enable validation to see warnings
-                                            .message_callback = message_handler};
+  sparkplug::HostApplication::Config config{
+      .broker_url = "tcp://broker.hivemq.com:1883",
+      .client_id = "sparkplug_mimic_debug_subscriber",
+      .host_id = "+", // Wildcard to match all groups
+      .qos = 1,
+      .clean_session = true,
+      .validate_sequence = false, // Disable validation for public demo (many publishers)
+      .message_callback = message_handler};
 
   sparkplug::HostApplication subscriber(std::move(config));
 
-  std::cout << "🔧 Debug Subscriber Starting...\n";
+  std::cout << "Connecting to broker...\n";
 
   auto connect_result = subscriber.connect();
   if (!connect_result) {
-    std::cerr << "❌ Failed to connect: " << connect_result.error() << "\n";
+    std::cerr << "Failed to connect: " << connect_result.error() << "\n";
+    std::cerr << "\nNote: This requires internet access to broker.hivemq.com\n";
     return 1;
   }
 
-  std::cout << "✓ Connected to broker at tcp://localhost:1883\n";
+  std::cout << "Connected successfully!\n";
 
   auto subscribe_result = subscriber.subscribe_all_groups();
   if (!subscribe_result) {
-    std::cerr << "❌ Failed to subscribe: " << subscribe_result.error() << "\n";
+    std::cerr << "Failed to subscribe: " << subscribe_result.error() << "\n";
     return 1;
   }
 
-  std::cout << "✓ Subscribed to: spBv1.0/Energy/#\n";
-  std::cout << "✓ Validation: ENABLED\n";
-  std::cout << "\n⏳ Waiting for messages...\n";
-  std::cout << "   (Press Ctrl+C to exit)\n";
-  std::cout << "   (Try: kill -9 <publisher_pid> to send NDEATH)\n\n";
+  std::cout << "Subscribed to: spBv1.0/+/# (all groups)\n";
+  std::cout << "Validation: DISABLED (public demo with many publishers)\n";
+  std::cout << "\nWaiting for messages from MIMIC Lab edge nodes...\n";
+  std::cout << "(Press Ctrl+C to exit)\n\n";
 
   auto last_count = 0;
+  int idle_seconds = 0;
   while (running) {
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    // Show we're alive every 10 seconds if no messages
     auto current_count = message_count.load();
     if (current_count == last_count) {
-      static int idle_count = 0;
-      if (++idle_count % 10 == 0) {
-        std::cout << "💤 Still waiting... (received " << current_count << " messages so far)\n"
+      if (++idle_seconds % 10 == 0) {
+        std::cout << "Still waiting... (received " << current_count
+                  << " messages: " << nbirth_count.load() << " NBIRTH, " << ndata_count.load()
+                  << " NDATA, " << ndeath_count.load() << " NDEATH)\n"
                   << std::flush;
       }
     } else {
       last_count = current_count;
+      idle_seconds = 0;
     }
   }
 
-  std::cout << "\n\n⏹ Shutting down...\n";
-  std::cout << "📊 Total messages received: " << message_count.load() << "\n";
+  std::cout << "\n\nShutting down...\n";
+  std::cout << "=================================================================\n";
+  std::cout << "  Statistics\n";
+  std::cout << "=================================================================\n";
+  std::cout << "Total messages:  " << message_count.load() << "\n";
+  std::cout << "  NBIRTH:        " << nbirth_count.load() << "\n";
+  std::cout << "  NDATA:         " << ndata_count.load() << "\n";
+  std::cout << "  NDEATH:        " << ndeath_count.load() << "\n";
+  std::cout << "=================================================================\n";
 
   auto disconnect_result = subscriber.disconnect();
   if (!disconnect_result) {
-    std::cerr << "❌ Failed to disconnect: " << disconnect_result.error() << "\n";
+    std::cerr << "Failed to disconnect: " << disconnect_result.error() << "\n";
   } else {
-    std::cout << "✓ Disconnected\n";
+    std::cout << "Disconnected successfully\n";
   }
 
   return 0;

@@ -1,5 +1,5 @@
-// src/publisher.cpp
-#include "sparkplug/publisher.hpp"
+// src/edge_node.cpp
+#include "sparkplug/edge_node.hpp"
 
 #include <cstring>
 #include <format>
@@ -66,12 +66,12 @@ void MQTTAsyncHandle::reset() noexcept {
   }
 }
 
-Publisher::Publisher(Config config) : config_(std::move(config)) {
+EdgeNode::EdgeNode(Config config) : config_(std::move(config)) {
 }
 
-int Publisher::on_message_arrived(void* context, char* topicName, int topicLen,
-                                  MQTTAsync_message* message) {
-  auto* publisher = static_cast<Publisher*>(context);
+int EdgeNode::on_message_arrived(void* context, char* topicName, int topicLen,
+                                 MQTTAsync_message* message) {
+  auto* edge_node = static_cast<EdgeNode*>(context);
 
   std::string topic_str;
   if (topicLen > 0) {
@@ -89,10 +89,10 @@ int Publisher::on_message_arrived(void* context, char* topicName, int topicLen,
 
   const auto& topic = topic_result.value();
 
-  if (topic.message_type == MessageType::NCMD && publisher->config_.command_callback) {
+  if (topic.message_type == MessageType::NCMD && edge_node->config_.command_callback) {
     org::eclipse::tahu::protobuf::Payload payload;
     if (payload.ParseFromArray(message->payload, message->payloadlen)) {
-      publisher->config_.command_callback.value()(topic, payload);
+      edge_node->config_.command_callback.value()(topic, payload);
     }
   }
 
@@ -101,13 +101,13 @@ int Publisher::on_message_arrived(void* context, char* topicName, int topicLen,
   return 1;
 }
 
-Publisher::~Publisher() {
+EdgeNode::~EdgeNode() {
   if (client_ && is_connected_) {
     (void)disconnect();
   }
 }
 
-Publisher::Publisher(Publisher&& other) noexcept
+EdgeNode::EdgeNode(EdgeNode&& other) noexcept
     : config_(std::move(other.config_)), client_(std::move(other.client_)),
       seq_num_(other.seq_num_), bd_seq_num_(other.bd_seq_num_),
       death_payload_data_(std::move(other.death_payload_data_)),
@@ -119,7 +119,7 @@ Publisher::Publisher(Publisher&& other) noexcept
   other.is_connected_ = false;
 }
 
-Publisher& Publisher::operator=(Publisher&& other) noexcept {
+EdgeNode& EdgeNode::operator=(EdgeNode&& other) noexcept {
   if (this != &other) {
     // Lock both mutexes in consistent order to avoid deadlock
     std::lock(mutex_, other.mutex_);
@@ -139,19 +139,19 @@ Publisher& Publisher::operator=(Publisher&& other) noexcept {
   return *this;
 }
 
-void Publisher::set_credentials(std::optional<std::string> username,
-                                std::optional<std::string> password) {
+void EdgeNode::set_credentials(std::optional<std::string> username,
+                               std::optional<std::string> password) {
   std::lock_guard<std::mutex> lock(mutex_);
   config_.username = std::move(username);
   config_.password = std::move(password);
 }
 
-void Publisher::set_tls(std::optional<TlsOptions> tls) {
+void EdgeNode::set_tls(std::optional<TlsOptions> tls) {
   std::lock_guard<std::mutex> lock(mutex_);
   config_.tls = std::move(tls);
 }
 
-std::expected<void, std::string> Publisher::connect() {
+std::expected<void, std::string> EdgeNode::connect() {
   std::lock_guard<std::mutex> lock(mutex_);
 
   MQTTAsync raw_client = nullptr;
@@ -161,6 +161,9 @@ std::expected<void, std::string> Publisher::connect() {
     return std::unexpected(std::format("Failed to create client: {}", rc));
   }
   client_ = MQTTAsyncHandle(raw_client);
+
+  // Increment bdSeq for this session (Sparkplug spec requires bdSeq to start at 1)
+  bd_seq_num_++;
 
   // Prepare NDEATH payload BEFORE connecting
   PayloadBuilder death_payload;
@@ -279,7 +282,7 @@ std::expected<void, std::string> Publisher::connect() {
   return {};
 }
 
-std::expected<void, std::string> Publisher::disconnect() {
+std::expected<void, std::string> EdgeNode::disconnect() {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!client_) {
@@ -315,8 +318,8 @@ std::expected<void, std::string> Publisher::disconnect() {
   return {};
 }
 
-std::expected<void, std::string> Publisher::publish_message(const Topic& topic,
-                                                            std::span<const uint8_t> payload_data) {
+std::expected<void, std::string> EdgeNode::publish_message(const Topic& topic,
+                                                           std::span<const uint8_t> payload_data) {
   // Note: mutex already held by caller
   if (!client_ || !is_connected_) {
     return std::unexpected("Not connected");
@@ -342,7 +345,7 @@ std::expected<void, std::string> Publisher::publish_message(const Topic& topic,
   return {};
 }
 
-std::expected<void, std::string> Publisher::publish_birth(PayloadBuilder& payload) {
+std::expected<void, std::string> EdgeNode::publish_birth(PayloadBuilder& payload) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!is_connected_) {
@@ -383,12 +386,11 @@ std::expected<void, std::string> Publisher::publish_birth(PayloadBuilder& payloa
   last_birth_payload_ = std::move(payload_data);
 
   seq_num_ = 0;
-  bd_seq_num_++;
 
   return {};
 }
 
-std::expected<void, std::string> Publisher::publish_data(PayloadBuilder& payload) {
+std::expected<void, std::string> EdgeNode::publish_data(PayloadBuilder& payload) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!is_connected_) {
@@ -410,7 +412,7 @@ std::expected<void, std::string> Publisher::publish_data(PayloadBuilder& payload
   return publish_message(topic, payload_data);
 }
 
-std::expected<void, std::string> Publisher::publish_death() {
+std::expected<void, std::string> EdgeNode::publish_death() {
   std::unique_lock<std::mutex> lock(mutex_);
 
   if (!is_connected_) {
@@ -432,7 +434,7 @@ std::expected<void, std::string> Publisher::publish_death() {
   return disconnect();
 }
 
-std::expected<void, std::string> Publisher::rebirth() {
+std::expected<void, std::string> EdgeNode::rebirth() {
   std::unique_lock<std::mutex> lock(mutex_);
 
   if (!is_connected_) {
@@ -449,11 +451,13 @@ std::expected<void, std::string> Publisher::rebirth() {
     return std::unexpected("Failed to parse stored birth payload");
   }
 
-  bd_seq_num_++;
+  // Note: bd_seq_num_ will be incremented by connect() call below
+  // We need to update the stored payload with the new bdSeq that connect() will set
+  uint64_t new_bdseq = bd_seq_num_ + 1;
 
   for (auto& metric : *proto_payload.mutable_metrics()) {
     if (metric.name() == "bdSeq") {
-      metric.set_long_value(bd_seq_num_);
+      metric.set_long_value(new_bdseq);
       break;
     }
   }
@@ -491,8 +495,8 @@ std::expected<void, std::string> Publisher::rebirth() {
   return {};
 }
 
-std::expected<void, std::string> Publisher::publish_device_birth(std::string_view device_id,
-                                                                 PayloadBuilder& payload) {
+std::expected<void, std::string> EdgeNode::publish_device_birth(std::string_view device_id,
+                                                                PayloadBuilder& payload) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!is_connected_) {
@@ -525,8 +529,8 @@ std::expected<void, std::string> Publisher::publish_device_birth(std::string_vie
   return {};
 }
 
-std::expected<void, std::string> Publisher::publish_device_data(std::string_view device_id,
-                                                                PayloadBuilder& payload) {
+std::expected<void, std::string> EdgeNode::publish_device_data(std::string_view device_id,
+                                                               PayloadBuilder& payload) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!is_connected_) {
@@ -555,7 +559,7 @@ std::expected<void, std::string> Publisher::publish_device_data(std::string_view
   return publish_message(topic, payload_data);
 }
 
-std::expected<void, std::string> Publisher::publish_device_death(std::string_view device_id) {
+std::expected<void, std::string> EdgeNode::publish_device_death(std::string_view device_id) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!is_connected_) {
@@ -585,7 +589,7 @@ std::expected<void, std::string> Publisher::publish_device_death(std::string_vie
 }
 
 std::expected<void, std::string>
-Publisher::publish_node_command(std::string_view target_edge_node_id, PayloadBuilder& payload) {
+EdgeNode::publish_node_command(std::string_view target_edge_node_id, PayloadBuilder& payload) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!is_connected_) {
@@ -602,8 +606,8 @@ Publisher::publish_node_command(std::string_view target_edge_node_id, PayloadBui
 }
 
 std::expected<void, std::string>
-Publisher::publish_device_command(std::string_view target_edge_node_id,
-                                  std::string_view target_device_id, PayloadBuilder& payload) {
+EdgeNode::publish_device_command(std::string_view target_edge_node_id,
+                                 std::string_view target_device_id, PayloadBuilder& payload) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!is_connected_) {
@@ -620,8 +624,8 @@ Publisher::publish_device_command(std::string_view target_edge_node_id,
 }
 
 std::expected<void, std::string>
-Publisher::publish_raw_message(std::string_view topic, std::span<const uint8_t> payload_data,
-                               int qos, bool retain) {
+EdgeNode::publish_raw_message(std::string_view topic, std::span<const uint8_t> payload_data,
+                              int qos, bool retain) {
   // Note: mutex already held by caller
   if (!client_ || !is_connected_) {
     return std::unexpected("Not connected");
@@ -645,8 +649,8 @@ Publisher::publish_raw_message(std::string_view topic, std::span<const uint8_t> 
   return {};
 }
 
-std::expected<void, std::string> Publisher::publish_state_birth(std::string_view host_id,
-                                                                uint64_t timestamp) {
+std::expected<void, std::string> EdgeNode::publish_state_birth(std::string_view host_id,
+                                                               uint64_t timestamp) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!is_connected_) {
@@ -662,8 +666,8 @@ std::expected<void, std::string> Publisher::publish_state_birth(std::string_view
   return publish_raw_message(topic, payload_data, 1, true);
 }
 
-std::expected<void, std::string> Publisher::publish_state_death(std::string_view host_id,
-                                                                uint64_t timestamp) {
+std::expected<void, std::string> EdgeNode::publish_state_death(std::string_view host_id,
+                                                               uint64_t timestamp) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!is_connected_) {

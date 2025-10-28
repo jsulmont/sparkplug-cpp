@@ -14,8 +14,9 @@
 namespace sparkplug {
 
 namespace {
-constexpr int CONNECTION_TIMEOUT_MS = 5000;
+constexpr int CONNECTION_TIMEOUT_MS = 10000; // Increased from 5s to 10s
 constexpr int DISCONNECT_TIMEOUT_MS = 11000;
+constexpr uint64_t SEQ_NUMBER_MAX = 256;
 
 void on_connect_success(void* context, MQTTAsync_successData* response) {
   (void)response;
@@ -25,7 +26,13 @@ void on_connect_success(void* context, MQTTAsync_successData* response) {
 
 void on_connect_failure(void* context, MQTTAsync_failureData* response) {
   auto* promise = static_cast<std::promise<void>*>(context);
-  auto error = std::format("Connection failed: code={}", response ? response->code : -1);
+  std::string error;
+  if (response) {
+    error = std::format("Connection failed: code={}, message={}", response->code,
+                        response->message ? response->message : "none");
+  } else {
+    error = "Connection failed: no response data";
+  }
   promise->set_exception(std::make_exception_ptr(std::runtime_error(error)));
 }
 
@@ -49,21 +56,20 @@ HostApplication::HostApplication(Config config) : config_(std::move(config)) {
 HostApplication::~HostApplication() {
   if (client_ && is_connected_) {
     (void)disconnect();
+  } else if (client_) {
+    MQTTAsync_setCallbacks(client_.get(), nullptr, nullptr, nullptr, nullptr);
   }
 }
 
 HostApplication::HostApplication(HostApplication&& other) noexcept
     : config_(std::move(other.config_)), client_(std::move(other.client_)),
-      is_connected_(other.is_connected_)
-// mutex_ is default-constructed (mutexes are not moveable)
-{
+      is_connected_(other.is_connected_) {
   std::lock_guard<std::mutex> lock(other.mutex_);
   other.is_connected_ = false;
 }
 
 HostApplication& HostApplication::operator=(HostApplication&& other) noexcept {
   if (this != &other) {
-    // Lock both mutexes in consistent order to avoid deadlock
     std::lock(mutex_, other.mutex_);
     std::lock_guard<std::mutex> lock1(mutex_, std::adopt_lock);
     std::lock_guard<std::mutex> lock2(other.mutex_, std::adopt_lock);
@@ -99,11 +105,15 @@ std::expected<void, std::string> HostApplication::connect() {
   }
   client_ = MQTTAsyncHandle(raw_client);
 
+  rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost, on_message_arrived, nullptr);
+  if (rc != MQTTASYNC_SUCCESS) {
+    return std::unexpected(std::format("Failed to set callbacks: {}", rc));
+  }
+
   MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
   conn_opts.keepAliveInterval = config_.keep_alive_interval;
   conn_opts.cleansession = config_.clean_session;
 
-  // Set credentials if provided
   if (config_.username.has_value()) {
     conn_opts.username = config_.username.value().c_str();
   }
@@ -125,9 +135,6 @@ std::expected<void, std::string> HostApplication::connect() {
     conn_opts.ssl = &ssl_opts;
   }
 
-  // NOTE: No Last Will Testament for Host Applications (unlike Edge Nodes)
-  // Host Applications should explicitly call publish_state_death() before disconnect()
-
   std::promise<void> connect_promise;
   auto connect_future = connect_promise.get_future();
 
@@ -137,17 +144,23 @@ std::expected<void, std::string> HostApplication::connect() {
 
   rc = MQTTAsync_connect(client_.get(), &conn_opts);
   if (rc != MQTTASYNC_SUCCESS) {
+    MQTTAsync_setCallbacks(client_.get(), nullptr, nullptr, nullptr, nullptr);
     return std::unexpected(std::format("Failed to connect: {}", rc));
   }
 
   auto status = connect_future.wait_for(std::chrono::milliseconds(CONNECTION_TIMEOUT_MS));
   if (status == std::future_status::timeout) {
+    MQTTAsync_setCallbacks(client_.get(), nullptr, nullptr, nullptr, nullptr);
+    MQTTAsync_disconnectOptions disc_opts = MQTTAsync_disconnectOptions_initializer;
+    disc_opts.timeout = 1000;
+    MQTTAsync_disconnect(client_.get(), &disc_opts);
     return std::unexpected("Connection timeout");
   }
 
   try {
     connect_future.get();
   } catch (const std::exception& e) {
+    MQTTAsync_setCallbacks(client_.get(), nullptr, nullptr, nullptr, nullptr);
     return std::unexpected(e.what());
   }
 
@@ -302,6 +315,381 @@ HostApplication::publish_command_message(std::string_view topic,
   }
 
   return {};
+}
+
+std::expected<void, std::string> HostApplication::subscribe_all_groups() {
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  if (!client_) {
+    return std::unexpected("Not connected");
+  }
+
+  std::string topic = "spBv1.0/#";
+
+  MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
+
+  int rc = MQTTAsync_subscribe(client_.get(), topic.c_str(), config_.qos, &opts);
+  if (rc != MQTTASYNC_SUCCESS) {
+    return std::unexpected(std::format("Failed to subscribe: {}", rc));
+  }
+
+  return {};
+}
+
+std::expected<void, std::string> HostApplication::subscribe_group(std::string_view group_id) {
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  if (!client_) {
+    return std::unexpected("Not connected");
+  }
+
+  std::string topic = std::format("spBv1.0/{}/#", group_id);
+
+  MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
+
+  int rc = MQTTAsync_subscribe(client_.get(), topic.c_str(), config_.qos, &opts);
+  if (rc != MQTTASYNC_SUCCESS) {
+    return std::unexpected(std::format("Failed to subscribe: {}", rc));
+  }
+
+  return {};
+}
+
+std::expected<void, std::string> HostApplication::subscribe_node(std::string_view group_id,
+                                                                 std::string_view edge_node_id) {
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  if (!client_) {
+    return std::unexpected("Not connected");
+  }
+
+  std::string topic = std::format("spBv1.0/{}/+/{}/#", group_id, edge_node_id);
+
+  MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
+
+  int rc = MQTTAsync_subscribe(client_.get(), topic.c_str(), config_.qos, &opts);
+  if (rc != MQTTASYNC_SUCCESS) {
+    return std::unexpected(std::format("Failed to subscribe: {}", rc));
+  }
+
+  return {};
+}
+
+std::expected<void, std::string> HostApplication::subscribe_state(std::string_view host_id) {
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  if (!client_) {
+    return std::unexpected("Not connected");
+  }
+
+  std::string topic = std::format("STATE/{}", host_id);
+
+  MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
+
+  int rc = MQTTAsync_subscribe(client_.get(), topic.c_str(), config_.qos, &opts);
+  if (rc != MQTTASYNC_SUCCESS) {
+    return std::unexpected(std::format("Failed to subscribe: {}", rc));
+  }
+
+  return {};
+}
+
+std::optional<std::reference_wrapper<const HostApplication::NodeState>>
+HostApplication::get_node_state(std::string_view group_id, std::string_view edge_node_id) const {
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  auto it = node_states_.find(std::make_pair(group_id, edge_node_id));
+  if (it != node_states_.end()) {
+    return std::cref(it->second);
+  }
+  return std::nullopt;
+}
+
+std::optional<std::string_view> HostApplication::get_metric_name(std::string_view group_id,
+                                                                 std::string_view edge_node_id,
+                                                                 std::string_view device_id,
+                                                                 uint64_t alias) const {
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  auto it = node_states_.find(std::make_pair(group_id, edge_node_id));
+  if (it == node_states_.end()) {
+    return std::nullopt;
+  }
+
+  const auto& node_state = it->second;
+
+  if (!device_id.empty()) {
+    auto device_it = node_state.devices.find(device_id);
+    if (device_it == node_state.devices.end()) {
+      return std::nullopt;
+    }
+
+    const auto& device_state = device_it->second;
+    auto alias_it = device_state.alias_map.find(alias);
+    if (alias_it != device_state.alias_map.end()) {
+      return std::string_view(alias_it->second);
+    }
+    return std::nullopt;
+  }
+
+  auto alias_it = node_state.alias_map.find(alias);
+  if (alias_it != node_state.alias_map.end()) {
+    return std::string_view(alias_it->second);
+  }
+  return std::nullopt;
+}
+
+void HostApplication::log(LogLevel level, std::string_view message) const noexcept {
+  if (config_.log_callback) {
+    config_.log_callback(level, message);
+  }
+}
+
+bool HostApplication::validate_message(const Topic& topic,
+                                       const org::eclipse::tahu::protobuf::Payload& payload) {
+  if (!config_.validate_sequence) {
+    return true;
+  }
+
+  NodeKey key{topic.group_id, topic.edge_node_id};
+  auto& state = node_states_[key];
+  const std::string node_id = topic.group_id + "/" + topic.edge_node_id;
+
+  switch (topic.message_type) {
+  case MessageType::NBIRTH: {
+    if (payload.has_seq() && payload.seq() != 0) {
+      log(LogLevel::WARN,
+          std::format("NBIRTH for {} has invalid seq: {} (expected 0)", node_id, payload.seq()));
+      return false;
+    }
+
+    uint64_t bd_seq = 0;
+    bool has_bdseq = false;
+    for (const auto& metric : payload.metrics()) {
+      if (metric.name() == "bdSeq") {
+        bd_seq = metric.long_value();
+        has_bdseq = true;
+        break;
+      }
+    }
+
+    if (!has_bdseq) {
+      log(LogLevel::WARN, std::format("NBIRTH for {} missing required bdSeq metric", node_id));
+      return false;
+    }
+
+    state.bd_seq = bd_seq;
+    state.last_seq = 0;
+    state.is_online = true;
+    state.birth_received = true;
+    state.birth_timestamp = payload.timestamp();
+
+    state.alias_map.clear();
+    for (const auto& metric : payload.metrics()) {
+      if (metric.has_alias() && metric.has_name()) {
+        state.alias_map[metric.alias()] = metric.name();
+      }
+    }
+
+    return true;
+  }
+
+  case MessageType::NDEATH: {
+    uint64_t bd_seq = 0;
+    for (const auto& metric : payload.metrics()) {
+      if (metric.name() == "bdSeq") {
+        bd_seq = metric.long_value();
+        break;
+      }
+    }
+
+    if (state.birth_received && bd_seq != state.bd_seq) {
+      log(LogLevel::WARN, std::format("NDEATH bdSeq mismatch for {} (NDEATH: {}, NBIRTH: {})",
+                                      node_id, bd_seq, state.bd_seq));
+    }
+
+    state.is_online = false;
+    return true;
+  }
+
+  case MessageType::NDATA: {
+    if (!state.birth_received) {
+      log(LogLevel::WARN, std::format("Received NDATA for {} before NBIRTH", node_id));
+      return false;
+    }
+
+    if (payload.has_seq()) {
+      uint64_t seq = payload.seq();
+      uint64_t expected_seq = (state.last_seq + 1) % SEQ_NUMBER_MAX;
+
+      if (seq != expected_seq) {
+        log(LogLevel::WARN, std::format("Sequence number gap for {} (got {}, expected {})", node_id,
+                                        seq, expected_seq));
+      }
+
+      state.last_seq = seq;
+    }
+
+    return true;
+  }
+
+  case MessageType::DBIRTH: {
+    if (!state.birth_received) {
+      log(LogLevel::WARN,
+          std::format("Received DBIRTH for device on {} before node NBIRTH", node_id));
+      return false;
+    }
+
+    if (payload.has_seq() && payload.seq() != 0) {
+      log(LogLevel::WARN,
+          std::format("DBIRTH for device '{}' on {} has invalid seq: {} (expected 0)",
+                      topic.device_id, node_id, payload.seq()));
+    }
+
+    auto& device_state = state.devices[topic.device_id];
+    device_state.is_online = true;
+    device_state.birth_received = true;
+    device_state.last_seq = 0;
+
+    device_state.alias_map.clear();
+    for (const auto& metric : payload.metrics()) {
+      if (metric.has_alias() && metric.has_name()) {
+        device_state.alias_map[metric.alias()] = metric.name();
+      }
+    }
+
+    return true;
+  }
+
+  case MessageType::DDATA: {
+    if (!state.birth_received) {
+      log(LogLevel::WARN, std::format("Received DDATA for device '{}' on {} before node NBIRTH",
+                                      topic.device_id, node_id));
+      return false;
+    }
+
+    auto device_it = state.devices.find(topic.device_id);
+    if (device_it == state.devices.end() || !device_it->second.birth_received) {
+      log(LogLevel::WARN, std::format("Received DDATA for device '{}' on {} before DBIRTH",
+                                      topic.device_id, node_id));
+      return false;
+    }
+
+    auto& device_state = device_it->second;
+
+    if (payload.has_seq()) {
+      uint64_t seq = payload.seq();
+      uint64_t expected_seq = (device_state.last_seq + 1) % SEQ_NUMBER_MAX;
+
+      if (seq != expected_seq) {
+        log(LogLevel::WARN,
+            std::format("Sequence number gap for device '{}' on {} (got {}, expected {})",
+                        topic.device_id, node_id, seq, expected_seq));
+      }
+
+      device_state.last_seq = seq;
+    }
+
+    return true;
+  }
+
+  case MessageType::DDEATH: {
+    auto device_it = state.devices.find(topic.device_id);
+    if (device_it != state.devices.end()) {
+      device_it->second.is_online = false;
+    }
+    return true;
+  }
+
+  case MessageType::NCMD:
+  case MessageType::DCMD:
+  case MessageType::STATE:
+    return true;
+  }
+  std::unreachable();
+}
+
+int HostApplication::on_message_arrived(void* context, char* topicName, int topicLen,
+                                        MQTTAsync_message* message) {
+  auto* host_app = static_cast<HostApplication*>(context);
+
+  if (!host_app || !topicName || !message) {
+    if (message) {
+      MQTTAsync_freeMessage(&message);
+      MQTTAsync_free(topicName);
+    }
+    return 1;
+  }
+
+  std::string topic_str(topicName, topicLen > 0 ? topicLen : strlen(topicName));
+
+  if (topic_str.starts_with("STATE/")) {
+    std::string state_value(static_cast<char*>(message->payload), message->payloadlen);
+
+    org::eclipse::tahu::protobuf::Payload dummy_payload;
+
+    Topic state_topic{.group_id = "",
+                      .message_type = MessageType::STATE,
+                      .edge_node_id = topic_str.substr(6), // After "STATE/"
+                      .device_id = ""};
+
+    if (host_app->config_.message_callback) {
+      try {
+        host_app->config_.message_callback(state_topic, dummy_payload);
+      } catch (...) {
+      }
+    }
+
+    MQTTAsync_freeMessage(&message);
+    MQTTAsync_free(topicName);
+    return 1;
+  }
+
+  auto topic_result = Topic::parse(topic_str);
+
+  if (!topic_result) {
+    host_app->log(LogLevel::DEBUG, std::format("Ignoring non-Sparkplug topic: {}", topic_str));
+    MQTTAsync_freeMessage(&message);
+    MQTTAsync_free(topicName);
+    return 1;
+  }
+
+  org::eclipse::tahu::protobuf::Payload payload;
+  if (!payload.ParseFromArray(message->payload, message->payloadlen)) {
+    host_app->log(LogLevel::ERROR, "Failed to parse Sparkplug B payload");
+    MQTTAsync_freeMessage(&message);
+    MQTTAsync_free(topicName);
+    return 1;
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(host_app->mutex_);
+    host_app->validate_message(*topic_result, payload);
+  }
+
+  if (host_app->config_.message_callback) {
+    try {
+      host_app->config_.message_callback(*topic_result, payload);
+    } catch (...) {
+    }
+  }
+
+  MQTTAsync_freeMessage(&message);
+  MQTTAsync_free(topicName);
+  return 1;
+}
+
+void HostApplication::on_connection_lost(void* context, char* cause) {
+  auto* host_app = static_cast<HostApplication*>(context);
+  if (!host_app) {
+    return;
+  }
+
+  if (cause) {
+    host_app->log(LogLevel::WARN, std::format("Connection lost: {}", cause));
+  } else {
+    host_app->log(LogLevel::WARN, "Connection lost");
+  }
 }
 
 } // namespace sparkplug

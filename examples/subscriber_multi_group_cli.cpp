@@ -7,7 +7,7 @@
 #include <vector>
 
 #include <sparkplug/datatype.hpp>
-#include <sparkplug/subscriber.hpp>
+#include <sparkplug/host_application.hpp>
 
 std::atomic<bool> running{true};
 std::atomic<int> message_count{0};
@@ -17,22 +17,14 @@ void signal_handler(int signal) {
   running = false;
 }
 
-void print_metric(const org::eclipse::tahu::protobuf::Payload::Metric& metric,
-                  const sparkplug::Subscriber& subscriber, const sparkplug::Topic& topic) {
+void print_metric(const org::eclipse::tahu::protobuf::Payload::Metric& metric) {
   std::cout << "    ";
 
   // First, try to use the metric name if it's present
   if (metric.has_name() && !metric.name().empty()) {
     std::cout << metric.name();
   } else if (metric.has_alias()) {
-    // Try to resolve alias to name from birth message
-    auto name = subscriber.get_metric_name(topic.group_id, topic.edge_node_id, topic.device_id,
-                                           metric.alias());
-    if (name) {
-      std::cout << *name << " [alias:" << metric.alias() << "]";
-    } else {
-      std::cout << "[alias:" << metric.alias() << "]";
-    }
+    std::cout << "[alias:" << metric.alias() << "]";
   } else {
     std::cout << "[unnamed]";
   }
@@ -111,56 +103,52 @@ int main(int argc, char* argv[]) {
   std::signal(SIGINT, signal_handler);
   std::signal(SIGTERM, signal_handler);
 
-  sparkplug::Subscriber::Config config{.broker_url = "tcp://localhost:1883",
-                                       .client_id = "sparkplug_multi_group_cli",
-                                       .group_id = groups[0],
-                                       .qos = 1,
-                                       .clean_session = true,
-                                       .validate_sequence = true};
+  sparkplug::HostApplication::Config config{
+      .broker_url = "tcp://localhost:1883",
+      .client_id = "sparkplug_multi_group_cli",
+      .host_id = groups[0],
+      .qos = 1,
+      .clean_session = true,
+      .validate_sequence = true,
+      .message_callback = [](const sparkplug::Topic& topic,
+                             const org::eclipse::tahu::protobuf::Payload& payload) {
+        int count = ++message_count;
 
-  // Create subscriber with a placeholder callback first
-  sparkplug::Subscriber subscriber(
-      std::move(config),
-      [](const sparkplug::Topic&, const org::eclipse::tahu::protobuf::Payload&) {});
+        std::cout << "\n╔════════════════════════════════════════════════════════════╗\n";
+        std::cout << "║ Message #" << std::setw(3) << count << " - " << std::setw(7)
+                  << message_type_name(topic.message_type) << std::string(39, ' ') << "║\n";
+        std::cout << "╠════════════════════════════════════════════════════════════╣\n";
 
-  // Now set the real callback that can capture subscriber by reference
-  subscriber.callback_ = [&subscriber](const sparkplug::Topic& topic,
-                                       const org::eclipse::tahu::protobuf::Payload& payload) {
-    int count = ++message_count;
+        std::cout << "║ Topic: " << std::left << std::setw(51) << topic.to_string() << "║\n";
+        std::cout << "║ Group: " << std::setw(51) << topic.group_id << "║\n";
+        std::cout << "║ Edge Node: " << std::setw(47) << topic.edge_node_id << "║\n";
 
-    std::cout << "\n╔════════════════════════════════════════════════════════════╗\n";
-    std::cout << "║ Message #" << std::setw(3) << count << " - " << std::setw(7)
-              << message_type_name(topic.message_type) << std::string(39, ' ') << "║\n";
-    std::cout << "╠════════════════════════════════════════════════════════════╣\n";
+        if (!topic.device_id.empty()) {
+          std::cout << "║ Device: " << std::setw(50) << topic.device_id << "║\n";
+        }
 
-    std::cout << "║ Topic: " << std::left << std::setw(51) << topic.to_string() << "║\n";
-    std::cout << "║ Group: " << std::setw(51) << topic.group_id << "║\n";
-    std::cout << "║ Edge Node: " << std::setw(47) << topic.edge_node_id << "║\n";
+        if (payload.has_timestamp()) {
+          std::cout << "║ Payload Timestamp: " << std::setw(39) << payload.timestamp() << "║\n";
+        }
 
-    if (!topic.device_id.empty()) {
-      std::cout << "║ Device: " << std::setw(50) << topic.device_id << "║\n";
-    }
+        if (payload.has_seq()) {
+          std::cout << "║ Sequence: " << std::setw(48) << payload.seq() << "║\n";
+        } else {
+          std::cout << "║ Sequence: " << std::setw(48) << "(none)" << "║\n";
+        }
 
-    if (payload.has_timestamp()) {
-      std::cout << "║ Payload Timestamp: " << std::setw(39) << payload.timestamp() << "║\n";
-    }
+        std::cout << "╠════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ Metrics: " << std::setw(49) << payload.metrics_size() << "║\n";
+        std::cout << "╚════════════════════════════════════════════════════════════╝\n";
 
-    if (payload.has_seq()) {
-      std::cout << "║ Sequence: " << std::setw(48) << payload.seq() << "║\n";
-    } else {
-      std::cout << "║ Sequence: " << std::setw(48) << "(none)" << "║\n";
-    }
+        for (const auto& metric : payload.metrics()) {
+          print_metric(metric);
+        }
 
-    std::cout << "╠════════════════════════════════════════════════════════════╣\n";
-    std::cout << "║ Metrics: " << std::setw(49) << payload.metrics_size() << "║\n";
-    std::cout << "╚════════════════════════════════════════════════════════════╝\n";
+        std::cout << std::endl;
+      }};
 
-    for (const auto& metric : payload.metrics()) {
-      print_metric(metric, subscriber, topic);
-    }
-
-    std::cout << std::endl;
-  };
+  sparkplug::HostApplication subscriber(std::move(config));
 
   std::cout << "Multi-Group Subscriber Starting...\n";
 
@@ -172,7 +160,7 @@ int main(int argc, char* argv[]) {
 
   std::cout << "Connected to broker at tcp://localhost:1883\n";
 
-  auto subscribe_result = subscriber.subscribe_all();
+  auto subscribe_result = subscriber.subscribe_all_groups();
   if (!subscribe_result) {
     std::cerr << "Failed to subscribe to " << groups[0] << ": " << subscribe_result.error() << "\n";
     return 1;

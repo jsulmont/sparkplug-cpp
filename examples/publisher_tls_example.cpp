@@ -4,8 +4,8 @@
 #include <iostream>
 #include <thread>
 
+#include <sparkplug/edge_node.hpp>
 #include <sparkplug/payload_builder.hpp>
-#include <sparkplug/publisher.hpp>
 
 std::atomic<bool> running{true};
 
@@ -25,7 +25,7 @@ int main() {
   // For Mosquitto, see: https://mosquitto.org/man/mosquitto-tls-7.html
   //
   // To start test broker: ./certs/start_mosquitto_test.sh
-  sparkplug::Publisher::TlsOptions tls{
+  sparkplug::EdgeNode::TlsOptions tls{
       .trust_store = "certs/ca.crt",     // CA certificate (REQUIRED)
       .key_store = "certs/client.crt",   // Client certificate (optional for mutual TLS)
       .private_key = "certs/client.key", // Client private key (optional)
@@ -34,7 +34,7 @@ int main() {
       .enable_server_cert_auth = true    // Verify server certificate (default: true)
   };
 
-  sparkplug::Publisher::Config config{
+  sparkplug::EdgeNode::Config config{
       .broker_url = "ssl://localhost:8883", // Use ssl:// prefix for TLS
       .client_id = "sparkplug_tls_publisher",
       .group_id = "Energy",
@@ -58,7 +58,7 @@ int main() {
   }
   std::cout << "\n";
 
-  sparkplug::Publisher publisher(std::move(config));
+  sparkplug::EdgeNode publisher(std::move(config));
 
   std::cout << "Connecting to TLS-enabled broker...\n";
   auto connect_result = publisher.connect();

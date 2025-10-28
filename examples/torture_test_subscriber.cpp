@@ -9,9 +9,9 @@
 #include <random>
 #include <thread>
 
+#include <sparkplug/edge_node.hpp>
+#include <sparkplug/host_application.hpp>
 #include <sparkplug/payload_builder.hpp>
-#include <sparkplug/publisher.hpp>
-#include <sparkplug/subscriber.hpp>
 
 std::atomic<bool> running{true};
 std::atomic<int64_t> messages_received{0};
@@ -90,15 +90,15 @@ public:
     std::cout << log_prefix() << " Connecting to broker: " << broker_url_ << "\n";
 
     if (!command_publisher_) {
-      sparkplug::Publisher::Config pub_config{.broker_url = broker_url_,
-                                              .client_id = "torture_test_cmd_" + subscriber_id_,
-                                              .group_id = group_id_,
-                                              .edge_node_id = "CommandHost_" + subscriber_id_,
-                                              .data_qos = 0,
-                                              .death_qos = 1,
-                                              .clean_session = true};
+      sparkplug::EdgeNode::Config pub_config{.broker_url = broker_url_,
+                                             .client_id = "torture_test_cmd_" + subscriber_id_,
+                                             .group_id = group_id_,
+                                             .edge_node_id = "CommandHost_" + subscriber_id_,
+                                             .data_qos = 0,
+                                             .death_qos = 1,
+                                             .clean_session = true};
 
-      command_publisher_ = std::make_unique<sparkplug::Publisher>(std::move(pub_config));
+      command_publisher_ = std::make_unique<sparkplug::EdgeNode>(std::move(pub_config));
     }
 
     auto pub_result = command_publisher_->connect();
@@ -118,18 +118,19 @@ public:
 
     std::cout << log_prefix() << " Command publisher ready\n";
 
-    sparkplug::Subscriber::Config sub_config{.broker_url = broker_url_,
-                                             .client_id = "torture_test_sub_" + subscriber_id_,
-                                             .group_id = group_id_,
-                                             .qos = 1,
-                                             .clean_session = true,
-                                             .validate_sequence = true};
-
-    subscriber_ = std::make_unique<sparkplug::Subscriber>(
-        std::move(sub_config), [this](const sparkplug::Topic& topic,
-                                      const org::eclipse::tahu::protobuf::Payload& payload) {
+    sparkplug::HostApplication::Config sub_config{
+        .broker_url = broker_url_,
+        .client_id = "torture_test_sub_" + subscriber_id_,
+        .host_id = group_id_,
+        .qos = 1,
+        .clean_session = true,
+        .validate_sequence = true,
+        .message_callback = [this](const sparkplug::Topic& topic,
+                                   const org::eclipse::tahu::protobuf::Payload& payload) {
           handle_message(topic, payload);
-        });
+        }};
+
+    subscriber_ = std::make_unique<sparkplug::HostApplication>(std::move(sub_config));
 
     auto result = subscriber_->connect();
     if (!result) {
@@ -504,8 +505,8 @@ private:
   std::string subscriber_id_;
   bool send_commands_;
   int cycle_interval_sec_;
-  std::unique_ptr<sparkplug::Subscriber> subscriber_;
-  std::unique_ptr<sparkplug::Publisher> command_publisher_;
+  std::unique_ptr<sparkplug::HostApplication> subscriber_;
+  std::unique_ptr<sparkplug::EdgeNode> command_publisher_;
   std::map<std::string, NodeStats> node_stats_;
 };
 

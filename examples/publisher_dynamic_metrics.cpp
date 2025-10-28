@@ -6,8 +6,8 @@
 #include <iostream>
 #include <thread>
 
+#include <sparkplug/edge_node.hpp>
 #include <sparkplug/payload_builder.hpp>
-#include <sparkplug/publisher.hpp>
 
 std::atomic<bool> running{true};
 
@@ -25,16 +25,16 @@ int main() {
   std::cout << "This example demonstrates how to add new metrics at runtime\n";
   std::cout << "by publishing a new NBIRTH message.\n\n";
 
-  sparkplug::Publisher::Config config{.broker_url = "tcp://localhost:1883",
-                                      .client_id = "dynamic_metrics_publisher",
-                                      .group_id = "Energy",
-                                      .edge_node_id = "DynamicNode",
-                                      .data_qos = 0,
-                                      .death_qos = 1,
-                                      .clean_session = true,
-                                      .keep_alive_interval = 60};
+  sparkplug::EdgeNode::Config config{.broker_url = "tcp://localhost:1883",
+                                     .client_id = "dynamic_metrics_publisher",
+                                     .group_id = "Energy",
+                                     .edge_node_id = "DynamicNode",
+                                     .data_qos = 0,
+                                     .death_qos = 1,
+                                     .clean_session = true,
+                                     .keep_alive_interval = 60};
 
-  sparkplug::Publisher publisher(std::move(config));
+  sparkplug::EdgeNode publisher(std::move(config));
 
   auto connect_result = publisher.connect();
   if (!connect_result) {

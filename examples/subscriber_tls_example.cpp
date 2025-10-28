@@ -4,7 +4,7 @@
 #include <iostream>
 #include <thread>
 
-#include <sparkplug/subscriber.hpp>
+#include <sparkplug/host_application.hpp>
 
 std::atomic<bool> running{true};
 
@@ -65,7 +65,7 @@ int main() {
   };
 
   // To start test broker: ./certs/start_mosquitto_test.sh
-  sparkplug::Subscriber::TlsOptions tls{
+  sparkplug::HostApplication::TlsOptions tls{
       .trust_store = "certs/ca.crt",     // CA certificate (REQUIRED)
       .key_store = "certs/client.crt",   // Client certificate (optional)
       .private_key = "certs/client.key", // Client private key (optional)
@@ -74,20 +74,23 @@ int main() {
       .enable_server_cert_auth = true    // Verify server certificate (default: true)
   };
 
-  sparkplug::Subscriber::Config config{
+  sparkplug::HostApplication::Config config{
       .broker_url = "ssl://localhost:8883", // Use ssl:// prefix for TLS
       .client_id = "sparkplug_tls_subscriber",
-      .group_id = "Energy",
+      .host_id = "Energy",
       .qos = 1,
       .clean_session = true,
       .validate_sequence = true,
       .tls = tls // Enable TLS
   };
 
+  // Add message callback to config
+  config.message_callback = callback;
+
   std::cout << "Configuration:\n";
   std::cout << "  Broker URL: " << config.broker_url << "\n";
   std::cout << "  Client ID: " << config.client_id << "\n";
-  std::cout << "  Group ID: " << config.group_id << "\n";
+  std::cout << "  Host ID: " << config.host_id << "\n";
   std::cout << "  TLS Enabled: Yes\n";
   std::cout << "  CA Certificate: " << tls.trust_store << "\n";
   if (!tls.key_store.empty()) {
@@ -95,9 +98,7 @@ int main() {
   }
   std::cout << "\n";
 
-  // Save group_id before moving config
-  std::string group_id = config.group_id;
-  sparkplug::Subscriber subscriber(std::move(config), callback);
+  sparkplug::HostApplication subscriber(std::move(config));
 
   std::cout << "Connecting to TLS-enabled broker...\n";
   auto connect_result = subscriber.connect();
@@ -113,13 +114,13 @@ int main() {
 
   std::cout << "Connected to broker securely via TLS\n\n";
 
-  auto subscribe_result = subscriber.subscribe_all();
+  auto subscribe_result = subscriber.subscribe_all_groups();
   if (!subscribe_result) {
     std::cerr << "Failed to subscribe: " << subscribe_result.error() << "\n";
     return 1;
   }
 
-  std::cout << "Subscribed to: spBv1.0/" << group_id << "/#\n";
+  std::cout << "Subscribed to: spBv1.0/#\n";
   std::cout << "Waiting for secure messages (Ctrl+C to stop)...\n";
 
   while (running) {

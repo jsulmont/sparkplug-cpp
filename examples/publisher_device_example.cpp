@@ -4,8 +4,8 @@
 #include <iostream>
 #include <thread>
 
+#include <sparkplug/edge_node.hpp>
 #include <sparkplug/payload_builder.hpp>
-#include <sparkplug/publisher.hpp>
 
 std::atomic<bool> running{true};
 
@@ -18,16 +18,16 @@ int main() {
   std::signal(SIGINT, signal_handler);
   std::signal(SIGTERM, signal_handler);
 
-  sparkplug::Publisher::Config config{.broker_url = "tcp://localhost:1883",
-                                      .client_id = "sparkplug_device_publisher",
-                                      .group_id = "Factory",
-                                      .edge_node_id = "Gateway01",
-                                      .data_qos = 0,
-                                      .death_qos = 1,
-                                      .clean_session = true,
-                                      .keep_alive_interval = 60};
+  sparkplug::EdgeNode::Config config{.broker_url = "tcp://localhost:1883",
+                                     .client_id = "sparkplug_device_publisher",
+                                     .group_id = "Factory",
+                                     .edge_node_id = "Gateway01",
+                                     .data_qos = 0,
+                                     .death_qos = 1,
+                                     .clean_session = true,
+                                     .keep_alive_interval = 60};
 
-  sparkplug::Publisher publisher(std::move(config));
+  sparkplug::EdgeNode publisher(std::move(config));
 
   auto connect_result = publisher.connect();
   if (!connect_result) {

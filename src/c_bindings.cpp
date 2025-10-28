@@ -1,19 +1,19 @@
 // src/c_bindings.cpp
+#include "sparkplug/edge_node.hpp"
 #include "sparkplug/host_application.hpp"
 #include "sparkplug/payload_builder.hpp"
-#include "sparkplug/publisher.hpp"
 #include "sparkplug/sparkplug_c.h"
-#include "sparkplug/subscriber.hpp"
 
 #include <cstring>
 #include <memory>
 
 struct sparkplug_publisher {
-  sparkplug::Publisher impl;
+  sparkplug::EdgeNode impl;
 };
 
 struct sparkplug_subscriber {
-  std::unique_ptr<sparkplug::Subscriber> impl;
+  std::unique_ptr<sparkplug::HostApplication> impl;
+  std::string default_group_id; // For backwards compatibility with old C API
   sparkplug_message_callback_t callback;
   sparkplug_command_callback_t command_callback;
   sparkplug_log_callback_t log_callback;
@@ -31,12 +31,13 @@ struct sparkplug_host_application {
 };
 
 static void copy_metrics_to_builder(sparkplug::PayloadBuilder& builder,
-                                    const org::eclipse::tahu::protobuf::Payload& proto_payload) {
+                                    const org::eclipse::tahu::protobuf::Payload& proto_payload,
+                                    bool copy_seq = true) {
   if (proto_payload.has_timestamp()) {
     builder.set_timestamp(proto_payload.timestamp());
   }
 
-  if (proto_payload.has_seq()) {
+  if (copy_seq && proto_payload.has_seq()) {
     builder.set_seq(proto_payload.seq());
   }
 
@@ -151,11 +152,11 @@ sparkplug_publisher_t* sparkplug_publisher_create(const char* broker_url, const 
     return nullptr;
   }
 
-  sparkplug::Publisher::Config config{.broker_url = broker_url,
-                                      .client_id = client_id,
-                                      .group_id = group_id,
-                                      .edge_node_id = edge_node_id};
-  return new sparkplug_publisher{sparkplug::Publisher(std::move(config))};
+  sparkplug::EdgeNode::Config config{.broker_url = broker_url,
+                                     .client_id = client_id,
+                                     .group_id = group_id,
+                                     .edge_node_id = edge_node_id};
+  return new sparkplug_publisher{sparkplug::EdgeNode(std::move(config))};
 }
 
 void sparkplug_publisher_destroy(sparkplug_publisher_t* pub) {
@@ -181,7 +182,7 @@ int sparkplug_publisher_set_tls(sparkplug_publisher_t* pub, const char* trust_st
     return -1;
   }
 
-  sparkplug::Publisher::TlsOptions tls{
+  sparkplug::EdgeNode::TlsOptions tls{
       .trust_store = trust_store,
       .key_store = key_store ? std::string(key_store) : "",
       .private_key = private_key ? std::string(private_key) : "",
@@ -232,7 +233,7 @@ int sparkplug_publisher_publish_data(sparkplug_publisher_t* pub, const uint8_t* 
   }
 
   sparkplug::PayloadBuilder builder;
-  copy_metrics_to_builder(builder, proto_payload);
+  copy_metrics_to_builder(builder, proto_payload, false);
 
   return pub->impl.publish_data(builder).has_value() ? 0 : -1;
 }
@@ -288,7 +289,7 @@ int sparkplug_publisher_publish_device_data(sparkplug_publisher_t* pub, const ch
   }
 
   sparkplug::PayloadBuilder builder;
-  copy_metrics_to_builder(builder, proto_payload);
+  copy_metrics_to_builder(builder, proto_payload, false);
 
   return pub->impl.publish_device_data(device_id, builder).has_value() ? 0 : -1;
 }
@@ -364,6 +365,7 @@ sparkplug_subscriber_t* sparkplug_subscriber_create(const char* broker_url, cons
   }
 
   auto* sub = new sparkplug_subscriber;
+  sub->default_group_id = group_id;
   sub->callback = callback;
   sub->command_callback = nullptr;
   sub->log_callback = nullptr;
@@ -378,22 +380,32 @@ sparkplug_subscriber_t* sparkplug_subscriber_create(const char* broker_url, cons
     }
   };
 
-  sparkplug::Subscriber::Config config{.broker_url = broker_url,
-                                       .client_id = client_id,
-                                       .group_id = group_id,
-                                       .log_callback = std::move(log_wrapper)};
+  sparkplug::MessageCallback message_handler =
+      [sub](const sparkplug::Topic& topic, const org::eclipse::tahu::protobuf::Payload& payload) {
+        std::vector<uint8_t> data(payload.ByteSizeLong());
+        payload.SerializeToArray(data.data(), static_cast<int>(data.size()));
 
-  auto message_handler = [sub](const sparkplug::Topic& topic,
-                               const org::eclipse::tahu::protobuf::Payload& payload) {
-    std::vector<uint8_t> data(payload.ByteSizeLong());
-    payload.SerializeToArray(data.data(), static_cast<int>(data.size()));
+        auto topic_str = topic.to_string();
 
-    auto topic_str = topic.to_string();
-    sub->callback(topic_str.c_str(), data.data(), data.size(), sub->user_data);
-  };
+        // Check if this is a command message and if command_callback is set
+        if ((topic.message_type == sparkplug::MessageType::NCMD ||
+             topic.message_type == sparkplug::MessageType::DCMD) &&
+            sub->command_callback) {
+          sub->command_callback(topic_str.c_str(), data.data(), data.size(),
+                                sub->command_user_data);
+        } else {
+          sub->callback(topic_str.c_str(), data.data(), data.size(), sub->user_data);
+        }
+      };
 
-  sub->impl =
-      std::make_unique<sparkplug::Subscriber>(std::move(config), std::move(message_handler));
+  sparkplug::HostApplication::Config config{
+      .broker_url = broker_url,
+      .client_id = client_id,
+      .host_id = group_id, // Use group_id as host_id for compatibility
+      .message_callback = std::move(message_handler),
+      .log_callback = std::move(log_wrapper)};
+
+  sub->impl = std::make_unique<sparkplug::HostApplication>(std::move(config));
 
   return sub;
 }
@@ -408,10 +420,11 @@ int sparkplug_subscriber_set_credentials(sparkplug_subscriber_t* sub, const char
     return -1;
   }
 
-  std::optional<std::string> user = username ? std::optional<std::string>(username) : std::nullopt;
-  std::optional<std::string> pass = password ? std::optional<std::string>(password) : std::nullopt;
-  sub->impl->set_credentials(std::move(user), std::move(pass));
-  return 0;
+  // NOTE: HostApplication requires credentials to be set in Config at construction time
+  // This function is kept for C API compatibility but returns -1 (unsupported)
+  (void)username;
+  (void)password;
+  return -1;
 }
 
 int sparkplug_subscriber_set_tls(sparkplug_subscriber_t* sub, const char* trust_store,
@@ -421,16 +434,14 @@ int sparkplug_subscriber_set_tls(sparkplug_subscriber_t* sub, const char* trust_
     return -1;
   }
 
-  sparkplug::Subscriber::TlsOptions tls{
-      .trust_store = trust_store,
-      .key_store = key_store ? std::string(key_store) : "",
-      .private_key = private_key ? std::string(private_key) : "",
-      .private_key_password = private_key_password ? std::string(private_key_password) : "",
-      .enabled_cipher_suites = "",
-      .enable_server_cert_auth = enable_server_cert_auth != 0};
-
-  sub->impl->set_tls(tls);
-  return 0;
+  // NOTE: HostApplication requires TLS to be set in Config at construction time
+  // This function is kept for C API compatibility but returns -1 (unsupported)
+  (void)trust_store;
+  (void)key_store;
+  (void)private_key;
+  (void)private_key_password;
+  (void)enable_server_cert_auth;
+  return -1;
 }
 
 int sparkplug_subscriber_connect(sparkplug_subscriber_t* sub) {
@@ -448,13 +459,13 @@ int sparkplug_subscriber_disconnect(sparkplug_subscriber_t* sub) {
 int sparkplug_subscriber_subscribe_all(sparkplug_subscriber_t* sub) {
   if (!sub || !sub->impl)
     return -1;
-  return sub->impl->subscribe_all().has_value() ? 0 : -1;
+  return sub->impl->subscribe_all_groups().has_value() ? 0 : -1;
 }
 
 int sparkplug_subscriber_subscribe_node(sparkplug_subscriber_t* sub, const char* edge_node_id) {
   if (!sub || !sub->impl || !edge_node_id)
     return -1;
-  return sub->impl->subscribe_node(edge_node_id).has_value() ? 0 : -1;
+  return sub->impl->subscribe_node(sub->default_group_id, edge_node_id).has_value() ? 0 : -1;
 }
 
 int sparkplug_subscriber_subscribe_group(sparkplug_subscriber_t* sub, const char* group_id) {
@@ -489,22 +500,9 @@ void sparkplug_subscriber_set_command_callback(sparkplug_subscriber_t* sub,
   sub->command_callback = callback;
   sub->command_user_data = user_data;
 
-  if (callback) {
-    auto command_handler = [sub](const sparkplug::Topic& topic,
-                                 const org::eclipse::tahu::protobuf::Payload& payload) {
-      if (!sub->command_callback) {
-        return;
-      }
-
-      std::vector<uint8_t> data(payload.ByteSizeLong());
-      payload.SerializeToArray(data.data(), static_cast<int>(data.size()));
-
-      auto topic_str = topic.to_string();
-      sub->command_callback(topic_str.c_str(), data.data(), data.size(), sub->command_user_data);
-    };
-
-    sub->impl->set_command_callback(std::move(command_handler));
-  }
+  // NOTE: HostApplication doesn't have a separate set_command_callback method
+  // Commands (NCMD/DCMD) are received through the main message_callback
+  // which now dispatches to command_callback if set (see sparkplug_subscriber_create)
 }
 
 int sparkplug_subscriber_get_metric_name(sparkplug_subscriber_t* sub, const char* group_id,

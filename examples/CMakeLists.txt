@@ -14,11 +14,20 @@ target_link_libraries(command_handling_example PRIVATE sparkplug_cpp)
 add_executable(host_application_example host_application_example.cpp)
 target_link_libraries(host_application_example PRIVATE sparkplug_cpp)
 
+add_executable(host_application_mimic host_application_mimic.cpp)
+target_link_libraries(host_application_mimic PRIVATE sparkplug_cpp)
+
 add_executable(subscriber_example subscriber_example.cpp)
 target_link_libraries(subscriber_example PRIVATE sparkplug_cpp)
 
 add_executable(subscriber_example_debug subscriber_example_debug.cpp)
 target_link_libraries(subscriber_example_debug PRIVATE sparkplug_cpp)
+
+add_executable(subscriber_mimic_debug subscriber_mimic_debug.cpp)
+target_link_libraries(subscriber_mimic_debug PRIVATE sparkplug_cpp)
+
+add_executable(publisher_mimic publisher_mimic.cpp)
+target_link_libraries(publisher_mimic PRIVATE sparkplug_cpp)
 
 add_executable(subscriber_multi_group_cli subscriber_multi_group_cli.cpp)
 target_link_libraries(subscriber_multi_group_cli PRIVATE sparkplug_cpp)

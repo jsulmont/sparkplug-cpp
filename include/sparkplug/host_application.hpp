@@ -3,27 +3,58 @@
 
 #include "mqtt_handle.hpp"
 #include "payload_builder.hpp"
+#include "sparkplug_b.pb.h"
+#include "topic.hpp"
 
 #include <expected>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <span>
 #include <string>
+#include <unordered_map>
 
 #include <MQTTAsync.h>
 
 namespace sparkplug {
 
 /**
+ * @brief Log severity levels for library diagnostics.
+ */
+enum class LogLevel {
+  DEBUG = 0, ///< Detailed debugging information
+  INFO = 1,  ///< Informational messages
+  WARN = 2,  ///< Warning messages (potential issues)
+  ERROR = 3  ///< Error messages (serious problems)
+};
+
+/**
+ * @brief Callback function type for receiving log messages from the library.
+ */
+using LogCallback = std::function<void(LogLevel, std::string_view)>;
+
+/**
+ * @brief Callback function type for receiving Sparkplug B messages.
+ *
+ * @param topic Parsed Sparkplug B topic containing group_id, message_type, edge_node_id, etc.
+ * @param payload Decoded Sparkplug B protobuf payload with metrics
+ */
+using MessageCallback =
+    std::function<void(const Topic&, const org::eclipse::tahu::protobuf::Payload&)>;
+
+/**
  * @brief Sparkplug B Host Application for SCADA/Primary Applications.
  *
- * The HostApplication class implements the Sparkplug B protocol for Host Applications,
- * which have fundamentally different behavior than Edge Nodes:
- * - Publishes STATE messages (JSON format, not protobuf) to indicate online/offline status
+ * The HostApplication class implements the complete Sparkplug B protocol for Host Applications:
+ * - Subscribes to spBv1.0/# to receive all Edge Node messages (NBIRTH/NDATA/NDEATH)
+ * - Validates message sequences and tracks node/device state
+ * - Publishes STATE messages (JSON format) to indicate online/offline status
  * - Publishes NCMD/DCMD commands to control Edge Nodes and Devices
  * - Does NOT publish NBIRTH/NDATA/NDEATH (those are for Edge Nodes only)
- * - Does NOT track sequence numbers or bdSeq (no session management needed)
+ *
+ * This is the authoritative consumer and command source in a Sparkplug B topology.
+ * A Host Application should use a single MQTT client that both receives data and sends commands.
  *
  * @par Thread Safety
  * This class is thread-safe. All methods may be called from any thread concurrently.
@@ -31,14 +62,22 @@ namespace sparkplug {
  *
  * @par Example Usage
  * @code
+ * auto message_callback = [](const sparkplug::Topic& topic, const auto& payload) {
+ *   std::cout << "Received: " << topic.to_string() << "\n";
+ * };
+ *
  * sparkplug::HostApplication::Config config{
  *   .broker_url = "tcp://localhost:1883",
  *   .client_id = "scada_host",
- *   .host_id = "SCADA01"
+ *   .host_id = "SCADA01",
+ *   .message_callback = message_callback
  * };
  *
  * sparkplug::HostApplication host_app(std::move(config));
  * host_app.connect();
+ *
+ * // Subscribe to all Sparkplug messages
+ * host_app.subscribe_all_groups();
  *
  * // Publish STATE birth (Host App is online)
  * auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -55,8 +94,7 @@ namespace sparkplug {
  * host_app.disconnect();
  * @endcode
  *
- * @see Publisher for Edge Node implementation
- * @see Subscriber for consuming Sparkplug B messages
+ * @see EdgeNode for Edge Node implementation
  */
 class HostApplication {
 public:
@@ -73,19 +111,62 @@ public:
   };
 
   /**
+   * @brief Tracks the state of a device attached to an edge node.
+   */
+  struct DeviceState {
+    bool is_online{false};      ///< True if DBIRTH received and device is online
+    uint64_t last_seq{255};     ///< Last received device sequence number
+    bool birth_received{false}; ///< True if DBIRTH has been received
+    std::unordered_map<uint64_t, std::string>
+        alias_map; ///< Maps metric alias to name (from DBIRTH)
+  };
+
+  /**
+   * @brief Transparent hash for string keys to enable heterogeneous lookup.
+   */
+  struct TransparentStringHash {
+    using is_transparent = void;
+    using hash_type = std::hash<std::string_view>;
+    [[nodiscard]] size_t operator()(std::string_view str) const noexcept {
+      return hash_type{}(str);
+    }
+    [[nodiscard]] size_t operator()(const std::string& str) const noexcept {
+      return hash_type{}(str);
+    }
+  };
+
+  /**
+   * @brief Tracks the state of an individual edge node.
+   */
+  struct NodeState {
+    bool is_online{false};       ///< True if NBIRTH received and node is online
+    uint64_t last_seq{255};      ///< Last received node sequence number (starts at 255)
+    uint64_t bd_seq{0};          ///< Current birth/death sequence number
+    uint64_t birth_timestamp{0}; ///< Timestamp of last NBIRTH
+    bool birth_received{false};  ///< True if NBIRTH has been received
+    std::unordered_map<std::string, DeviceState, TransparentStringHash, std::equal_to<>>
+        devices; ///< Attached devices (device_id -> state)
+    std::unordered_map<uint64_t, std::string>
+        alias_map; ///< Maps metric alias to name (from NBIRTH)
+  };
+
+  /**
    * @brief Configuration parameters for the Sparkplug B Host Application.
    */
   struct Config {
-    std::string broker_url;          ///< MQTT broker URL (e.g., "tcp://localhost:1883" or
-                                     ///< "ssl://localhost:8883")
-    std::string client_id;           ///< Unique MQTT client identifier
-    std::string host_id;             ///< Host Application identifier (for STATE messages)
-    int qos = 1;                     ///< MQTT QoS for STATE messages and commands (default: 1)
-    bool clean_session = true;       ///< MQTT clean session flag
-    int keep_alive_interval = 60;    ///< MQTT keep-alive interval in seconds (default: 60)
-    std::optional<TlsOptions> tls{}; ///< TLS/SSL options (required if broker_url uses ssl://)
+    std::string broker_url;        ///< MQTT broker URL (e.g., "tcp://localhost:1883" or
+                                   ///< "ssl://localhost:8883")
+    std::string client_id;         ///< Unique MQTT client identifier
+    std::string host_id;           ///< Host Application identifier (for STATE messages)
+    int qos = 1;                   ///< MQTT QoS for STATE messages and commands (default: 1)
+    bool clean_session = true;     ///< MQTT clean session flag (should be true per Sparkplug spec)
+    int keep_alive_interval = 60;  ///< MQTT keep-alive interval in seconds (default: 60)
+    bool validate_sequence = true; ///< Enable sequence number validation (detects packet loss)
+    std::optional<TlsOptions> tls{};       ///< TLS/SSL options (required if broker_url uses ssl://)
     std::optional<std::string> username{}; ///< MQTT username for authentication (optional)
     std::optional<std::string> password{}; ///< MQTT password for authentication (optional)
+    MessageCallback message_callback{};    ///< Callback for received Sparkplug messages
+    LogCallback log_callback{};            ///< Optional callback for library log messages
   };
 
   /**
@@ -149,6 +230,98 @@ public:
    *       signal that the Host Application is going offline.
    */
   [[nodiscard]] std::expected<void, std::string> disconnect();
+
+  /**
+   * @brief Subscribes to all Sparkplug B messages across all groups.
+   *
+   * Subscribes to the wildcard topic: spBv1.0/#
+   *
+   * This receives all message types (NBIRTH, NDATA, NDEATH, DBIRTH, DDATA, DDEATH)
+   * from all edge nodes in all groups.
+   *
+   * @return void on success, error message on failure
+   *
+   * @note Must call connect() first.
+   * @note The message_callback will be invoked for every message received.
+   */
+  [[nodiscard]] std::expected<void, std::string> subscribe_all_groups();
+
+  /**
+   * @brief Subscribes to messages from a specific group.
+   *
+   * Subscribes to: spBv1.0/{group_id}/#
+   *
+   * @param group_id The group ID to subscribe to
+   *
+   * @return void on success, error message on failure
+   *
+   * @note Allows subscribing to multiple groups on a single MQTT connection.
+   */
+  [[nodiscard]] std::expected<void, std::string> subscribe_group(std::string_view group_id);
+
+  /**
+   * @brief Subscribes to messages from a specific edge node in a group.
+   *
+   * Subscribes to: spBv1.0/{group_id}/+/{edge_node_id}/#
+   *
+   * @param group_id The group ID
+   * @param edge_node_id The edge node ID to subscribe to
+   *
+   * @return void on success, error message on failure
+   *
+   * @note More efficient than subscribe_all_groups() if you only need specific nodes.
+   */
+  [[nodiscard]] std::expected<void, std::string> subscribe_node(std::string_view group_id,
+                                                                std::string_view edge_node_id);
+
+  /**
+   * @brief Subscribes to STATE messages from another primary application.
+   *
+   * STATE messages indicate whether another SCADA/Primary Application is online.
+   * Subscribe to: STATE/{host_id}
+   *
+   * @param host_id The host application identifier
+   *
+   * @return void on success, error message on failure
+   *
+   * @note STATE messages are outside the normal Sparkplug topic namespace.
+   * @note Useful for High Availability (HA) setups with multiple host applications.
+   */
+  [[nodiscard]] std::expected<void, std::string> subscribe_state(std::string_view host_id);
+
+  /**
+   * @brief Gets the current state of a specific edge node.
+   *
+   * @param group_id The group ID
+   * @param edge_node_id The edge node ID to query
+   *
+   * @return NodeState if the node has been seen, std::nullopt otherwise
+   *
+   * @note Useful for monitoring node online/offline status and bdSeq.
+   */
+  [[nodiscard]] std::optional<std::reference_wrapper<const NodeState>>
+  get_node_state(std::string_view group_id, std::string_view edge_node_id) const;
+
+  /**
+   * @brief Resolves a metric alias to its name for a specific node or device.
+   *
+   * Looks up the metric name that corresponds to the given alias, based on
+   * the alias mappings captured from NBIRTH (node metrics) or DBIRTH (device metrics).
+   *
+   * @param group_id The group ID
+   * @param edge_node_id The edge node ID
+   * @param device_id The device ID (empty string for node-level metrics)
+   * @param alias The metric alias to resolve
+   *
+   * @return A string_view to the metric name if found, std::nullopt otherwise
+   *
+   * @note Returns std::nullopt if the node/device hasn't sent a birth message yet,
+   *       or if the alias is not found in the birth message.
+   */
+  [[nodiscard]] std::optional<std::string_view> get_metric_name(std::string_view group_id,
+                                                                std::string_view edge_node_id,
+                                                                std::string_view device_id,
+                                                                uint64_t alias) const;
 
   /**
    * @brief Publishes a STATE birth message to indicate Host Application is online.
@@ -263,6 +436,49 @@ private:
   MQTTAsyncHandle client_;
   bool is_connected_{false};
 
+  // Node state tracking
+  struct NodeKey {
+    std::string group_id;
+    std::string edge_node_id;
+
+    [[nodiscard]] bool operator==(const NodeKey& other) const noexcept {
+      return group_id == other.group_id && edge_node_id == other.edge_node_id;
+    }
+  };
+
+  struct NodeKeyHash {
+    using is_transparent = void;
+    [[nodiscard]] size_t operator()(const NodeKey& key) const noexcept {
+      size_t h1 = std::hash<std::string>{}(key.group_id);
+      size_t h2 = std::hash<std::string>{}(key.edge_node_id);
+      return h1 ^ (h2 << 1);
+    }
+    [[nodiscard]] size_t
+    operator()(std::pair<std::string_view, std::string_view> key) const noexcept {
+      size_t h1 = std::hash<std::string_view>{}(key.first);
+      size_t h2 = std::hash<std::string_view>{}(key.second);
+      return h1 ^ (h2 << 1);
+    }
+  };
+
+  struct NodeKeyEqual {
+    using is_transparent = void;
+    [[nodiscard]] bool operator()(const NodeKey& lhs, const NodeKey& rhs) const noexcept {
+      return lhs == rhs;
+    }
+    [[nodiscard]] bool
+    operator()(const NodeKey& lhs,
+               std::pair<std::string_view, std::string_view> rhs) const noexcept {
+      return lhs.group_id == rhs.first && lhs.edge_node_id == rhs.second;
+    }
+    [[nodiscard]] bool operator()(std::pair<std::string_view, std::string_view> lhs,
+                                  const NodeKey& rhs) const noexcept {
+      return lhs.first == rhs.group_id && lhs.second == rhs.edge_node_id;
+    }
+  };
+
+  std::unordered_map<NodeKey, NodeState, NodeKeyHash, NodeKeyEqual> node_states_;
+
   // Mutex for thread-safe access to all mutable state
   mutable std::mutex mutex_;
 
@@ -272,6 +488,16 @@ private:
 
   [[nodiscard]] std::expected<void, std::string>
   publish_command_message(std::string_view topic, std::span<const uint8_t> payload_data);
+
+  bool validate_message(const Topic& topic, const org::eclipse::tahu::protobuf::Payload& payload);
+
+  void log(LogLevel level, std::string_view message) const noexcept;
+
+  // Static MQTT callback for message arrived
+  static int on_message_arrived(void* context, char* topicName, int topicLen,
+                                MQTTAsync_message* message);
+
+  static void on_connection_lost(void* context, char* cause);
 };
 
 } // namespace sparkplug

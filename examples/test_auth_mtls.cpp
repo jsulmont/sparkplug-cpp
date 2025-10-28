@@ -4,8 +4,8 @@
 #include <iostream>
 #include <thread>
 
+#include <sparkplug/edge_node.hpp>
 #include <sparkplug/payload_builder.hpp>
-#include <sparkplug/publisher.hpp>
 
 std::atomic<bool> running{true};
 
@@ -21,24 +21,24 @@ int main() {
   std::cout << "Sparkplug B mTLS (Mutual TLS) Authentication Test\n";
   std::cout << "==================================================\n\n";
 
-  sparkplug::Publisher::TlsOptions tls{.trust_store = "certs/ca.crt",
-                                       .key_store = "certs/client.crt",
-                                       .private_key = "certs/client.key",
-                                       .private_key_password = "",
-                                       .enabled_cipher_suites = "",
-                                       .enable_server_cert_auth = true};
+  sparkplug::EdgeNode::TlsOptions tls{.trust_store = "certs/ca.crt",
+                                      .key_store = "certs/client.crt",
+                                      .private_key = "certs/client.key",
+                                      .private_key_password = "",
+                                      .enabled_cipher_suites = "",
+                                      .enable_server_cert_auth = true};
 
-  sparkplug::Publisher::Config config{.broker_url = "ssl://localhost:8883",
-                                      .client_id = "test_mtls_client",
-                                      .group_id = "TestGroup",
-                                      .edge_node_id = "TestNodeTLS",
-                                      .data_qos = 0,
-                                      .death_qos = 1,
-                                      .clean_session = true,
-                                      .keep_alive_interval = 60,
-                                      .tls = tls,
-                                      .username = std::nullopt,
-                                      .password = std::nullopt};
+  sparkplug::EdgeNode::Config config{.broker_url = "ssl://localhost:8883",
+                                     .client_id = "test_mtls_client",
+                                     .group_id = "TestGroup",
+                                     .edge_node_id = "TestNodeTLS",
+                                     .data_qos = 0,
+                                     .death_qos = 1,
+                                     .clean_session = true,
+                                     .keep_alive_interval = 60,
+                                     .tls = tls,
+                                     .username = std::nullopt,
+                                     .password = std::nullopt};
 
   std::cout << "Configuration:\n";
   std::cout << "  Broker URL: " << config.broker_url << "\n";
@@ -52,7 +52,7 @@ int main() {
   std::cout << "NOTE: Make sure test broker is running:\n";
   std::cout << "  cd certs && ./start_mosquitto_test.sh\n\n";
 
-  sparkplug::Publisher publisher(std::move(config));
+  sparkplug::EdgeNode publisher(std::move(config));
 
   std::cout << "Connecting with mTLS authentication...\n";
   auto connect_result = publisher.connect();

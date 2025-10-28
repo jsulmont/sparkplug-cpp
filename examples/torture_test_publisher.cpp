@@ -9,8 +9,8 @@
 #include <random>
 #include <thread>
 
+#include <sparkplug/edge_node.hpp>
 #include <sparkplug/payload_builder.hpp>
-#include <sparkplug/publisher.hpp>
 
 std::atomic<bool> running{true};
 std::atomic<bool> do_rebirth{false};
@@ -37,18 +37,18 @@ public:
       handle_command(topic, payload);
     };
 
-    sparkplug::Publisher::Config pub_config{.broker_url = broker_url_,
-                                            .client_id = "torture_test_publisher",
-                                            .group_id = group_id_,
-                                            .edge_node_id = edge_node_id_,
-                                            .data_qos = 0,
-                                            .death_qos = 1,
-                                            .clean_session = true,
-                                            .keep_alive_interval = 60,
-                                            .tls = {},
-                                            .command_callback = command_callback};
+    sparkplug::EdgeNode::Config pub_config{.broker_url = broker_url_,
+                                           .client_id = "torture_test_publisher",
+                                           .group_id = group_id_,
+                                           .edge_node_id = edge_node_id_,
+                                           .data_qos = 0,
+                                           .death_qos = 1,
+                                           .clean_session = true,
+                                           .keep_alive_interval = 60,
+                                           .tls = {},
+                                           .command_callback = command_callback};
 
-    publisher_ = std::make_unique<sparkplug::Publisher>(std::move(pub_config));
+    publisher_ = std::make_unique<sparkplug::EdgeNode>(std::move(pub_config));
 
     return connect();
   }
@@ -274,7 +274,7 @@ private:
   std::string group_id_;
   std::string edge_node_id_;
 
-  std::unique_ptr<sparkplug::Publisher> publisher_;
+  std::unique_ptr<sparkplug::EdgeNode> publisher_;
 
   std::atomic<int64_t> message_count_;
   std::atomic<int> reconnect_count_;

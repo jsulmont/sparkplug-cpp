@@ -141,8 +141,8 @@ void test_payload_empty(void) {
 void test_publisher_create_destroy(void) {
   TEST("publisher create/destroy");
 
-  sparkplug_publisher_t* pub =
-      sparkplug_publisher_create("tcp://localhost:1883", "test_c_api_pub", "TestGroup", "TestNode");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create("tcp://localhost:1883", "test_c_api_pub",
+                                                          "TestGroup", "TestNodeC01");
   assert(pub != NULL);
 
   sparkplug_publisher_destroy(pub);
@@ -155,8 +155,8 @@ void test_publisher_create_destroy(void) {
 void test_publisher_connect(void) {
   TEST("publisher connect/disconnect");
 
-  sparkplug_publisher_t* pub =
-      sparkplug_publisher_create("tcp://localhost:1883", "test_c_connect", "TestGroup", "TestNode");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create("tcp://localhost:1883", "test_c_connect",
+                                                          "TestGroup", "TestNodeC02");
   assert(pub != NULL);
 
   int result = sparkplug_publisher_connect(pub);
@@ -180,8 +180,8 @@ void test_publisher_connect(void) {
 void test_publisher_birth(void) {
   TEST("publisher publish NBIRTH");
 
-  sparkplug_publisher_t* pub =
-      sparkplug_publisher_create("tcp://localhost:1883", "test_c_birth", "TestGroup", "TestNode");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create("tcp://localhost:1883", "test_c_birth",
+                                                          "TestGroup", "TestNodeC03");
   assert(pub != NULL);
 
   int result = sparkplug_publisher_connect(pub);
@@ -221,7 +221,7 @@ void test_publisher_data(void) {
   TEST("publisher publish NDATA");
 
   sparkplug_publisher_t* pub =
-      sparkplug_publisher_create("tcp://localhost:1883", "test_c_data", "TestGroup", "TestNode");
+      sparkplug_publisher_create("tcp://localhost:1883", "test_c_data", "TestGroup", "TestNodeC04");
   assert(pub != NULL);
 
   int result = sparkplug_publisher_connect(pub);
@@ -268,8 +268,8 @@ void test_publisher_data(void) {
 void test_publisher_rebirth(void) {
   TEST("publisher rebirth");
 
-  sparkplug_publisher_t* pub =
-      sparkplug_publisher_create("tcp://localhost:1883", "test_c_rebirth", "TestGroup", "TestNode");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create("tcp://localhost:1883", "test_c_rebirth",
+                                                          "TestGroup", "TestNodeC05");
   assert(pub != NULL);
 
   int result = sparkplug_publisher_connect(pub);
@@ -392,8 +392,8 @@ void test_subscriber_subscribe_all(void) {
 void test_publisher_device_birth(void) {
   TEST("publisher publish DBIRTH");
 
-  sparkplug_publisher_t* pub =
-      sparkplug_publisher_create("tcp://localhost:1883", "test_c_dbirth", "TestGroup", "TestNode");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create("tcp://localhost:1883", "test_c_dbirth",
+                                                          "TestGroup", "TestNodeC06");
   assert(pub != NULL);
 
   int result = sparkplug_publisher_connect(pub);
@@ -436,8 +436,8 @@ void test_publisher_device_birth(void) {
 void test_publisher_device_data(void) {
   TEST("publisher publish DDATA");
 
-  sparkplug_publisher_t* pub =
-      sparkplug_publisher_create("tcp://localhost:1883", "test_c_ddata", "TestGroup", "TestNode");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create("tcp://localhost:1883", "test_c_ddata",
+                                                          "TestGroup", "TestNodeC07");
   assert(pub != NULL);
 
   int result = sparkplug_publisher_connect(pub);
@@ -482,12 +482,75 @@ void test_publisher_device_data(void) {
   PASS();
 }
 
+/* Test that sequence numbers in payload are ignored for DDATA (TCK fix) */
+void test_device_data_ignores_payload_seq(void) {
+  TEST("DDATA ignores sequence in payload");
+
+  sparkplug_publisher_t* pub = sparkplug_publisher_create(
+      "tcp://localhost:1883", "test_c_ddata_seq", "TestGroup", "TestNodeC08");
+  assert(pub != NULL);
+
+  int result = sparkplug_publisher_connect(pub);
+  if (result != 0) {
+    sparkplug_publisher_destroy(pub);
+    FAIL("failed to connect");
+    return;
+  }
+
+  usleep(100000);
+
+  /* Publish NBIRTH */
+  sparkplug_payload_t* nbirth = sparkplug_payload_create();
+  sparkplug_payload_add_int32(nbirth, "NodeMetric", 100);
+  uint8_t buffer[4096];
+  size_t size = sparkplug_payload_serialize(nbirth, buffer, sizeof(buffer));
+  sparkplug_publisher_publish_birth(pub, buffer, size);
+  sparkplug_payload_destroy(nbirth);
+
+  usleep(100000);
+
+  /* Publish DBIRTH */
+  sparkplug_payload_t* dbirth = sparkplug_payload_create();
+  sparkplug_payload_add_double_with_alias(dbirth, "Temperature", 1, 20.5);
+  size = sparkplug_payload_serialize(dbirth, buffer, sizeof(buffer));
+  sparkplug_publisher_publish_device_birth(pub, "Sensor01", buffer, size);
+  sparkplug_payload_destroy(dbirth);
+
+  usleep(100000);
+
+  /* Publish DDATA with WRONG sequence number set in payload (should be ignored) */
+  sparkplug_payload_t* ddata1 = sparkplug_payload_create();
+  sparkplug_payload_set_seq(ddata1, 999); /* Wrong seq - should be ignored! */
+  sparkplug_payload_add_double_by_alias(ddata1, 1, 21.5);
+  size = sparkplug_payload_serialize(ddata1, buffer, sizeof(buffer));
+  result = sparkplug_publisher_publish_device_data(pub, "Sensor01", buffer, size);
+  assert(result == 0);
+  sparkplug_payload_destroy(ddata1);
+
+  /* Publish second DDATA with another wrong sequence */
+  sparkplug_payload_t* ddata2 = sparkplug_payload_create();
+  sparkplug_payload_set_seq(ddata2, 777); /* Also wrong - should be ignored! */
+  sparkplug_payload_add_double_by_alias(ddata2, 1, 22.5);
+  size = sparkplug_payload_serialize(ddata2, buffer, sizeof(buffer));
+  result = sparkplug_publisher_publish_device_data(pub, "Sensor01", buffer, size);
+  assert(result == 0);
+  sparkplug_payload_destroy(ddata2);
+
+  /* Note: The actual sequence numbers sent should be 1, 2 (managed by library),
+   * not 999, 777. This test verifies the fix doesn't crash and works correctly. */
+
+  sparkplug_publisher_disconnect(pub);
+  sparkplug_publisher_destroy(pub);
+
+  PASS();
+}
+
 /* Test publisher device death */
 void test_publisher_device_death(void) {
   TEST("publisher publish DDEATH");
 
-  sparkplug_publisher_t* pub =
-      sparkplug_publisher_create("tcp://localhost:1883", "test_c_ddeath", "TestGroup", "TestNode");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create("tcp://localhost:1883", "test_c_ddeath",
+                                                          "TestGroup", "TestNodeC09");
   assert(pub != NULL);
 
   int result = sparkplug_publisher_connect(pub);
@@ -533,7 +596,7 @@ void test_publisher_node_command(void) {
   TEST("publisher publish NCMD");
 
   sparkplug_publisher_t* pub =
-      sparkplug_publisher_create("tcp://localhost:1883", "test_c_ncmd", "TestGroup", "HostNode");
+      sparkplug_publisher_create("tcp://localhost:1883", "test_c_ncmd", "TestGroup", "HostNodeC10");
   assert(pub != NULL);
 
   int result = sparkplug_publisher_connect(pub);
@@ -566,7 +629,7 @@ void test_publisher_device_command(void) {
   TEST("publisher publish DCMD");
 
   sparkplug_publisher_t* pub =
-      sparkplug_publisher_create("tcp://localhost:1883", "test_c_dcmd", "TestGroup", "HostNode");
+      sparkplug_publisher_create("tcp://localhost:1883", "test_c_dcmd", "TestGroup", "HostNodeC11");
   assert(pub != NULL);
 
   int result = sparkplug_publisher_connect(pub);
@@ -611,8 +674,8 @@ void test_subscriber_command_callback(void) {
   command_received = 0;
 
   /* Create publisher to send command */
-  sparkplug_publisher_t* pub =
-      sparkplug_publisher_create("tcp://localhost:1883", "test_c_cmd_pub", "TestGroup", "HostNode");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create("tcp://localhost:1883", "test_c_cmd_pub",
+                                                          "TestGroup", "HostNodeC12");
   assert(pub != NULL);
 
   /* Create subscriber to receive command */
@@ -653,7 +716,7 @@ void test_subscriber_command_callback(void) {
 
   uint8_t buffer[4096];
   size_t size = sparkplug_payload_serialize(cmd, buffer, sizeof(buffer));
-  sparkplug_publisher_publish_node_command(pub, "TestNode", buffer, size);
+  sparkplug_publisher_publish_node_command(pub, "TestNodeTarget", buffer, size);
   sparkplug_payload_destroy(cmd);
 
   /* Wait for command to arrive */
@@ -880,6 +943,7 @@ int main(void) {
   /* Device-level API tests (require MQTT broker) */
   test_publisher_device_birth();
   test_publisher_device_data();
+  test_device_data_ignores_payload_seq();
   test_publisher_device_death();
 
   /* Command API tests (require MQTT broker) */

@@ -4,8 +4,8 @@
 #include <iostream>
 #include <thread>
 
+#include <sparkplug/edge_node.hpp>
 #include <sparkplug/payload_builder.hpp>
-#include <sparkplug/publisher.hpp>
 
 std::atomic<bool> running{true};
 std::atomic<bool> do_rebirth{false};
@@ -19,7 +19,7 @@ int main() {
   std::signal(SIGINT, signal_handler);
   std::signal(SIGTERM, signal_handler);
 
-  sparkplug::Publisher::Config config{
+  sparkplug::EdgeNode::Config config{
       .broker_url = "tcp://localhost:1883",
       .client_id = "sparkplug_publisher_example",
       .group_id = "Energy",
@@ -30,7 +30,7 @@ int main() {
       .keep_alive_interval = 60 // Sparkplug recommends 60 seconds
   };
 
-  sparkplug::Publisher publisher(std::move(config));
+  sparkplug::EdgeNode publisher(std::move(config));
 
   auto connect_result = publisher.connect();
   if (!connect_result) {
