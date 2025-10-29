@@ -420,11 +420,13 @@ int sparkplug_subscriber_set_credentials(sparkplug_subscriber_t* sub, const char
     return -1;
   }
 
-  // NOTE: HostApplication requires credentials to be set in Config at construction time
-  // This function is kept for C API compatibility but returns -1 (unsupported)
-  (void)username;
-  (void)password;
-  return -1;
+  std::optional<std::string> user =
+      username ? std::make_optional(std::string(username)) : std::nullopt;
+  std::optional<std::string> pass =
+      password ? std::make_optional(std::string(password)) : std::nullopt;
+
+  sub->impl->set_credentials(user, pass);
+  return 0;
 }
 
 int sparkplug_subscriber_set_tls(sparkplug_subscriber_t* sub, const char* trust_store,
@@ -434,14 +436,16 @@ int sparkplug_subscriber_set_tls(sparkplug_subscriber_t* sub, const char* trust_
     return -1;
   }
 
-  // NOTE: HostApplication requires TLS to be set in Config at construction time
-  // This function is kept for C API compatibility but returns -1 (unsupported)
-  (void)trust_store;
-  (void)key_store;
-  (void)private_key;
-  (void)private_key_password;
-  (void)enable_server_cert_auth;
-  return -1;
+  sparkplug::HostApplication::TlsOptions tls{
+      .trust_store = trust_store,
+      .key_store = key_store ? std::string(key_store) : "",
+      .private_key = private_key ? std::string(private_key) : "",
+      .private_key_password = private_key_password ? std::string(private_key_password) : "",
+      .enabled_cipher_suites = "",
+      .enable_server_cert_auth = enable_server_cert_auth != 0};
+
+  sub->impl->set_tls(tls);
+  return 0;
 }
 
 int sparkplug_subscriber_connect(sparkplug_subscriber_t* sub) {
