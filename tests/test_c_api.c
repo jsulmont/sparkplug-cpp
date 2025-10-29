@@ -911,6 +911,81 @@ void test_payload_parse_no_optional(void) {
   PASS();
 }
 
+/* Global variable to track if callback was invoked */
+static int host_callback_invoked = 0;
+
+/* Callback for testing HostApplication message callback */
+static void test_host_message_callback(const char* topic, const uint8_t* payload_data,
+                                       size_t payload_len, void* user_data) {
+  (void)payload_data;
+  (void)payload_len;
+
+  printf("\n  [Callback invoked] topic=%s\n", topic);
+  host_callback_invoked++;
+
+  /* Verify user_data is passed correctly */
+  int* counter = (int*)user_data;
+  (*counter)++;
+}
+
+/* Test HostApplication with message callback and subscriptions */
+void test_host_application_with_callback(void) {
+  TEST("host application with message callback");
+
+  /* Create host application */
+  sparkplug_host_application_t* host =
+      sparkplug_host_application_create("tcp://localhost:1883", "test_host_c_api", "TEST_HOST");
+
+  if (host == NULL) {
+    FAIL("Failed to create host application");
+  }
+
+  /* Set user data counter */
+  int user_counter = 0;
+
+  /* Set message callback */
+  int ret = sparkplug_host_application_set_message_callback(host, test_host_message_callback,
+                                                            &user_counter);
+  assert(ret == 0);
+
+  /* Connect */
+  ret = sparkplug_host_application_connect(host);
+  if (ret != 0) {
+    sparkplug_host_application_destroy(host);
+    FAIL("Failed to connect (broker not running?)");
+  }
+
+  /* Publish STATE birth */
+  ret = sparkplug_host_application_publish_state_birth(host, 1234567890);
+  assert(ret == 0);
+
+  /* Subscribe to a test group */
+  ret = sparkplug_host_application_subscribe_group(host, "TestGroup");
+  assert(ret == 0);
+
+  printf("\n  Waiting for messages (3 seconds)...\n");
+  sleep(3);
+
+  /* Publish STATE death */
+  ret = sparkplug_host_application_publish_state_death(host, 1234567890);
+  assert(ret == 0);
+
+  /* Disconnect and cleanup */
+  ret = sparkplug_host_application_disconnect(host);
+  assert(ret == 0);
+
+  sparkplug_host_application_destroy(host);
+  sparkplug_host_application_destroy(NULL); /* Should not crash */
+
+  printf("  Callback invocations: %d\n", host_callback_invoked);
+  printf("  User counter value: %d\n", user_counter);
+
+  /* Note: We don't assert callback was invoked since it depends on having a publisher */
+  /* This test mainly validates the API doesn't crash */
+
+  PASS();
+}
+
 int main(void) {
   printf("=== C API Unit Tests ===\n\n");
 
@@ -950,6 +1025,9 @@ int main(void) {
   test_publisher_node_command();
   test_publisher_device_command();
   test_subscriber_command_callback();
+
+  /* Host Application callback tests (require MQTT broker) */
+  test_host_application_with_callback();
 
   printf("\n=== Test Summary ===\n");
   printf("Passed: %d\n", tests_passed);

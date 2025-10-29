@@ -562,6 +562,95 @@ int sparkplug_host_application_publish_device_command(
     sparkplug_host_application_t* host, const char* group_id, const char* target_edge_node_id,
     const char* target_device_id, const uint8_t* payload_data, size_t payload_len);
 
+/**
+ * @brief Sets a message callback for receiving Sparkplug messages.
+ *
+ * Enables the Host Application to receive NBIRTH, NDATA, NDEATH, DBIRTH, DDATA, DDEATH
+ * messages from Edge Nodes. The callback will be invoked for each received message.
+ *
+ * @param host Host Application handle
+ * @param callback Function to call for each received message (may be NULL to clear)
+ * @param user_data User context pointer passed to callback
+ * @return 0 on success, -1 on failure
+ *
+ * @note Must be called before sparkplug_host_application_connect().
+ * @note After setting the callback, use sparkplug_host_application_subscribe_* functions to
+ * subscribe.
+ */
+int sparkplug_host_application_set_message_callback(sparkplug_host_application_t* host,
+                                                    sparkplug_message_callback_t callback,
+                                                    void* user_data);
+
+/**
+ * @brief Subscribes to all Sparkplug messages across all groups.
+ *
+ * Subscribes to: spBv1.0/#
+ *
+ * Receives all message types (NBIRTH, NDATA, NDEATH, DBIRTH, DDATA, DDEATH)
+ * from all edge nodes in all groups.
+ *
+ * @param host Host Application handle
+ * @return 0 on success, -1 on failure
+ *
+ * @note Requires message callback to be set via sparkplug_host_application_set_message_callback().
+ * @note Must be called after sparkplug_host_application_connect().
+ */
+int sparkplug_host_application_subscribe_all(sparkplug_host_application_t* host);
+
+/**
+ * @brief Subscribes to messages from a specific group.
+ *
+ * Subscribes to: spBv1.0/{group_id}/#
+ *
+ * @param host Host Application handle
+ * @param group_id Sparkplug group ID to subscribe to
+ * @return 0 on success, -1 on failure
+ *
+ * @note Requires message callback to be set via sparkplug_host_application_set_message_callback().
+ * @note Must be called after sparkplug_host_application_connect().
+ */
+int sparkplug_host_application_subscribe_group(sparkplug_host_application_t* host,
+                                               const char* group_id);
+
+/**
+ * @brief Subscribes to messages from a specific edge node.
+ *
+ * Subscribes to: spBv1.0/{group_id}/+/{edge_node_id}/#
+ *
+ * @param host Host Application handle
+ * @param group_id Sparkplug group ID
+ * @param edge_node_id Edge node identifier to subscribe to
+ * @return 0 on success, -1 on failure
+ *
+ * @note Requires message callback to be set via sparkplug_host_application_set_message_callback().
+ * @note Must be called after sparkplug_host_application_connect().
+ */
+int sparkplug_host_application_subscribe_node(sparkplug_host_application_t* host,
+                                              const char* group_id, const char* edge_node_id);
+
+/**
+ * @brief Resolves a metric alias to its name for a specific node or device.
+ *
+ * Looks up the metric name that corresponds to the given alias, based on
+ * the alias mappings captured from NBIRTH (node metrics) or DBIRTH (device metrics).
+ *
+ * @param host Host Application handle
+ * @param group_id Sparkplug group ID
+ * @param edge_node_id Edge node identifier
+ * @param device_id Device identifier (may be NULL for node-level metrics)
+ * @param alias Metric alias value
+ * @param name_buffer Buffer to store the resolved metric name
+ * @param buffer_size Size of name_buffer in bytes
+ * @return Number of bytes written to name_buffer (including null terminator) on success, 0 if not
+ * found, -1 on error
+ *
+ * @note Requires message callback to be set to track alias mappings from BIRTH messages.
+ */
+int sparkplug_host_application_get_metric_name(sparkplug_host_application_t* host,
+                                               const char* group_id, const char* edge_node_id,
+                                               const char* device_id, uint64_t alias,
+                                               char* name_buffer, size_t buffer_size);
+
 /* ============================================================================
  * Subscriber API
  * ========================================================================= */

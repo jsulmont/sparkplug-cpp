@@ -210,6 +210,24 @@ public:
   void set_tls(std::optional<TlsOptions> tls);
 
   /**
+   * @brief Sets the message callback for receiving Sparkplug messages.
+   *
+   * @param callback Callback function to invoke for received messages
+   *
+   * @note Must be called before connect().
+   */
+  void set_message_callback(MessageCallback callback);
+
+  /**
+   * @brief Sets the log callback for receiving library diagnostic messages.
+   *
+   * @param callback Callback function to invoke for log messages
+   *
+   * @note Can be called at any time.
+   */
+  void set_log_callback(LogCallback callback);
+
+  /**
    * @brief Connects to the MQTT broker.
    *
    * Unlike Publisher::connect(), this does NOT automatically publish any messages.

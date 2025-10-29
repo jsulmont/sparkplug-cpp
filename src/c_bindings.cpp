@@ -1018,4 +1018,90 @@ int sparkplug_host_application_publish_device_command(
   }
 }
 
+int sparkplug_host_application_set_message_callback(sparkplug_host_application_t* host,
+                                                    sparkplug_message_callback_t callback,
+                                                    void* user_data) {
+  if (!host) {
+    return -1;
+  }
+
+  try {
+    if (callback) {
+      auto cpp_callback = [callback,
+                           user_data](const sparkplug::Topic& topic,
+                                      const org::eclipse::tahu::protobuf::Payload& payload) {
+        std::string topic_str = topic.to_string();
+        std::vector<uint8_t> payload_data(payload.ByteSizeLong());
+        if (!payload.SerializeToArray(payload_data.data(), static_cast<int>(payload_data.size()))) {
+          return; // Serialization failed, skip this message
+        }
+
+        callback(topic_str.c_str(), payload_data.data(), payload_data.size(), user_data);
+      };
+
+      host->impl.set_message_callback(std::move(cpp_callback));
+    } else {
+      host->impl.set_message_callback({});
+    }
+    return 0;
+  } catch (...) {
+    return -1;
+  }
+}
+
+int sparkplug_host_application_subscribe_all(sparkplug_host_application_t* host) {
+  if (!host) {
+    return -1;
+  }
+
+  auto result = host->impl.subscribe_all_groups();
+  return result.has_value() ? 0 : -1;
+}
+
+int sparkplug_host_application_subscribe_group(sparkplug_host_application_t* host,
+                                               const char* group_id) {
+  if (!host || !group_id) {
+    return -1;
+  }
+
+  auto result = host->impl.subscribe_group(group_id);
+  return result.has_value() ? 0 : -1;
+}
+
+int sparkplug_host_application_subscribe_node(sparkplug_host_application_t* host,
+                                              const char* group_id, const char* edge_node_id) {
+  if (!host || !group_id || !edge_node_id) {
+    return -1;
+  }
+
+  auto result = host->impl.subscribe_node(group_id, edge_node_id);
+  return result.has_value() ? 0 : -1;
+}
+
+int sparkplug_host_application_get_metric_name(sparkplug_host_application_t* host,
+                                               const char* group_id, const char* edge_node_id,
+                                               const char* device_id, uint64_t alias,
+                                               char* name_buffer, size_t buffer_size) {
+  if (!host || !group_id || !edge_node_id || !name_buffer || buffer_size == 0) {
+    return -1;
+  }
+
+  try {
+    auto result = host->impl.get_metric_name(
+        group_id, edge_node_id, device_id ? std::string_view(device_id) : std::string_view(""),
+        alias);
+
+    if (result.has_value()) {
+      auto name = result.value();
+      size_t copy_len = std::min(name.length() + 1, buffer_size);
+      std::memcpy(name_buffer, name.data(), copy_len - 1);
+      name_buffer[copy_len - 1] = '\0';
+      return static_cast<int>(copy_len);
+    }
+    return 0; // Not found
+  } catch (...) {
+    return -1;
+  }
+}
+
 } // extern "C"

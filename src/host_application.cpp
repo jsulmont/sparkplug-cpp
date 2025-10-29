@@ -94,6 +94,16 @@ void HostApplication::set_tls(std::optional<TlsOptions> tls) {
   config_.tls = std::move(tls);
 }
 
+void HostApplication::set_message_callback(MessageCallback callback) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  config_.message_callback = std::move(callback);
+}
+
+void HostApplication::set_log_callback(LogCallback callback) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  config_.log_callback = std::move(callback);
+}
+
 std::expected<void, std::string> HostApplication::connect() {
   std::lock_guard<std::mutex> lock(mutex_);
 
