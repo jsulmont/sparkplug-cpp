@@ -1055,6 +1055,29 @@ int sparkplug_host_application_set_message_callback(sparkplug_host_application_t
   }
 }
 
+void sparkplug_host_application_set_log_callback(sparkplug_host_application_t* host,
+                                                 sparkplug_log_callback_t callback,
+                                                 void* user_data) {
+  if (!host) {
+    return;
+  }
+
+  try {
+    if (callback) {
+      auto cpp_callback = [callback, user_data](sparkplug::LogLevel level,
+                                                std::string_view message) {
+        callback(static_cast<int>(level), message.data(), message.size(), user_data);
+      };
+
+      host->impl.set_log_callback(std::move(cpp_callback));
+    } else {
+      host->impl.set_log_callback({});
+    }
+  } catch (...) {
+    // Silently ignore errors
+  }
+}
+
 int sparkplug_host_application_subscribe_all(sparkplug_host_application_t* host) {
   if (!host) {
     return -1;

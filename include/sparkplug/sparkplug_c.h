@@ -582,6 +582,22 @@ int sparkplug_host_application_set_message_callback(sparkplug_host_application_t
                                                     void* user_data);
 
 /**
+ * @brief Sets a log callback for receiving library log messages including MQTT errors.
+ *
+ * @param host Host Application handle
+ * @param callback Log callback function (or NULL to disable logging)
+ * @param user_data User data pointer passed to callback (can be NULL)
+ * @return 0 on success, -1 on failure
+ *
+ * @note The callback receives all log messages from the sparkplug-cpp library, including
+ * detailed MQTT error codes from paho.mqtt.c.
+ * @note Can be called at any time (before or after connect).
+ */
+void sparkplug_host_application_set_log_callback(sparkplug_host_application_t* host,
+                                                 sparkplug_log_callback_t callback,
+                                                 void* user_data);
+
+/**
  * @brief Subscribes to all Sparkplug messages across all groups.
  *
  * Subscribes to: spBv1.0/#
