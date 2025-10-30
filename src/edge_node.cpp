@@ -230,6 +230,15 @@ std::expected<void, std::string> EdgeNode::connect() {
 
   conn_opts.will = &will_opts_;
 
+  // Set connection lost callback (always) and message callback (if command_callback is set)
+  // MUST be called BEFORE MQTTAsync_connect to avoid race conditions
+  rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost,
+                              config_.command_callback.has_value() ? on_message_arrived : nullptr,
+                              nullptr);
+  if (rc != MQTTASYNC_SUCCESS) {
+    return std::unexpected(std::format("Failed to set callbacks: {}", rc));
+  }
+
   std::promise<void> connect_promise;
   auto connect_future = connect_promise.get_future();
 
@@ -254,14 +263,6 @@ std::expected<void, std::string> EdgeNode::connect() {
   }
 
   is_connected_ = true;
-
-  // Set connection lost callback (always) and message callback (if command_callback is set)
-  rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost,
-                              config_.command_callback.has_value() ? on_message_arrived : nullptr,
-                              nullptr);
-  if (rc != MQTTASYNC_SUCCESS) {
-    return std::unexpected(std::format("Failed to set callbacks: {}", rc));
-  }
 
   if (config_.command_callback.has_value()) {
     Topic ncmd_topic{.group_id = config_.group_id,
