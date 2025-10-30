@@ -81,6 +81,7 @@ void MQTTAsyncHandle::reset() noexcept {
 }
 
 EdgeNode::EdgeNode(Config config) : config_(std::move(config)) {
+  will_opts_ = MQTTAsync_willOptions_initializer;
 }
 
 int EdgeNode::on_message_arrived(void* context, char* topicName, int topicLen,
@@ -176,6 +177,14 @@ std::expected<void, std::string> EdgeNode::connect() {
   }
   client_ = MQTTAsyncHandle(raw_client);
 
+  // Set callbacks (MUST be called after creating client but before connecting)
+  // Note: Paho requires message_arrived callback to be non-null, so always pass it
+  rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost, on_message_arrived,
+                              nullptr);
+  if (rc != MQTTASYNC_SUCCESS) {
+    return std::unexpected(std::format("Failed to set callbacks: {}", rc));
+  }
+
   // Increment bdSeq for this session (Sparkplug spec requires bdSeq to start at 1)
   bd_seq_num_++;
 
@@ -229,15 +238,6 @@ std::expected<void, std::string> EdgeNode::connect() {
   will_opts_.qos = config_.death_qos;
 
   conn_opts.will = &will_opts_;
-
-  // Set connection lost callback (always) and message callback (if command_callback is set)
-  // MUST be called BEFORE MQTTAsync_connect to avoid race conditions
-  rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost,
-                              config_.command_callback.has_value() ? on_message_arrived : nullptr,
-                              nullptr);
-  if (rc != MQTTASYNC_SUCCESS) {
-    return std::unexpected(std::format("Failed to set callbacks: {}", rc));
-  }
 
   std::promise<void> connect_promise;
   auto connect_future = connect_promise.get_future();
