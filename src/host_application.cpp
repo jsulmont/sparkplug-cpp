@@ -708,6 +708,11 @@ void HostApplication::on_connection_lost(void* context, char* cause) {
     return;
   }
 
+  {
+    std::lock_guard<std::mutex> lock(host_app->mutex_);
+    host_app->is_connected_ = false;
+  }
+
   if (cause) {
     host_app->log(LogLevel::WARN, std::format("Connection lost: {}", cause));
   } else {

@@ -494,6 +494,9 @@ private:
   // Static MQTT callback for message arrived (NCMD)
   static int on_message_arrived(void* context, char* topicName, int topicLen,
                                 MQTTAsync_message* message);
+
+  // Static MQTT callback for connection lost
+  static void on_connection_lost(void* context, char* cause);
 };
 
 } // namespace sparkplug

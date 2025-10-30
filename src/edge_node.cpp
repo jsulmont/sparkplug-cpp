@@ -55,6 +55,20 @@ void on_subscribe_failure(void* context, MQTTAsync_failureData* response) {
 
 } // namespace
 
+void EdgeNode::on_connection_lost(void* context, char* cause) {
+  auto* edge_node = static_cast<EdgeNode*>(context);
+  if (!edge_node) {
+    return;
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(edge_node->mutex_);
+    edge_node->is_connected_ = false;
+  }
+
+  (void)cause;
+}
+
 MQTTAsyncHandle::~MQTTAsyncHandle() noexcept {
   reset();
 }
@@ -241,12 +255,15 @@ std::expected<void, std::string> EdgeNode::connect() {
 
   is_connected_ = true;
 
-  if (config_.command_callback.has_value()) {
-    rc = MQTTAsync_setCallbacks(client_.get(), this, nullptr, on_message_arrived, nullptr);
-    if (rc != MQTTASYNC_SUCCESS) {
-      return std::unexpected(std::format("Failed to set message callback: {}", rc));
-    }
+  // Set connection lost callback (always) and message callback (if command_callback is set)
+  rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost,
+                              config_.command_callback.has_value() ? on_message_arrived : nullptr,
+                              nullptr);
+  if (rc != MQTTASYNC_SUCCESS) {
+    return std::unexpected(std::format("Failed to set callbacks: {}", rc));
+  }
 
+  if (config_.command_callback.has_value()) {
     Topic ncmd_topic{.group_id = config_.group_id,
                      .message_type = MessageType::NCMD,
                      .edge_node_id = config_.edge_node_id,
