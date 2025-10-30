@@ -458,6 +458,14 @@ public:
   publish_device_command(std::string_view group_id, std::string_view target_edge_node_id,
                          std::string_view target_device_id, PayloadBuilder& payload);
 
+  /**
+   * @brief Internal logging method accessible from C bindings.
+   *
+   * @param level Log severity level
+   * @param message Log message content
+   */
+  void log(LogLevel level, std::string_view message) const noexcept;
+
 private:
   Config config_;
   MQTTAsyncHandle client_;
@@ -517,8 +525,6 @@ private:
   publish_command_message(std::string_view topic, std::span<const uint8_t> payload_data);
 
   bool validate_message(const Topic& topic, const org::eclipse::tahu::protobuf::Payload& payload);
-
-  void log(LogLevel level, std::string_view message) const noexcept;
 
   // Static MQTT callback for message arrived
   static int on_message_arrived(void* context, char* topicName, int topicLen,
