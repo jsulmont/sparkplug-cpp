@@ -43,17 +43,23 @@ using CommandCallback =
  * This class is fully thread-safe with coarse-grained locking:
  * - All public methods use a single internal mutex to protect shared state
  * - Methods can be safely called from any thread concurrently
- * - Callbacks (e.g., command_callback) are invoked on the MQTT client thread
+ * - Callbacks (e.g., command_callback) are invoked on MQTT thread WITHOUT holding mutex
+ * - Mutex is released before MQTT publish to prevent callback deadlocks
  * - Performance: Suitable for typical IIoT applications; not optimized for ultra-high-frequency
  *   (>10kHz) publishing from multiple threads
  *
  * @par Threading Model
  * - **Application threads**: Call EdgeNode methods (connect, publish_*, disconnect)
- * - **MQTT client thread**: Handles network I/O and invokes callbacks
+ * - **MQTT client thread**: Paho async library handles network I/O and invokes callbacks
  * - **Synchronization**: Single std::mutex protects all mutable state (seq_num_, bd_seq_num_,
  *   device_states_, last_birth_payload_, etc.)
- * - **Lock scope**: Entire method execution (coarse-grained)
+ * - **Lock acquisition**: Methods acquire mutex, prepare data, release before MQTT operations
+ * - **Callback safety**: User callbacks invoked without mutex held (safe to call EdgeNode methods)
  * - **Blocking operations**: connect() and disconnect() block until completion or timeout
+ *
+ * @par Rust FFI Compatibility
+ * - Implements Send: Can transfer between threads safely (all state mutex-protected)
+ * - Implements Sync: Can access from multiple threads concurrently (mutex-guarded methods)
  *
  * @par Example Usage
  * @code
@@ -481,12 +487,9 @@ private:
   // Mutex for thread-safe access to all mutable state
   mutable std::mutex mutex_;
 
-  [[nodiscard]] std::expected<void, std::string>
-  publish_message(const Topic& topic, std::span<const uint8_t> payload_data);
-
-  [[nodiscard]] std::expected<void, std::string>
-  publish_raw_message(std::string_view topic, std::span<const uint8_t> payload_data, int qos,
-                      bool retain);
+  [[nodiscard]] static std::expected<void, std::string>
+  publish_message(MQTTAsync client, const std::string& topic_str,
+                  std::span<const uint8_t> payload_data, int qos, bool retain);
 
   // Static MQTT callback for message arrived (NCMD)
   static int on_message_arrived(void* context, char* topicName, int topicLen,

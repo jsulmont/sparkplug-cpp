@@ -57,8 +57,15 @@ using MessageCallback =
  * A Host Application should use a single MQTT client that both receives data and sends commands.
  *
  * @par Thread Safety
- * This class is thread-safe. All methods may be called from any thread concurrently.
- * Internal synchronization is handled via mutex locking.
+ * This class is fully thread-safe with coarse-grained locking:
+ * - All public methods use a single internal mutex to protect shared state
+ * - Methods can be safely called from any thread concurrently
+ * - Callbacks (message_callback, log_callback) invoked on MQTT thread WITHOUT holding mutex
+ * - Mutex is released before MQTT publish to prevent callback deadlocks
+ *
+ * @par Rust FFI Compatibility
+ * - Implements Send: Can transfer between threads safely (all state mutex-protected)
+ * - Implements Sync: Can access from multiple threads concurrently (mutex-guarded methods)
  *
  * @par Example Usage
  * @code
