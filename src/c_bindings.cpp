@@ -5,6 +5,7 @@
 #include "sparkplug/sparkplug_c.h"
 
 #include <cstring>
+#include <format>
 #include <memory>
 
 struct sparkplug_publisher {
@@ -988,6 +989,11 @@ int sparkplug_host_application_publish_node_command(sparkplug_host_application_t
     copy_metrics_to_builder(builder, proto_payload);
 
     auto result = host->impl.publish_node_command(group_id, target_edge_node_id, builder);
+    if (!result.has_value()) {
+      auto error_msg = std::format("publish_node_command failed for {}/{}: {}", group_id,
+                                   target_edge_node_id, result.error());
+      host->impl.log(sparkplug::LogLevel::ERROR, error_msg);
+    }
     return result.has_value() ? 0 : -1;
   } catch (...) {
     return -1;

@@ -123,6 +123,7 @@ std::expected<void, std::string> HostApplication::connect() {
   MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
   conn_opts.keepAliveInterval = config_.keep_alive_interval;
   conn_opts.cleansession = config_.clean_session;
+  conn_opts.maxInflight = config_.max_inflight;
 
   if (config_.username.has_value()) {
     conn_opts.username = config_.username.value().c_str();

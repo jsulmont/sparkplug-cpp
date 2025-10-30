@@ -161,15 +161,17 @@ public:
    * @brief Configuration parameters for the Sparkplug B Host Application.
    */
   struct Config {
-    std::string broker_url;        ///< MQTT broker URL (e.g., "tcp://localhost:1883" or
-                                   ///< "ssl://localhost:8883")
-    std::string client_id;         ///< Unique MQTT client identifier
-    std::string host_id;           ///< Host Application identifier (for STATE messages)
-    int qos = 1;                   ///< MQTT QoS for STATE messages and commands (default: 1)
-    bool clean_session = true;     ///< MQTT clean session flag (should be true per Sparkplug spec)
-    int keep_alive_interval = 60;  ///< MQTT keep-alive interval in seconds (default: 60)
-    bool validate_sequence = true; ///< Enable sequence number validation (detects packet loss)
-    std::optional<TlsOptions> tls{};       ///< TLS/SSL options (required if broker_url uses ssl://)
+    std::string broker_url;       ///< MQTT broker URL (e.g., "tcp://localhost:1883" or
+                                  ///< "ssl://localhost:8883")
+    std::string client_id;        ///< Unique MQTT client identifier
+    std::string host_id;          ///< Host Application identifier (for STATE messages)
+    int qos = 1;                  ///< MQTT QoS for STATE messages and commands (default: 1)
+    bool clean_session = true;    ///< MQTT clean session flag (should be true per Sparkplug spec)
+    int keep_alive_interval = 60; ///< MQTT keep-alive interval in seconds (default: 60)
+    int max_inflight = 100; ///< Maximum number of QoS 1/2 messages allowed in-flight (default: 100,
+                            ///< paho default: 10)
+    bool validate_sequence = true;   ///< Enable sequence number validation (detects packet loss)
+    std::optional<TlsOptions> tls{}; ///< TLS/SSL options (required if broker_url uses ssl://)
     std::optional<std::string> username{}; ///< MQTT username for authentication (optional)
     std::optional<std::string> password{}; ///< MQTT password for authentication (optional)
     MessageCallback message_callback{};    ///< Callback for received Sparkplug messages
