@@ -362,10 +362,10 @@ std::expected<void, std::string> EdgeNode::publish_message(MQTTAsync client,
 }
 
 std::expected<void, std::string> EdgeNode::publish_birth(PayloadBuilder& payload) {
-  MQTTAsync client;
+  MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;
-  int qos;
+  int qos = 0;
 
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -419,10 +419,10 @@ std::expected<void, std::string> EdgeNode::publish_birth(PayloadBuilder& payload
 }
 
 std::expected<void, std::string> EdgeNode::publish_data(PayloadBuilder& payload) {
-  MQTTAsync client;
+  MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;
-  int qos;
+  int qos = 0;
 
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -452,10 +452,10 @@ std::expected<void, std::string> EdgeNode::publish_data(PayloadBuilder& payload)
 }
 
 std::expected<void, std::string> EdgeNode::publish_death() {
-  MQTTAsync client;
+  MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;
-  int qos;
+  int qos = 0;
 
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -486,7 +486,7 @@ std::expected<void, std::string> EdgeNode::publish_death() {
 std::expected<void, std::string> EdgeNode::rebirth() {
   std::vector<uint8_t> payload_data;
   std::string topic_str;
-  int qos;
+  int qos = 0;
 
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -532,7 +532,7 @@ std::expected<void, std::string> EdgeNode::rebirth() {
   auto result = disconnect()
                     .and_then([this]() { return connect(); })
                     .and_then([this, &topic_str, &payload_data, qos]() {
-                      MQTTAsync client;
+                      MQTTAsync client = nullptr;
                       {
                         std::lock_guard<std::mutex> lock(mutex_);
                         client = client_.get();
@@ -554,10 +554,10 @@ std::expected<void, std::string> EdgeNode::rebirth() {
 
 std::expected<void, std::string> EdgeNode::publish_device_birth(std::string_view device_id,
                                                                 PayloadBuilder& payload) {
-  MQTTAsync client;
+  MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;
-  int qos;
+  int qos = 0;
 
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -601,10 +601,10 @@ std::expected<void, std::string> EdgeNode::publish_device_birth(std::string_view
 
 std::expected<void, std::string> EdgeNode::publish_device_data(std::string_view device_id,
                                                                PayloadBuilder& payload) {
-  MQTTAsync client;
+  MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;
-  int qos;
+  int qos = 0;
 
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -641,10 +641,10 @@ std::expected<void, std::string> EdgeNode::publish_device_data(std::string_view 
 }
 
 std::expected<void, std::string> EdgeNode::publish_device_death(std::string_view device_id) {
-  MQTTAsync client;
+  MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;
-  int qos;
+  int qos = 0;
 
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -689,10 +689,10 @@ std::expected<void, std::string> EdgeNode::publish_device_death(std::string_view
 
 std::expected<void, std::string>
 EdgeNode::publish_node_command(std::string_view target_edge_node_id, PayloadBuilder& payload) {
-  MQTTAsync client;
+  MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;
-  int qos;
+  int qos = 0;
 
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -718,10 +718,10 @@ EdgeNode::publish_node_command(std::string_view target_edge_node_id, PayloadBuil
 std::expected<void, std::string>
 EdgeNode::publish_device_command(std::string_view target_edge_node_id,
                                  std::string_view target_device_id, PayloadBuilder& payload) {
-  MQTTAsync client;
+  MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;
-  int qos;
+  int qos = 0;
 
   {
     std::lock_guard<std::mutex> lock(mutex_);

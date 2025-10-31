@@ -563,16 +563,22 @@ bool HostApplication::validate_message(const Topic& topic,
       return false;
     }
 
-    if (payload.has_seq() && payload.seq() != 0) {
-      log(LogLevel::WARN,
-          std::format("DBIRTH for device '{}' on {} has invalid seq: {} (expected 0)",
-                      topic.device_id, node_id, payload.seq()));
+    if (payload.has_seq()) {
+      uint64_t seq = payload.seq();
+      uint64_t expected_seq = (state.last_seq + 1) % SEQ_NUMBER_MAX;
+
+      if (seq != expected_seq) {
+        log(LogLevel::WARN,
+            std::format("Sequence number gap for DBIRTH device '{}' on {} (got {}, expected {})",
+                        topic.device_id, node_id, seq, expected_seq));
+      }
+
+      state.last_seq = seq;
     }
 
     auto& device_state = state.devices[topic.device_id];
     device_state.is_online = true;
     device_state.birth_received = true;
-    device_state.last_seq = 0;
 
     device_state.alias_map.clear();
     for (const auto& metric : payload.metrics()) {
@@ -598,11 +604,9 @@ bool HostApplication::validate_message(const Topic& topic,
       return false;
     }
 
-    auto& device_state = device_it->second;
-
     if (payload.has_seq()) {
       uint64_t seq = payload.seq();
-      uint64_t expected_seq = (device_state.last_seq + 1) % SEQ_NUMBER_MAX;
+      uint64_t expected_seq = (state.last_seq + 1) % SEQ_NUMBER_MAX;
 
       if (seq != expected_seq) {
         log(LogLevel::WARN,
@@ -610,7 +614,7 @@ bool HostApplication::validate_message(const Topic& topic,
                         topic.device_id, node_id, seq, expected_seq));
       }
 
-      device_state.last_seq = seq;
+      state.last_seq = seq;
     }
 
     return true;
