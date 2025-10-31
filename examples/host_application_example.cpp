@@ -11,11 +11,10 @@
   - NOT Edge Nodes (Edge Nodes publish NBIRTH/NDEATH instead)
 
   2. Topic Format:
-  STATE/<host_id>
-  Notice: This is NOT in the spBv1.0/ namespace! (see test_topic.cpp:36)
+  spBv1.0/STATE/<host_id>
 
   Example:
-  - STATE/SCADA01 - for a SCADA Host Application with ID "SCADA01"
+  - spBv1.0/STATE/SCADA01 - for a SCADA Host Application with ID "SCADA01"
 
   3. Payload Format:
   Unlike other Sparkplug messages, STATE messages use JSON, not Protocol Buffers:
@@ -102,7 +101,7 @@ int main() {
   }
 
   std::cout << "Published STATE birth\n";
-  std::cout << "  Topic: STATE/SCADA01\n";
+  std::cout << "  Topic: spBv1.0/STATE/SCADA01\n";
   std::cout << "  Payload: {\"online\":true,\"timestamp\":" << timestamp << "}\n";
   std::cout << "  QoS: 1, Retained: true\n\n";
 
@@ -168,7 +167,7 @@ int main() {
     std::cerr << "Failed to publish STATE death: " << result.error() << "\n";
   } else {
     std::cout << "Published STATE death\n";
-    std::cout << "  Topic: STATE/SCADA01\n";
+    std::cout << "  Topic: spBv1.0/STATE/SCADA01\n";
     std::cout << "  Payload: {\"online\":false,\"timestamp\":" << timestamp << "}\n\n";
   }
 

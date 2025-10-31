@@ -340,20 +340,6 @@ int sparkplug_publisher_publish_device_command(sparkplug_publisher_t* pub,
              : -1;
 }
 
-int sparkplug_publisher_publish_state_birth(sparkplug_publisher_t* pub, const char* host_id,
-                                            uint64_t timestamp) {
-  if (!pub || !host_id)
-    return -1;
-  return pub->impl.publish_state_birth(host_id, timestamp).has_value() ? 0 : -1;
-}
-
-int sparkplug_publisher_publish_state_death(sparkplug_publisher_t* pub, const char* host_id,
-                                            uint64_t timestamp) {
-  if (!pub || !host_id)
-    return -1;
-  return pub->impl.publish_state_death(host_id, timestamp).has_value() ? 0 : -1;
-}
-
 // ============================================================================
 // Subscriber Functions
 // ============================================================================

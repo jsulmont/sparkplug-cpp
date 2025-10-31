@@ -33,7 +33,7 @@ void test_state_topic() {
                          .device_id = ""};
 
   auto topic_str = topic.to_string();
-  assert(topic_str == "STATE/scada_host");
+  assert(topic_str == "spBv1.0/STATE/scada_host");
   std::cout << "✓ STATE topic\n";
 }
 
@@ -62,7 +62,7 @@ void test_parse_device_topic() {
 }
 
 void test_parse_state_topic() {
-  auto result = sparkplug::Topic::parse("STATE/scada_host");
+  auto result = sparkplug::Topic::parse("spBv1.0/STATE/scada_host");
   assert(result.has_value());
 
   [[maybe_unused]] auto& topic = *result;

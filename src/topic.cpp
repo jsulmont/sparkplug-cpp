@@ -64,7 +64,7 @@ std::expected<MessageType, std::string> parse_message_type(std::string_view str)
 
 std::string Topic::to_string() const {
   if (message_type == MessageType::STATE) {
-    return std::format("STATE/{}", edge_node_id);
+    return std::format("spBv1.0/STATE/{}", edge_node_id);
   }
 
   auto base = std::format("{}/{}/{}/{}", NAMESPACE, group_id, message_type_to_string(message_type),
@@ -96,17 +96,22 @@ std::expected<Topic, std::string> Topic::parse(std::string_view topic_str) {
   }
   std::string_view part1 = *it++;
 
-  // Check for STATE message
-  if (part0 == "STATE") {
-    return Topic{.group_id = "",
-                 .message_type = MessageType::STATE,
-                 .edge_node_id = std::string(part1),
-                 .device_id = ""};
-  }
-
   // Sparkplug B topic: spBv1.0/{group_id}/{message_type}/{edge_node_id}[/{device_id}]
+  // or STATE message: spBv1.0/STATE/{host_id}
   if (part0 != NAMESPACE) {
     return std::unexpected("Invalid Sparkplug B topic");
+  }
+
+  // Check for STATE message: spBv1.0/STATE/{host_id}
+  if (part1 == "STATE") {
+    if (it == end) {
+      return std::unexpected("STATE topic requires host_id");
+    }
+    std::string_view host_id = *it++;
+    return Topic{.group_id = "",
+                 .message_type = MessageType::STATE,
+                 .edge_node_id = std::string(host_id),
+                 .device_id = ""};
   }
 
   if (it == end) {

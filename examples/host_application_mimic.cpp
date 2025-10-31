@@ -56,7 +56,7 @@ int main() {
   }
 
   std::cout << "Published STATE birth\n";
-  std::cout << "  Topic: STATE/SCADA_SparkplugCPP\n";
+  std::cout << "  Topic: spBv1.0/STATE/SCADA_SparkplugCPP\n";
   std::cout << "  Payload: {\"online\":true,\"timestamp\":" << timestamp << "}\n\n";
 
   std::this_thread::sleep_for(std::chrono::seconds(2));
@@ -129,7 +129,7 @@ int main() {
     std::cerr << "Failed to publish STATE death: " << result.error() << "\n";
   } else {
     std::cout << "Published STATE death\n";
-    std::cout << "  Topic: STATE/SCADA_SparkplugCPP\n";
+    std::cout << "  Topic: spBv1.0/STATE/SCADA_SparkplugCPP\n";
     std::cout << "  Payload: {\"online\":false,\"timestamp\":" << timestamp << "}\n\n";
   }
 

@@ -385,62 +385,6 @@ public:
   publish_device_command(std::string_view target_edge_node_id, std::string_view target_device_id,
                          PayloadBuilder& payload);
 
-  /**
-   * @brief Publishes a STATE birth message for a Host Application.
-   *
-   * STATE messages are used by Host Applications (SCADA/Primary Applications) to
-   * indicate their online status. The birth message declares the Host Application is online.
-   *
-   * @param host_id Host application identifier (e.g., "SCADA01", "HostApp")
-   * @param timestamp UTC milliseconds since epoch
-   *
-   * @return void on success, error message on failure
-   *
-   * @note Topic format: STATE/<host_id>
-   * @note Payload format: JSON {"online": true, "timestamp": <timestamp>}
-   * @note Message is published with Retain=true (late-joining nodes can see it)
-   * @note This is NOT a Sparkplug protobuf message - uses raw JSON payload
-   *
-   * @par Example Usage
-   * @code
-   * auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
-   *     std::chrono::system_clock::now().time_since_epoch()).count();
-   * edge_node.publish_state_birth("SCADA01", timestamp);
-   * @endcode
-   *
-   * @see publish_state_death() for declaring Host Application offline
-   */
-  [[nodiscard]] std::expected<void, std::string> publish_state_birth(std::string_view host_id,
-                                                                     uint64_t timestamp);
-
-  /**
-   * @brief Publishes a STATE death message for a Host Application.
-   *
-   * STATE messages are used by Host Applications (SCADA/Primary Applications) to
-   * indicate their online status. The death message declares the Host Application is offline.
-   *
-   * @param host_id Host application identifier (e.g., "SCADA01", "HostApp")
-   * @param timestamp UTC milliseconds since epoch (must match birth timestamp)
-   *
-   * @return void on success, error message on failure
-   *
-   * @note Topic format: STATE/<host_id>
-   * @note Payload format: JSON {"online": false, "timestamp": <timestamp>}
-   * @note Message is published with Retain=true
-   * @note This is NOT a Sparkplug protobuf message - uses raw JSON payload
-   *
-   * @par Example Usage
-   * @code
-   * auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
-   *     std::chrono::system_clock::now().time_since_epoch()).count();
-   * edge_node.publish_state_death("SCADA01", timestamp);
-   * @endcode
-   *
-   * @see publish_state_birth() for declaring Host Application online
-   */
-  [[nodiscard]] std::expected<void, std::string> publish_state_death(std::string_view host_id,
-                                                                     uint64_t timestamp);
-
 private:
   /**
    * @brief Tracks state for an individual device attached to this edge node.

@@ -34,12 +34,12 @@ enum class MessageType {
  *
  * Sparkplug B topics follow the format:
  * - spBv1.0/{group_id}/{message_type}/{edge_node_id}[/{device_id}]
- * - STATE/{host_id} (for primary application state)
+ * - spBv1.0/STATE/{host_id} (for primary application state)
  *
  * @par Example Topics
  * - `spBv1.0/Energy/NBIRTH/Gateway01` - Node birth
  * - `spBv1.0/Energy/DBIRTH/Gateway01/Sensor01` - Device birth
- * - `STATE/ScadaHost1` - Primary application state
+ * - `spBv1.0/STATE/ScadaHost1` - Primary application state
  */
 struct Topic {
   std::string group_id;     ///< Group ID (topic namespace)

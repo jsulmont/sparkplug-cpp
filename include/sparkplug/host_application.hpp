@@ -305,7 +305,7 @@ public:
    * @brief Subscribes to STATE messages from another primary application.
    *
    * STATE messages indicate whether another SCADA/Primary Application is online.
-   * Subscribe to: STATE/{host_id}
+   * Subscribe to: spBv1.0/STATE/{host_id}
    *
    * @param host_id The host application identifier
    *
@@ -361,7 +361,7 @@ public:
    *
    * @return void on success, error message on failure
    *
-   * @note Topic format: STATE/<host_id>
+   * @note Topic format: spBv1.0/STATE/<host_id>
    * @note Payload format: JSON {"online": true, "timestamp": <timestamp>}
    * @note Message is published with QoS=1 and Retain=true (late-joining Edge Nodes see it)
    * @note This is NOT a Sparkplug protobuf message - uses raw JSON payload
@@ -388,7 +388,7 @@ public:
    *
    * @return void on success, error message on failure
    *
-   * @note Topic format: STATE/<host_id>
+   * @note Topic format: spBv1.0/STATE/<host_id>
    * @note Payload format: JSON {"online": false, "timestamp": <timestamp>}
    * @note Message is published with QoS=1 and Retain=true
    * @note This is NOT a Sparkplug protobuf message - uses raw JSON payload

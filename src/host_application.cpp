@@ -224,7 +224,7 @@ std::expected<void, std::string> HostApplication::publish_state_birth(uint64_t t
 
   std::string json_payload = std::format("{{\"online\":true,\"timestamp\":{}}}", timestamp);
 
-  std::string topic = std::format("STATE/{}", config_.host_id);
+  std::string topic = std::format("spBv1.0/STATE/{}", config_.host_id);
 
   std::vector<uint8_t> payload_data(json_payload.begin(), json_payload.end());
 
@@ -240,7 +240,7 @@ std::expected<void, std::string> HostApplication::publish_state_death(uint64_t t
 
   std::string json_payload = std::format("{{\"online\":false,\"timestamp\":{}}}", timestamp);
 
-  std::string topic = std::format("STATE/{}", config_.host_id);
+  std::string topic = std::format("spBv1.0/STATE/{}", config_.host_id);
 
   std::vector<uint8_t> payload_data(json_payload.begin(), json_payload.end());
 
@@ -405,7 +405,7 @@ std::expected<void, std::string> HostApplication::subscribe_state(std::string_vi
     return std::unexpected("Not connected");
   }
 
-  std::string topic = std::format("STATE/{}", host_id);
+  std::string topic = std::format("spBv1.0/STATE/{}", host_id);
 
   MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
 
@@ -646,14 +646,14 @@ int HostApplication::on_message_arrived(void* context, char* topicName, int topi
 
   std::string topic_str(topicName, topicLen > 0 ? topicLen : strlen(topicName));
 
-  if (topic_str.starts_with("STATE/")) {
+  if (topic_str.starts_with("spBv1.0/STATE/")) {
     std::string state_value(static_cast<char*>(message->payload), message->payloadlen);
 
     org::eclipse::tahu::protobuf::Payload dummy_payload;
 
     Topic state_topic{.group_id = "",
                       .message_type = MessageType::STATE,
-                      .edge_node_id = topic_str.substr(6), // After "STATE/"
+                      .edge_node_id = topic_str.substr(14), // After "spBv1.0/STATE/"
                       .device_id = ""};
 
     if (host_app->config_.message_callback) {

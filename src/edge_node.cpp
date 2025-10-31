@@ -744,48 +744,4 @@ EdgeNode::publish_device_command(std::string_view target_edge_node_id,
   return publish_message(client, topic_str, payload_data, qos, false);
 }
 
-std::expected<void, std::string> EdgeNode::publish_state_birth(std::string_view host_id,
-                                                               uint64_t timestamp) {
-  MQTTAsync client;
-  std::string topic_str;
-  std::vector<uint8_t> payload_data;
-
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    if (!is_connected_) {
-      return std::unexpected("Not connected");
-    }
-
-    std::string json_payload = std::format("{{\"online\":true,\"timestamp\":{}}}", timestamp);
-    topic_str = std::format("STATE/{}", host_id);
-    payload_data.assign(json_payload.begin(), json_payload.end());
-    client = client_.get();
-  }
-
-  return publish_message(client, topic_str, payload_data, 1, true);
-}
-
-std::expected<void, std::string> EdgeNode::publish_state_death(std::string_view host_id,
-                                                               uint64_t timestamp) {
-  MQTTAsync client;
-  std::string topic_str;
-  std::vector<uint8_t> payload_data;
-
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    if (!is_connected_) {
-      return std::unexpected("Not connected");
-    }
-
-    std::string json_payload = std::format("{{\"online\":false,\"timestamp\":{}}}", timestamp);
-    topic_str = std::format("STATE/{}", host_id);
-    payload_data.assign(json_payload.begin(), json_payload.end());
-    client = client_.get();
-  }
-
-  return publish_message(client, topic_str, payload_data, 1, true);
-}
-
 } // namespace sparkplug

@@ -350,62 +350,6 @@ int sparkplug_publisher_publish_device_command(sparkplug_publisher_t* pub,
                                                const char* target_device_id,
                                                const uint8_t* payload_data, size_t payload_len);
 
-/**
- * @brief Publishes a STATE birth message for a Host Application.
- *
- * STATE messages are used by Host Applications (SCADA/Primary Applications) to
- * indicate their online status. The birth message declares the Host Application is online.
- *
- * @param pub Publisher handle
- * @param host_id Host application identifier (e.g., "SCADA01", "HostApp")
- * @param timestamp UTC milliseconds since epoch
- *
- * @return 0 on success, -1 on failure
- *
- * @note Topic format: STATE/<host_id>
- * @note Payload format: JSON {"online": true, "timestamp": <timestamp>}
- * @note Message is published with Retain=true and QoS=1
- * @note This is NOT a Sparkplug protobuf message - uses raw JSON payload
- *
- * @par Example Usage
- * @code
- * uint64_t timestamp = time(NULL) * 1000; // Current time in milliseconds
- * sparkplug_publisher_publish_state_birth(pub, "SCADA01", timestamp);
- * @endcode
- *
- * @see sparkplug_publisher_publish_state_death() for declaring Host Application offline
- */
-int sparkplug_publisher_publish_state_birth(sparkplug_publisher_t* pub, const char* host_id,
-                                            uint64_t timestamp);
-
-/**
- * @brief Publishes a STATE death message for a Host Application.
- *
- * STATE messages are used by Host Applications (SCADA/Primary Applications) to
- * indicate their online status. The death message declares the Host Application is offline.
- *
- * @param pub Publisher handle
- * @param host_id Host application identifier (e.g., "SCADA01", "HostApp")
- * @param timestamp UTC milliseconds since epoch (must match birth timestamp)
- *
- * @return 0 on success, -1 on failure
- *
- * @note Topic format: STATE/<host_id>
- * @note Payload format: JSON {"online": false, "timestamp": <timestamp>}
- * @note Message is published with Retain=true and QoS=1
- * @note This is NOT a Sparkplug protobuf message - uses raw JSON payload
- *
- * @par Example Usage
- * @code
- * uint64_t timestamp = time(NULL) * 1000; // Current time in milliseconds
- * sparkplug_publisher_publish_state_death(pub, "SCADA01", timestamp);
- * @endcode
- *
- * @see sparkplug_publisher_publish_state_birth() for declaring Host Application online
- */
-int sparkplug_publisher_publish_state_death(sparkplug_publisher_t* pub, const char* host_id,
-                                            uint64_t timestamp);
-
 /* ============================================================================
  * Host Application API
  * ========================================================================= */
@@ -516,7 +460,7 @@ int sparkplug_host_application_disconnect(sparkplug_host_application_t* host);
  *
  * @return 0 on success, -1 on failure
  *
- * @note Topic: STATE/<host_id>
+ * @note Topic: spBv1.0/STATE/<host_id>
  * @note Payload: JSON {"online": true, "timestamp": <timestamp>}
  * @note Published with QoS=1, Retain=true
  */
@@ -531,7 +475,7 @@ int sparkplug_host_application_publish_state_birth(sparkplug_host_application_t*
  *
  * @return 0 on success, -1 on failure
  *
- * @note Topic: STATE/<host_id>
+ * @note Topic: spBv1.0/STATE/<host_id>
  * @note Payload: JSON {"online": false, "timestamp": <timestamp>}
  * @note Published with QoS=1, Retain=true
  */
