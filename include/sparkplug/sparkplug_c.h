@@ -71,9 +71,12 @@ typedef enum {
  * If no callback is set, logging is silently disabled (zero overhead).
  *
  * @param level Log severity level
- * @param message Log message (null-terminated string)
- * @param message_len Length of message in bytes (excluding null terminator)
+ * @param message Log message string (valid only during callback)
+ * @param message_len Length of message in bytes
  * @param user_data User-provided context pointer
+ *
+ * @warning The message pointer is only valid during the callback.
+ * Do not store this pointer. Copy the data if needed after the callback returns.
  *
  * @par Example Usage (integrating with syslog)
  * @code
@@ -101,10 +104,13 @@ typedef void (*sparkplug_log_callback_t)(int level, const char* message, size_t 
 /**
  * @brief Callback function type for receiving Sparkplug messages.
  *
- * @param topic MQTT topic string
- * @param payload_data Raw protobuf payload data
+ * @param topic MQTT topic string (valid only during callback)
+ * @param payload_data Raw protobuf payload data (valid only during callback)
  * @param payload_len Length of payload data in bytes
  * @param user_data User-provided context pointer
+ *
+ * @warning The topic and payload_data pointers are only valid during the callback.
+ * Do not store these pointers. Copy the data if needed after the callback returns.
  */
 typedef void (*sparkplug_message_callback_t)(const char* topic, const uint8_t* payload_data,
                                              size_t payload_len, void* user_data);
@@ -112,10 +118,13 @@ typedef void (*sparkplug_message_callback_t)(const char* topic, const uint8_t* p
 /**
  * @brief Callback function type for Sparkplug command messages (NCMD/DCMD).
  *
- * @param topic MQTT topic string
- * @param payload_data Raw protobuf payload data
+ * @param topic MQTT topic string (valid only during callback)
+ * @param payload_data Raw protobuf payload data (valid only during callback)
  * @param payload_len Length of payload data in bytes
  * @param user_data User-provided context pointer
+ *
+ * @warning The topic and payload_data pointers are only valid during the callback.
+ * Do not store these pointers. Copy the data if needed after the callback returns.
  */
 typedef void (*sparkplug_command_callback_t)(const char* topic, const uint8_t* payload_data,
                                              size_t payload_len, void* user_data);

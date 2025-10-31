@@ -24,14 +24,11 @@ int main() {
       .client_id = "minimal_host_test",
       .host_id = "MinimalHost",
       .message_callback =
-          [](const sparkplug::Topic& topic,
-             const org::eclipse::tahu::protobuf::Payload& payload) {
+          [](const sparkplug::Topic& topic, const org::eclipse::tahu::protobuf::Payload& payload) {
             std::cout << "Received: " << topic.to_string() << " (seq=" << payload.seq() << ")\n";
           },
-      .log_callback =
-          [](sparkplug::LogLevel /*level*/, std::string_view msg) {
-            std::cout << "[LOG] " << msg << "\n";
-          }};
+      .log_callback = [](sparkplug::LogLevel /*level*/,
+                         std::string_view msg) { std::cout << "[LOG] " << msg << "\n"; }};
 
   std::cout << "Creating HostApplication...\n";
   sparkplug::HostApplication host(std::move(config));

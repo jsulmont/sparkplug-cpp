@@ -14,13 +14,14 @@ struct sparkplug_publisher {
 
 struct sparkplug_subscriber {
   std::unique_ptr<sparkplug::HostApplication> impl;
-  std::string default_group_id; // For backwards compatibility with old C API
+  std::string default_group_id;
   sparkplug_message_callback_t callback;
   sparkplug_command_callback_t command_callback;
   sparkplug_log_callback_t log_callback;
   void* user_data;
   void* command_user_data;
   void* log_user_data;
+  std::mutex callback_mutex;
 };
 
 struct sparkplug_payload {
@@ -375,6 +376,7 @@ sparkplug_subscriber_t* sparkplug_subscriber_create(const char* broker_url, cons
   sub->log_user_data = nullptr;
 
   sparkplug::LogCallback log_wrapper = [sub](sparkplug::LogLevel level, std::string_view message) {
+    std::lock_guard<std::mutex> lock(sub->callback_mutex);
     if (sub->log_callback) {
       int c_level = static_cast<int>(level);
       sub->log_callback(c_level, message.data(), message.size(), sub->log_user_data);
@@ -388,7 +390,7 @@ sparkplug_subscriber_t* sparkplug_subscriber_create(const char* broker_url, cons
 
         auto topic_str = topic.to_string();
 
-        // Check if this is a command message and if command_callback is set
+        std::lock_guard<std::mutex> lock(sub->callback_mutex);
         if ((topic.message_type == sparkplug::MessageType::NCMD ||
              topic.message_type == sparkplug::MessageType::DCMD) &&
             sub->command_callback) {
@@ -491,6 +493,7 @@ void sparkplug_subscriber_set_log_callback(sparkplug_subscriber_t* sub,
     return;
   }
 
+  std::lock_guard<std::mutex> lock(sub->callback_mutex);
   sub->log_callback = callback;
   sub->log_user_data = user_data;
 }
@@ -502,12 +505,9 @@ void sparkplug_subscriber_set_command_callback(sparkplug_subscriber_t* sub,
     return;
   }
 
+  std::lock_guard<std::mutex> lock(sub->callback_mutex);
   sub->command_callback = callback;
   sub->command_user_data = user_data;
-
-  // NOTE: HostApplication doesn't have a separate set_command_callback method
-  // Commands (NCMD/DCMD) are received through the main message_callback
-  // which now dispatches to command_callback if set (see sparkplug_subscriber_create)
 }
 
 int sparkplug_subscriber_get_metric_name(sparkplug_subscriber_t* sub, const char* group_id,
@@ -1122,12 +1122,14 @@ int sparkplug_host_application_get_metric_name(sparkplug_host_application_t* hos
 
     if (result.has_value()) {
       auto name = result.value();
-      size_t copy_len = std::min(name.length() + 1, buffer_size);
-      std::memcpy(name_buffer, name.data(), copy_len - 1);
-      name_buffer[copy_len - 1] = '\0';
-      return static_cast<int>(copy_len);
+      if (name.length() + 1 > buffer_size) {
+        return -1;
+      }
+      std::memcpy(name_buffer, name.data(), name.length());
+      name_buffer[name.length()] = '\0';
+      return static_cast<int>(name.length() + 1);
     }
-    return 0; // Not found
+    return 0;
   } catch (...) {
     return -1;
   }

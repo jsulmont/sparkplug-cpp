@@ -471,6 +471,9 @@ private:
   MQTTAsyncHandle client_;
   bool is_connected_{false};
 
+  // MQTT connection options that must outlive async operations
+  MQTTAsync_SSLOptions ssl_opts_{};
+
   // Node state tracking
   struct NodeKey {
     std::string group_id;

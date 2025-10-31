@@ -17,6 +17,15 @@ target_link_libraries(host_application_example PRIVATE sparkplug_cpp)
 add_executable(host_application_mimic host_application_mimic.cpp)
 target_link_libraries(host_application_mimic PRIVATE sparkplug_cpp)
 
+add_executable(minimal_host minimal_host.cpp)
+target_link_libraries(minimal_host PRIVATE sparkplug_cpp)
+
+add_executable(test_both test_both.cpp)
+target_link_libraries(test_both PRIVATE sparkplug_cpp)
+
+add_executable(test_simple_edge test_simple_edge.cpp)
+target_link_libraries(test_simple_edge PRIVATE sparkplug_cpp)
+
 add_executable(subscriber_example subscriber_example.cpp)
 target_link_libraries(subscriber_example PRIVATE sparkplug_cpp)
 
@@ -61,6 +70,9 @@ target_link_libraries(publisher_example_c PRIVATE sparkplug_c)
 
 add_executable(subscriber_example_c subscriber_example_c.c)
 target_link_libraries(subscriber_example_c PRIVATE sparkplug_c)
+
+add_executable(minimal_host_c minimal_host_c.c)
+target_link_libraries(minimal_host_c PRIVATE sparkplug_c)
 
 add_executable(test_auth_combined_c test_auth_combined_c.c)
 target_link_libraries(test_auth_combined_c PRIVATE sparkplug_c)

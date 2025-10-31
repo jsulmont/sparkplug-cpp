@@ -119,6 +119,8 @@ int EdgeNode::on_message_arrived(void* context, char* topicName, int topicLen,
 EdgeNode::~EdgeNode() {
   if (client_ && is_connected_) {
     (void)disconnect();
+  } else if (client_) {
+    MQTTAsync_setCallbacks(client_.get(), nullptr, nullptr, nullptr, nullptr);
   }
 }
 
@@ -179,8 +181,7 @@ std::expected<void, std::string> EdgeNode::connect() {
 
   // Set callbacks (MUST be called after creating client but before connecting)
   // Note: Paho requires message_arrived callback to be non-null, so always pass it
-  rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost, on_message_arrived,
-                              nullptr);
+  rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost, on_message_arrived, nullptr);
   if (rc != MQTTASYNC_SUCCESS) {
     return std::unexpected(std::format("Failed to set callbacks: {}", rc));
   }
@@ -204,18 +205,18 @@ std::expected<void, std::string> EdgeNode::connect() {
     conn_opts.password = config_.password.value().c_str();
   }
 
-  MQTTAsync_SSLOptions ssl_opts = MQTTAsync_SSLOptions_initializer;
+  ssl_opts_ = MQTTAsync_SSLOptions_initializer;
   if (config_.tls.has_value()) {
     const auto& tls = config_.tls.value();
-    ssl_opts.trustStore = tls.trust_store.c_str();
-    ssl_opts.keyStore = tls.key_store.empty() ? nullptr : tls.key_store.c_str();
-    ssl_opts.privateKey = tls.private_key.empty() ? nullptr : tls.private_key.c_str();
-    ssl_opts.privateKeyPassword =
+    ssl_opts_.trustStore = tls.trust_store.c_str();
+    ssl_opts_.keyStore = tls.key_store.empty() ? nullptr : tls.key_store.c_str();
+    ssl_opts_.privateKey = tls.private_key.empty() ? nullptr : tls.private_key.c_str();
+    ssl_opts_.privateKeyPassword =
         tls.private_key_password.empty() ? nullptr : tls.private_key_password.c_str();
-    ssl_opts.enabledCipherSuites =
+    ssl_opts_.enabledCipherSuites =
         tls.enabled_cipher_suites.empty() ? nullptr : tls.enabled_cipher_suites.c_str();
-    ssl_opts.enableServerCertAuth = tls.enable_server_cert_auth;
-    conn_opts.ssl = &ssl_opts;
+    ssl_opts_.enableServerCertAuth = tls.enable_server_cert_auth;
+    conn_opts.ssl = &ssl_opts_;
   }
 
   // Setup Last Will and Testament (NDEATH)

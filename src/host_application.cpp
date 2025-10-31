@@ -132,18 +132,18 @@ std::expected<void, std::string> HostApplication::connect() {
     conn_opts.password = config_.password.value().c_str();
   }
 
-  MQTTAsync_SSLOptions ssl_opts = MQTTAsync_SSLOptions_initializer;
+  ssl_opts_ = MQTTAsync_SSLOptions_initializer;
   if (config_.tls.has_value()) {
     const auto& tls = config_.tls.value();
-    ssl_opts.trustStore = tls.trust_store.c_str();
-    ssl_opts.keyStore = tls.key_store.empty() ? nullptr : tls.key_store.c_str();
-    ssl_opts.privateKey = tls.private_key.empty() ? nullptr : tls.private_key.c_str();
-    ssl_opts.privateKeyPassword =
+    ssl_opts_.trustStore = tls.trust_store.c_str();
+    ssl_opts_.keyStore = tls.key_store.empty() ? nullptr : tls.key_store.c_str();
+    ssl_opts_.privateKey = tls.private_key.empty() ? nullptr : tls.private_key.c_str();
+    ssl_opts_.privateKeyPassword =
         tls.private_key_password.empty() ? nullptr : tls.private_key_password.c_str();
-    ssl_opts.enabledCipherSuites =
+    ssl_opts_.enabledCipherSuites =
         tls.enabled_cipher_suites.empty() ? nullptr : tls.enabled_cipher_suites.c_str();
-    ssl_opts.enableServerCertAuth = tls.enable_server_cert_auth;
-    conn_opts.ssl = &ssl_opts;
+    ssl_opts_.enableServerCertAuth = tls.enable_server_cert_auth;
+    conn_opts.ssl = &ssl_opts_;
   }
 
   std::promise<void> connect_promise;

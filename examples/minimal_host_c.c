@@ -34,9 +34,8 @@ int main(void) {
   signal(SIGTERM, signal_handler);
 
   printf("Creating HostApplication...\n");
-  sparkplug_host_application_t* host =
-      sparkplug_host_application_create("tcp://localhost:1883", "minimal_host_test_c",
-                                        "MinimalHostC");
+  sparkplug_host_application_t* host = sparkplug_host_application_create(
+      "tcp://localhost:1883", "minimal_host_test_c", "MinimalHostC");
   if (!host) {
     fprintf(stderr, "Failed to create host application\n");
     return 1;
