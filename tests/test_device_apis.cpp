@@ -128,10 +128,12 @@ void test_dbirth_sequence_zero() {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-  bool passed = found_dbirth && (dbirth_seq == 0);
+  // After fix: NBIRTH has seq=0, DBIRTH increments to seq=1 (shared counter)
+  bool passed = found_dbirth && (dbirth_seq == 1);
   report_test("DBIRTH sequence zero", passed,
               passed ? ""
-                     : std::format("Found: {}, Seq: {}", found_dbirth.load(), dbirth_seq.load()));
+                     : std::format("Found: {}, Seq: {} (expected 1 after NBIRTH seq=0)",
+                                   found_dbirth.load(), dbirth_seq.load()));
 
   (void)pub.disconnect();
   (void)sub.disconnect();
@@ -173,8 +175,8 @@ void test_ddata_requires_dbirth() {
   (void)pub.disconnect();
 }
 
-// Test 4: Device sequence increments independently from node sequence
-void test_device_sequence_independent() {
+// Test 4: Device and node messages share sequence counter
+void test_device_sequence_shared() {
   std::atomic<int> ndata_count{0};
   std::atomic<int> ddata_count{0};
   std::atomic<uint64_t> last_ndata_seq{0};
@@ -196,19 +198,19 @@ void test_device_sequence_independent() {
   };
 
   sparkplug::HostApplication::Config sub_config{.broker_url = "tcp://localhost:1883",
-                                                .client_id = "test_seq_indep_sub",
+                                                .client_id = "test_seq_shared_sub",
                                                 .host_id = "TestGroup"};
 
   sub_config.message_callback = callback;
   sparkplug::HostApplication sub(std::move(sub_config));
 
   if (!sub.connect()) {
-    report_test("Device sequence independent", false, "Subscriber failed to connect");
+    report_test("Device and node share sequence", false, "Subscriber failed to connect");
     return;
   }
 
   if (!sub.subscribe_all_groups()) {
-    report_test("Device sequence independent", false, "Subscribe failed");
+    report_test("Device and node share sequence", false, "Subscribe failed");
     (void)sub.disconnect();
     return;
   }
@@ -216,23 +218,23 @@ void test_device_sequence_independent() {
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
   sparkplug::EdgeNode::Config pub_config{.broker_url = "tcp://localhost:1883",
-                                         .client_id = "test_seq_indep_pub",
+                                         .client_id = "test_seq_shared_pub",
                                          .group_id = "TestGroup",
                                          .edge_node_id = "TestNodeDev04"};
 
   sparkplug::EdgeNode pub(std::move(pub_config));
 
   if (!pub.connect()) {
-    report_test("Device sequence independent", false, "Publisher failed to connect");
+    report_test("Device and node share sequence", false, "Publisher failed to connect");
     (void)sub.disconnect();
     return;
   }
 
-  // Publish NBIRTH
+  // Publish NBIRTH (seq=0)
   sparkplug::PayloadBuilder node_birth;
   node_birth.add_metric("node_value", 0);
   if (!pub.publish_birth(node_birth)) {
-    report_test("Device sequence independent", false, "NBIRTH failed");
+    report_test("Device and node share sequence", false, "NBIRTH failed");
     (void)pub.disconnect();
     (void)sub.disconnect();
     return;
@@ -240,11 +242,11 @@ void test_device_sequence_independent() {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-  // Publish DBIRTH
+  // Publish DBIRTH (seq=1, shared counter increments)
   sparkplug::PayloadBuilder device_birth;
   device_birth.add_metric("device_value", 0);
   if (!pub.publish_device_birth("Device01", device_birth)) {
-    report_test("Device sequence independent", false, "DBIRTH failed");
+    report_test("Device and node share sequence", false, "DBIRTH failed");
     (void)pub.disconnect();
     (void)sub.disconnect();
     return;
@@ -252,7 +254,8 @@ void test_device_sequence_independent() {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-  // Publish several NDATA and DDATA messages
+  // Publish several NDATA and DDATA messages (alternating)
+  // Expected sequence: NBIRTH(0), DBIRTH(1), NDATA(2), DDATA(3), NDATA(4), DDATA(5), ...
   for (int i = 0; i < 5; i++) {
     sparkplug::PayloadBuilder ndata;
     ndata.add_metric("node_value", i);
@@ -267,17 +270,17 @@ void test_device_sequence_independent() {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-  // Both sequences should have advanced independently
-  // NDATA: 1,2,3,4,5 (started after NBIRTH with seq=0)
-  // DDATA: 1,2,3,4,5 (started after DBIRTH with seq=0)
-  bool passed =
-      (ndata_count == 5) && (ddata_count == 5) && (last_ndata_seq == 5) && (last_ddata_seq == 5);
+  // After NBIRTH(0), DBIRTH(1), we publish 5 NDATA and 5 DDATA alternating
+  // Last NDATA should be seq=10 (2,4,6,8,10), last DDATA should be seq=11 (3,5,7,9,11)
+  bool passed = (ndata_count == 5) && (ddata_count == 5) && (last_ndata_seq == 10) &&
+                (last_ddata_seq == 11);
 
-  report_test("Device sequence independent", passed,
-              passed
-                  ? ""
-                  : std::format("NDATA: {} (seq={}), DDATA: {} (seq={})", ndata_count.load(),
-                                last_ndata_seq.load(), ddata_count.load(), last_ddata_seq.load()));
+  report_test("Device and node share sequence", passed,
+              passed ? ""
+                     : std::format("NDATA count={} seq={} (expected 5/10), DDATA count={} seq={} "
+                                   "(expected 5/11)",
+                                   ndata_count.load(), last_ndata_seq.load(), ddata_count.load(),
+                                   last_ddata_seq.load()));
 
   (void)pub.disconnect();
   (void)sub.disconnect();
@@ -374,23 +377,24 @@ void test_ddata_sequence_increments() {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-  // Verify TCK requirements:
-  // 1. DBIRTH must have seq=0
-  // 2. Every DDATA must increment by 1
-  // 3. First DDATA must have seq=1 (one greater than DBIRTH seq=0)
+  // Verify TCK requirements with shared sequence:
+  // NBIRTH(0) -> DBIRTH(1) -> DDATA(2,3,4,5,6,7,8,9,10,11)
+  // 1. DBIRTH must have seq=1 (after NBIRTH seq=0)
+  // 2. Every DDATA must increment by 1 from previous message
+  // 3. First DDATA must have seq=2 (one greater than DBIRTH seq=1)
   bool passed = true;
   std::string error_msg;
 
-  if (dbirth_seq != 0) {
+  if (dbirth_seq != 1) {
     passed = false;
-    error_msg = std::format("DBIRTH seq={}, expected 0", dbirth_seq.load());
+    error_msg = std::format("DBIRTH seq={}, expected 1 (after NBIRTH seq=0)", dbirth_seq.load());
   } else if (ddata_sequences.size() != 10) {
     passed = false;
     error_msg = std::format("Received {} DDATA messages, expected 10", ddata_sequences.size());
   } else {
     // Check each DDATA sequence increments correctly
     for (size_t i = 0; i < ddata_sequences.size(); i++) {
-      uint64_t expected_seq = i + 1; // First DDATA should be 1
+      uint64_t expected_seq = i + 2; // First DDATA should be 2 (after DBIRTH=1)
       if (ddata_sequences[i] != expected_seq) {
         passed = false;
         error_msg = std::format("DDATA #{} has seq={}, expected {}", i + 1, ddata_sequences[i],
@@ -498,7 +502,7 @@ int main() {
   test_dbirth_requires_nbirth();
   test_dbirth_sequence_zero();
   test_ddata_requires_dbirth();
-  test_device_sequence_independent();
+  test_device_sequence_shared();
   test_ddata_sequence_increments();
   test_ddeath();
 

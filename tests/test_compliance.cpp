@@ -450,10 +450,13 @@ void test_dbirth_sequence_zero() {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-  bool passed = got_dbirth && dbirth_seq == 0;
+  // After the fix: NBIRTH has seq=0, DBIRTH increments to seq=1
+  // All messages (node and device) share the same sequence counter
+  bool passed = got_dbirth && dbirth_seq == 1;
   report_test("DBIRTH sequence zero", passed,
               !got_dbirth ? "No DBIRTH received"
-                          : std::format("Expected seq=0, got seq={}", dbirth_seq.load()));
+                          : std::format("Expected seq=1 (after NBIRTH seq=0), got seq={}",
+                                        dbirth_seq.load()));
 
   (void)pub.disconnect();
   (void)sub.disconnect();
@@ -485,8 +488,8 @@ void test_dbirth_requires_nbirth() {
   (void)pub.disconnect();
 }
 
-// Test 11: Device and node sequence numbers are independent
-void test_device_sequence_independent() {
+// Test 11: Device and node messages share sequence counter
+void test_device_sequence_shared() {
   std::atomic<bool> got_ddata{false};
   std::atomic<uint64_t> ddata_seq{999};
 
@@ -508,7 +511,7 @@ void test_device_sequence_independent() {
 
   sparkplug::HostApplication sub(std::move(sub_config));
   if (!sub.connect() || !sub.subscribe_all_groups()) {
-    report_test("Device sequence independent", false, "Subscriber setup failed");
+    report_test("Device and node share sequence", false, "Subscriber setup failed");
     return;
   }
 
@@ -516,23 +519,23 @@ void test_device_sequence_independent() {
 
   // Now create publisher
   sparkplug::EdgeNode::Config config{.broker_url = "tcp://localhost:1883",
-                                     .client_id = "test_dev_seq_ind",
+                                     .client_id = "test_dev_seq_shared",
                                      .group_id = "TestGroup",
                                      .edge_node_id = "TestNode09"};
 
   sparkplug::EdgeNode pub(std::move(config));
 
   if (!pub.connect()) {
-    report_test("Device sequence independent", false, "Failed to connect");
+    report_test("Device and node share sequence", false, "Failed to connect");
     (void)sub.disconnect();
     return;
   }
 
-  // Publish NBIRTH
+  // Publish NBIRTH - seq=0
   sparkplug::PayloadBuilder nbirth;
   nbirth.add_metric("NodeMetric", 100);
   if (!pub.publish_birth(nbirth)) {
-    report_test("Device sequence independent", false, "NBIRTH failed");
+    report_test("Device and node share sequence", false, "NBIRTH failed");
     (void)pub.disconnect();
     (void)sub.disconnect();
     return;
@@ -540,11 +543,11 @@ void test_device_sequence_independent() {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-  // Publish DBIRTH
+  // Publish DBIRTH - seq=1 (shared counter increments)
   sparkplug::PayloadBuilder dbirth;
   dbirth.add_metric("DeviceMetric", 42);
   if (!pub.publish_device_birth("Device01", dbirth)) {
-    report_test("Device sequence independent", false, "DBIRTH failed");
+    report_test("Device and node share sequence", false, "DBIRTH failed");
     (void)pub.disconnect();
     (void)sub.disconnect();
     return;
@@ -552,11 +555,11 @@ void test_device_sequence_independent() {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-  // Publish NDATA - should increment node sequence
+  // Publish NDATA - seq=2 (continues incrementing)
   sparkplug::PayloadBuilder ndata;
   ndata.add_metric("NodeMetric", 101);
   if (!pub.publish_data(ndata)) {
-    report_test("Device sequence independent", false, "NDATA failed");
+    report_test("Device and node share sequence", false, "NDATA failed");
     (void)pub.disconnect();
     (void)sub.disconnect();
     return;
@@ -564,11 +567,11 @@ void test_device_sequence_independent() {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-  // Publish DDATA - should have independent sequence starting from 0
+  // Publish DDATA - seq=3 (all messages share same counter)
   sparkplug::PayloadBuilder ddata;
   ddata.add_metric("DeviceMetric", 43);
   if (!pub.publish_device_data("Device01", ddata)) {
-    report_test("Device sequence independent", false, "DDATA failed");
+    report_test("Device and node share sequence", false, "DDATA failed");
     (void)pub.disconnect();
     (void)sub.disconnect();
     return;
@@ -576,12 +579,13 @@ void test_device_sequence_independent() {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-  // Node seq should be 1, device seq should be 1
-  bool passed = got_ddata && ddata_seq == 1 && pub.get_seq() == 1;
-  report_test("Device sequence independent", passed,
+  // Expected sequence: NBIRTH(0) -> DBIRTH(1) -> NDATA(2) -> DDATA(3)
+  // So pub.get_seq() should be 3, and DDATA seq should be 3
+  bool passed = got_ddata && ddata_seq == 3 && pub.get_seq() == 3;
+  report_test("Device and node share sequence", passed,
               !got_ddata ? "No DDATA received"
-                         : std::format("Node seq={}, Device seq={} (both should be 1)",
-                                       pub.get_seq(), ddata_seq.load()));
+                         : std::format("Expected seq=3 for both, got DDATA seq={}, node seq={}",
+                                       ddata_seq.load(), pub.get_seq()));
 
   (void)pub.disconnect();
   (void)sub.disconnect();
@@ -795,7 +799,7 @@ int main() {
   // Device-level tests
   test_dbirth_sequence_zero();
   test_dbirth_requires_nbirth();
-  test_device_sequence_independent();
+  test_device_sequence_shared();
 
   // Command handling tests
   test_ncmd_publishing();

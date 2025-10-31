@@ -390,7 +390,6 @@ private:
    * @brief Tracks state for an individual device attached to this edge node.
    */
   struct DeviceState {
-    uint64_t seq_num{0};                     // Device message sequence (0-255)
     std::vector<uint8_t> last_birth_payload; // Last DBIRTH for rebirth
     bool is_online{false};                   // True if DBIRTH sent and device online
   };

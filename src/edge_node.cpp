@@ -570,7 +570,8 @@ std::expected<void, std::string> EdgeNode::publish_device_birth(std::string_view
       return std::unexpected("Must publish NBIRTH before DBIRTH");
     }
 
-    payload.set_seq(0);
+    seq_num_ = (seq_num_ + 1) % SEQ_NUMBER_MAX;
+    payload.set_seq(seq_num_);
 
     Topic topic{.group_id = config_.group_id,
                 .message_type = MessageType::DBIRTH,
@@ -591,7 +592,6 @@ std::expected<void, std::string> EdgeNode::publish_device_birth(std::string_view
   {
     std::lock_guard<std::mutex> lock(mutex_);
     auto& device_state = device_states_[std::string(device_id)];
-    device_state.seq_num = 0;
     device_state.last_birth_payload = std::move(payload_data);
     device_state.is_online = true;
   }
@@ -619,11 +619,10 @@ std::expected<void, std::string> EdgeNode::publish_device_data(std::string_view 
           std::format("Must publish DBIRTH for device '{}' before DDATA", device_id));
     }
 
-    auto& device_state = it->second;
-    device_state.seq_num = (device_state.seq_num + 1) % SEQ_NUMBER_MAX;
+    seq_num_ = (seq_num_ + 1) % SEQ_NUMBER_MAX;
 
     if (!payload.has_seq()) {
-      payload.set_seq(device_state.seq_num);
+      payload.set_seq(seq_num_);
     }
 
     Topic topic{.group_id = config_.group_id,
