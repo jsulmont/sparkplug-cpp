@@ -20,12 +20,6 @@ target_link_libraries(host_application_mimic PRIVATE sparkplug_cpp)
 add_executable(minimal_host minimal_host.cpp)
 target_link_libraries(minimal_host PRIVATE sparkplug_cpp)
 
-add_executable(test_both test_both.cpp)
-target_link_libraries(test_both PRIVATE sparkplug_cpp)
-
-add_executable(test_simple_edge test_simple_edge.cpp)
-target_link_libraries(test_simple_edge PRIVATE sparkplug_cpp)
-
 add_executable(subscriber_example subscriber_example.cpp)
 target_link_libraries(subscriber_example PRIVATE sparkplug_cpp)
 
