@@ -295,7 +295,8 @@ public:
    *
    * @return void on success, error message on failure
    *
-   * @note Device sequence starts at 0 for DBIRTH, then increments for DDATA.
+   * @note Device messages share the node's sequence counter. DBIRTH increments the
+   *       sequence number from where NBIRTH left it (NBIRTH=0, DBIRTH=1, etc.).
    * @note Must call publish_birth() before publishing any device births.
    *
    * @see publish_device_data() for subsequent device updates

@@ -472,7 +472,7 @@ std::expected<void, std::string> EdgeNode::publish_death() {
     topic_str = topic.to_string();
     payload_data = death_payload_data_;
     client = client_.get();
-    qos = config_.data_qos;
+    qos = config_.death_qos;
   }
 
   auto result = publish_message(client, topic_str, payload_data, qos, false);
@@ -527,6 +527,12 @@ std::expected<void, std::string> EdgeNode::rebirth() {
 
     topic_str = topic.to_string();
     qos = config_.data_qos;
+
+    // Update NDEATH Will Testament payload with new bdSeq BEFORE disconnecting
+    // This ensures the Will Testament sent during disconnect has the correct bdSeq
+    PayloadBuilder death_payload;
+    death_payload.add_metric("bdSeq", new_bdseq);
+    death_payload_data_ = death_payload.build();
   }
 
   auto result = disconnect()
