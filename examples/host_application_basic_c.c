@@ -1,4 +1,4 @@
-// examples/subscriber_example_c.c - C API subscriber example
+// examples/host_application_basic_c.c - C API host application example
 #include <signal.h>
 #include <sparkplug/sparkplug_c.h>
 #include <stdio.h>
@@ -108,40 +108,41 @@ void on_message(const char* topic, const uint8_t* payload_data, size_t payload_l
 }
 
 int main(void) {
-  printf("Sparkplug B C Subscriber Example\n");
-  printf("=================================\n\n");
+  printf("Sparkplug B C HostApplication Example\n");
+  printf("======================================\n\n");
 
   signal(SIGINT, signal_handler);
   signal(SIGTERM, signal_handler);
 
-  sparkplug_subscriber_t* sub = sparkplug_subscriber_create(
-      "tcp://localhost:1883", "c_subscriber_example", "Energy", on_message,
-      NULL // user_data (optional)
+  sparkplug_host_application_t* host = sparkplug_host_application_create(
+      "tcp://localhost:1883", "c_host_example", "SCADA01"
   );
 
-  if (!sub) {
-    fprintf(stderr, "Failed to create subscriber\n");
+  if (!host) {
+    fprintf(stderr, "Failed to create host application\n");
     return 1;
   }
 
-  printf("[OK] Subscriber created\n");
+  printf("[OK] HostApplication created\n");
 
-  if (sparkplug_subscriber_connect(sub) != 0) {
+  sparkplug_host_application_set_message_callback(host, on_message, NULL);
+
+  if (sparkplug_host_application_connect(host) != 0) {
     fprintf(stderr, "Failed to connect to broker\n");
-    sparkplug_subscriber_destroy(sub);
+    sparkplug_host_application_destroy(host);
     return 1;
   }
 
   printf("[OK] Connected to broker\n");
 
-  if (sparkplug_subscriber_subscribe_all(sub) != 0) {
+  if (sparkplug_host_application_subscribe_all(host) != 0) {
     fprintf(stderr, "Failed to subscribe\n");
-    sparkplug_subscriber_disconnect(sub);
-    sparkplug_subscriber_destroy(sub);
+    sparkplug_host_application_disconnect(host);
+    sparkplug_host_application_destroy(host);
     return 1;
   }
 
-  printf("[OK] Subscribed to spBv1.0/Energy/#\n");
+  printf("[OK] Subscribed to spBv1.0/#\n");
   printf("\nListening for messages (Ctrl+C to stop)...\n");
 
   while (running) {
@@ -150,14 +151,14 @@ int main(void) {
 
   printf("\n\nShutting down...\n");
 
-  if (sparkplug_subscriber_disconnect(sub) == 0) {
+  if (sparkplug_host_application_disconnect(host) == 0) {
     printf("[OK] Disconnected from broker\n");
   }
 
-  sparkplug_subscriber_destroy(sub);
+  sparkplug_host_application_destroy(host);
 
-  printf("[OK] Subscriber destroyed\n");
-  printf("\nC subscriber example complete!\n");
+  printf("[OK] HostApplication destroyed\n");
+  printf("\nC host application example complete!\n");
 
   return 0;
 }

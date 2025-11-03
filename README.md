@@ -10,7 +10,7 @@ A modern C++-23 implementation of the Eclipse Sparkplug B 2.2 specification for 
 - **Modern C++-23** - Uses latest C++ features (std::expected, ranges, modules-ready)
 - **Type Safe** - Leverages strong typing and compile-time checks
 - **TLS/SSL Support** - Secure MQTT connections with optional mutual authentication
-- **Easy Integration** - Simple EdgeNode/Subscriber API
+- **Easy Integration** - Simple EdgeNode/HostApplication API
 - **Tested** - Comprehensive compliance test suite included
 - **Cross Platform** - Works on macOS and Linux
 
@@ -159,22 +159,16 @@ int main() {
 }
 ```
 
-### Basic Subscriber Example
+### Basic HostApplication Example
 
 ```cpp
-#include <sparkplug/subscriber.hpp>
+#include <sparkplug/host_application.hpp>
 
 int main() {
-  sparkplug::Subscriber::Config config{
-    .broker_url = "tcp://localhost:1883",
-    .client_id = "my_subscriber",
-    .group_id = "MyGroup"
-  };
-
-  auto callback = [](const sparkplug::Topic& topic, 
+  auto callback = [](const sparkplug::Topic& topic,
                      const auto& payload) {
     std::cout << "Received: " << topic.to_string() << "\n";
-    
+
     for (const auto& metric : payload.metrics()) {
       if (metric.has_name()) {
         std::cout << "  " << metric.name() << " = ";
@@ -186,18 +180,25 @@ int main() {
     }
   };
 
-  sparkplug::Subscriber subscriber(std::move(config), callback);
-  
-  if (auto result = subscriber.connect(); !result) {
+  sparkplug::HostApplication::Config config{
+    .broker_url = "tcp://localhost:1883",
+    .client_id = "scada_host",
+    .host_id = "SCADA01",
+    .message_callback = callback
+  };
+
+  sparkplug::HostApplication host(std::move(config));
+
+  if (auto result = host.connect(); !result) {
     std::cerr << "Failed to connect: " << result.error() << "\n";
     return 1;
   }
 
-  subscriber.subscribe_all();
-  
+  host.subscribe_all_groups();
+
   // Keep running...
   std::this_thread::sleep_for(std::chrono::hours(1));
-  
+
   return 0;
 }
 ```
@@ -233,28 +234,27 @@ The `examples/` directory contains:
 
 **C++ Examples:**
 
-- **publisher_example.cpp** - Complete publisher with birth/data/rebirth
+- **publisher_example.cpp** - Complete EdgeNode with birth/data/rebirth
 - **publisher_dynamic_metrics.cpp** - Adding new metrics at runtime via rebirth
-- **subscriber_example.cpp** - Simple subscriber
-- **subscriber_example_debug.cpp** - Detailed message inspection
+- **host_application_example.cpp** - HostApplication receiving and processing data
+- **host_application_mimic.cpp** - Detailed message inspection and validation
 
 **C API Examples:**
 
 - **publisher_example_c.c** - EdgeNode using C bindings
-- **subscriber_example_c.c** - Subscriber using C bindings
+- **minimal_host_c.c** - HostApplication using C bindings
 
 **TLS Examples:**
 
-- **publisher_tls_example.cpp** - Secure publisher with TLS/SSL
-- **subscriber_tls_example.cpp** - Secure subscriber with TLS/SSL
+- **publisher_tls_example.cpp** - Secure EdgeNode with TLS/SSL
 
 Build and run:
 
 ```bash
-# Terminal 1: Start subscriber
-./build/examples/subscriber_example_debug
+# Terminal 1: Start HostApplication
+./build/examples/host_application_example
 
-# Terminal 2: Start publisher
+# Terminal 2: Start EdgeNode
 ./build/examples/publisher_example
 
 # Or try the dynamic metrics example
@@ -428,21 +428,33 @@ class EdgeNode {
 };
 ```
 
-### Subscriber
+### HostApplication
 
 ```cpp
-class Subscriber {
+class HostApplication {
   // Connect to MQTT broker
   std::expected<void, std::string> connect();
-  
-  // Subscribe to all messages in group
-  std::expected<void, std::string> subscribe_all();
-  
+
+  // Subscribe to all groups and edge nodes
+  std::expected<void, std::string> subscribe_all_groups();
+
+  // Subscribe to specific group
+  std::expected<void, std::string> subscribe_group(std::string_view group_id);
+
   // Subscribe to specific edge node
-  std::expected<void, std::string> subscribe_node(std::string_view edge_node_id);
-  
-  // Get node state (for monitoring)
-  const NodeState* get_node_state(const std::string& edge_node_id) const;
+  std::expected<void, std::string> subscribe_node(
+      std::string_view group_id, std::string_view edge_node_id);
+
+  // Publish STATE birth/death messages
+  std::expected<void, std::string> publish_state_birth(uint64_t timestamp);
+  std::expected<void, std::string> publish_state_death(uint64_t timestamp);
+
+  // Send commands to EdgeNodes
+  std::expected<void, std::string> publish_node_command(
+      std::string_view group_id, std::string_view edge_node_id, PayloadBuilder& payload);
+  std::expected<void, std::string> publish_device_command(
+      std::string_view group_id, std::string_view edge_node_id,
+      std::string_view device_id, PayloadBuilder& payload);
 };
 ```
 
@@ -498,7 +510,7 @@ sparkplug_publisher_destroy(pub);
 +---------------------------------------------+
 |  Sparkplug B C++ Library                    |
 |  +----------------+  +------------------+   |
-|  |  EdgeNode     |  |  Subscriber      |   |
+|  |  EdgeNode     |  | HostApplication  |   |
 |  +----------------+  +------------------+   |
 |            |                 |               |
 |            v                 v               |
@@ -565,7 +577,7 @@ Examples:
 - **Async I/O** - Non-blocking MQTT operations
 
 ### Threading Model
-The library uses coarse-grained locking (single mutex per EdgeNode/Subscriber) for simplicity and correctness. This is suitable for typical IIoT applications with message rates up to ~1kHz. All public methods are thread-safe and can be called from any thread concurrently. Callbacks execute on the MQTT client thread.
+The library uses coarse-grained locking (single mutex per EdgeNode/HostApplication) for simplicity and correctness. This is suitable for typical IIoT applications with message rates up to ~1kHz. All public methods are thread-safe and can be called from any thread concurrently. Callbacks execute on the MQTT client thread.
 
 ### Future Optimizations
 If profiling reveals performance bottlenecks in high-throughput scenarios (>10kHz):
@@ -616,7 +628,7 @@ at your option.
 - Birth/Death sequence (bdSeq) tracking
 - Metric aliases for bandwidth efficiency (Report by Exception)
 - TLS/SSL support with mutual authentication (client certificates)
-- Thread-safe EdgeNode and Subscriber classes
+- Thread-safe EdgeNode and HostApplication classes
 - Device management APIs
 - Command handling (NCMD/DCMD callbacks)
 - Host Application STATE messages

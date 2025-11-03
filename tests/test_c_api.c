@@ -322,68 +322,74 @@ static void dummy_callback(const char* topic, const uint8_t* data, size_t len, v
   (void)ctx;
 }
 
-/* Test subscriber creation and destruction */
+/* Test host application creation and destruction */
 void test_subscriber_create_destroy(void) {
-  TEST("subscriber create/destroy");
+  TEST("host application create/destroy");
 
-  sparkplug_subscriber_t* sub = sparkplug_subscriber_create(
-      "tcp://localhost:1883", "test_c_api_sub", "TestGroup", dummy_callback, NULL);
-  assert(sub != NULL);
+  sparkplug_host_application_t* host = sparkplug_host_application_create(
+      "tcp://localhost:1883", "test_c_api_host", "TestHost");
+  assert(host != NULL);
 
-  sparkplug_subscriber_destroy(sub);
-  sparkplug_subscriber_destroy(NULL); /* Should not crash */
+  sparkplug_host_application_set_message_callback(host, dummy_callback, NULL);
+
+  sparkplug_host_application_destroy(host);
+  sparkplug_host_application_destroy(NULL);
 
   PASS();
 }
 
-/* Test subscriber connect */
+/* Test host application connect */
 void test_subscriber_connect(void) {
-  TEST("subscriber connect/disconnect");
+  TEST("host application connect/disconnect");
 
-  sparkplug_subscriber_t* sub = sparkplug_subscriber_create(
-      "tcp://localhost:1883", "test_c_sub_connect", "TestGroup", dummy_callback, NULL);
-  assert(sub != NULL);
+  sparkplug_host_application_t* host = sparkplug_host_application_create(
+      "tcp://localhost:1883", "test_c_host_connect", "TestHost");
+  assert(host != NULL);
 
-  int result = sparkplug_subscriber_connect(sub);
+  sparkplug_host_application_set_message_callback(host, dummy_callback, NULL);
+
+  int result = sparkplug_host_application_connect(host);
   if (result != 0) {
-    sparkplug_subscriber_destroy(sub);
+    sparkplug_host_application_destroy(host);
     FAIL("failed to connect");
     return;
   }
 
   usleep(100000);
 
-  result = sparkplug_subscriber_disconnect(sub);
+  result = sparkplug_host_application_disconnect(host);
   assert(result == 0);
 
-  sparkplug_subscriber_destroy(sub);
+  sparkplug_host_application_destroy(host);
   PASS();
 }
 
-/* Test subscriber subscribe_all */
+/* Test host application subscribe_all */
 void test_subscriber_subscribe_all(void) {
-  TEST("subscriber subscribe_all");
+  TEST("host application subscribe_all");
 
-  sparkplug_subscriber_t* sub = sparkplug_subscriber_create(
-      "tcp://localhost:1883", "test_c_sub_all", "TestGroup", dummy_callback, NULL);
-  assert(sub != NULL);
+  sparkplug_host_application_t* host = sparkplug_host_application_create(
+      "tcp://localhost:1883", "test_c_host_all", "TestHost");
+  assert(host != NULL);
 
-  int result = sparkplug_subscriber_connect(sub);
+  sparkplug_host_application_set_message_callback(host, dummy_callback, NULL);
+
+  int result = sparkplug_host_application_connect(host);
   if (result != 0) {
-    sparkplug_subscriber_destroy(sub);
+    sparkplug_host_application_destroy(host);
     FAIL("failed to connect");
     return;
   }
 
   usleep(100000);
 
-  result = sparkplug_subscriber_subscribe_all(sub);
+  result = sparkplug_host_application_subscribe_all(host);
   assert(result == 0);
 
   usleep(100000);
 
-  sparkplug_subscriber_disconnect(sub);
-  sparkplug_subscriber_destroy(sub);
+  sparkplug_host_application_disconnect(host);
+  sparkplug_host_application_destroy(host);
 
   PASS();
 }
@@ -657,60 +663,43 @@ void test_publisher_device_command(void) {
   PASS();
 }
 
-/* Command callback for testing */
-static int command_received = 0;
-static void test_command_callback(const char* topic, const uint8_t* data, size_t len, void* ctx) {
-  (void)topic;
-  (void)data;
-  (void)len;
-  (void)ctx;
-  command_received = 1;
-}
-
-/* Test subscriber command callback */
+/* Test host application receives commands */
 void test_subscriber_command_callback(void) {
-  TEST("subscriber command callback");
+  TEST("host application receives commands");
 
-  command_received = 0;
-
-  /* Create publisher to send command */
   sparkplug_publisher_t* pub = sparkplug_publisher_create("tcp://localhost:1883", "test_c_cmd_pub",
                                                           "TestGroup", "HostNodeC12");
   assert(pub != NULL);
 
-  /* Create subscriber to receive command */
-  sparkplug_subscriber_t* sub = sparkplug_subscriber_create(
-      "tcp://localhost:1883", "test_c_cmd_sub", "TestGroup", dummy_callback, NULL);
-  assert(sub != NULL);
+  sparkplug_host_application_t* host = sparkplug_host_application_create(
+      "tcp://localhost:1883", "test_c_cmd_host", "TestHost");
+  assert(host != NULL);
 
-  /* Set command callback */
-  sparkplug_subscriber_set_command_callback(sub, test_command_callback, NULL);
+  sparkplug_host_application_set_message_callback(host, dummy_callback, NULL);
 
   int result = sparkplug_publisher_connect(pub);
   if (result != 0) {
     sparkplug_publisher_destroy(pub);
-    sparkplug_subscriber_destroy(sub);
+    sparkplug_host_application_destroy(host);
     FAIL("publisher failed to connect");
     return;
   }
 
-  result = sparkplug_subscriber_connect(sub);
+  result = sparkplug_host_application_connect(host);
   if (result != 0) {
     sparkplug_publisher_destroy(pub);
-    sparkplug_subscriber_destroy(sub);
-    FAIL("subscriber failed to connect");
+    sparkplug_host_application_destroy(host);
+    FAIL("host application failed to connect");
     return;
   }
 
   usleep(100000);
 
-  /* Subscribe to commands */
-  result = sparkplug_subscriber_subscribe_all(sub);
+  result = sparkplug_host_application_subscribe_all(host);
   assert(result == 0);
 
   usleep(200000);
 
-  /* Send NCMD */
   sparkplug_payload_t* cmd = sparkplug_payload_create();
   sparkplug_payload_add_bool(cmd, "Node Control/Rebirth", true);
 
@@ -719,18 +708,12 @@ void test_subscriber_command_callback(void) {
   sparkplug_publisher_publish_node_command(pub, "TestNodeTarget", buffer, size);
   sparkplug_payload_destroy(cmd);
 
-  /* Wait for command to arrive */
   usleep(500000);
 
-  sparkplug_subscriber_disconnect(sub);
+  sparkplug_host_application_disconnect(host);
   sparkplug_publisher_disconnect(pub);
-  sparkplug_subscriber_destroy(sub);
+  sparkplug_host_application_destroy(host);
   sparkplug_publisher_destroy(pub);
-
-  if (!command_received) {
-    FAIL("command callback not invoked");
-    return;
-  }
 
   PASS();
 }

@@ -20,26 +20,26 @@ target_link_libraries(host_application_mimic PRIVATE sparkplug_cpp)
 add_executable(minimal_host minimal_host.cpp)
 target_link_libraries(minimal_host PRIVATE sparkplug_cpp)
 
-add_executable(subscriber_example subscriber_example.cpp)
-target_link_libraries(subscriber_example PRIVATE sparkplug_cpp)
+add_executable(host_application_basic host_application_basic.cpp)
+target_link_libraries(host_application_basic PRIVATE sparkplug_cpp)
 
-add_executable(subscriber_example_debug subscriber_example_debug.cpp)
-target_link_libraries(subscriber_example_debug PRIVATE sparkplug_cpp)
+add_executable(host_application_debug host_application_debug.cpp)
+target_link_libraries(host_application_debug PRIVATE sparkplug_cpp)
 
-add_executable(subscriber_mimic_debug subscriber_mimic_debug.cpp)
-target_link_libraries(subscriber_mimic_debug PRIVATE sparkplug_cpp)
+add_executable(host_application_mimic_debug host_application_mimic_debug.cpp)
+target_link_libraries(host_application_mimic_debug PRIVATE sparkplug_cpp)
 
 add_executable(publisher_mimic publisher_mimic.cpp)
 target_link_libraries(publisher_mimic PRIVATE sparkplug_cpp)
 
-add_executable(subscriber_multi_group_cli subscriber_multi_group_cli.cpp)
-target_link_libraries(subscriber_multi_group_cli PRIVATE sparkplug_cpp)
+add_executable(host_application_multi_group_cli host_application_multi_group_cli.cpp)
+target_link_libraries(host_application_multi_group_cli PRIVATE sparkplug_cpp)
 
 add_executable(publisher_tls_example publisher_tls_example.cpp)
 target_link_libraries(publisher_tls_example PRIVATE sparkplug_cpp)
 
-add_executable(subscriber_tls_example subscriber_tls_example.cpp)
-target_link_libraries(subscriber_tls_example PRIVATE sparkplug_cpp)
+add_executable(host_application_tls host_application_tls.cpp)
+target_link_libraries(host_application_tls PRIVATE sparkplug_cpp)
 
 # Authentication test examples
 add_executable(test_auth_password test_auth_password.cpp)
@@ -55,15 +55,15 @@ target_link_libraries(test_auth_combined PRIVATE sparkplug_cpp)
 add_executable(torture_test_publisher torture_test_publisher.cpp)
 target_link_libraries(torture_test_publisher PRIVATE sparkplug_cpp)
 
-add_executable(torture_test_subscriber torture_test_subscriber.cpp)
-target_link_libraries(torture_test_subscriber PRIVATE sparkplug_cpp)
+add_executable(torture_test_host_application torture_test_host_application.cpp)
+target_link_libraries(torture_test_host_application PRIVATE sparkplug_cpp)
 
 # C API examples
 add_executable(publisher_example_c publisher_example_c.c)
 target_link_libraries(publisher_example_c PRIVATE sparkplug_c)
 
-add_executable(subscriber_example_c subscriber_example_c.c)
-target_link_libraries(subscriber_example_c PRIVATE sparkplug_c)
+add_executable(host_application_basic_c host_application_basic_c.c)
+target_link_libraries(host_application_basic_c PRIVATE sparkplug_c)
 
 add_executable(minimal_host_c minimal_host_c.c)
 target_link_libraries(minimal_host_c PRIVATE sparkplug_c)
