@@ -7,6 +7,8 @@
 
 namespace sparkplug {
 
+inline constexpr std::string_view NAMESPACE = "spBv1.0";
+
 /**
  * @brief Sparkplug B message types.
  *

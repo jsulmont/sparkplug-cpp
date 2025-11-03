@@ -272,8 +272,8 @@ void test_device_sequence_shared() {
 
   // After NBIRTH(0), DBIRTH(1), we publish 5 NDATA and 5 DDATA alternating
   // Last NDATA should be seq=10 (2,4,6,8,10), last DDATA should be seq=11 (3,5,7,9,11)
-  bool passed = (ndata_count == 5) && (ddata_count == 5) && (last_ndata_seq == 10) &&
-                (last_ddata_seq == 11);
+  bool passed =
+      (ndata_count == 5) && (ddata_count == 5) && (last_ndata_seq == 10) && (last_ddata_seq == 11);
 
   report_test("Device and node share sequence", passed,
               passed ? ""

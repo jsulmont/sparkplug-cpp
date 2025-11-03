@@ -12,9 +12,7 @@ namespace sparkplug {
 namespace {
 
 using namespace std::string_view_literals;
-constexpr auto NAMESPACE = "spBv1.0"sv;
 
-// Constexpr for potential compile-time evaluation when possible
 constexpr std::string_view message_type_to_string(MessageType type) noexcept {
   switch (type) {
   case MessageType::NBIRTH:
@@ -64,7 +62,7 @@ std::expected<MessageType, std::string> parse_message_type(std::string_view str)
 
 std::string Topic::to_string() const {
   if (message_type == MessageType::STATE) {
-    return std::format("spBv1.0/STATE/{}", edge_node_id);
+    return std::format("{}/STATE/{}", NAMESPACE, edge_node_id);
   }
 
   auto base = std::format("{}/{}/{}/{}", NAMESPACE, group_id, message_type_to_string(message_type),
