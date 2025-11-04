@@ -131,32 +131,33 @@ int main() {
       break;
     }
 
-    std::cout << "\n╔════════════════════════════════════════════════════════════╗\n";
-    std::cout << "║ Message #" << std::setw(3) << count << " - " << std::setw(7)
-              << message_type_name(topic.message_type) << std::string(39, ' ') << "║\n";
-    std::cout << "╠════════════════════════════════════════════════════════════╣\n";
+    std::cout << "\n+============================================================+\n";
+    std::cout << "| Message #" << std::setw(3) << count << " - " << std::setw(7)
+              << message_type_name(topic.message_type) << std::string(39, ' ') << "|\n";
+    std::cout << "+============================================================+\n";
 
-    std::cout << "║ Topic: " << std::left << std::setw(51) << topic.to_string() << "║\n";
-    std::cout << "║ Group: " << std::setw(51) << topic.group_id << "║\n";
-    std::cout << "║ Edge Node: " << std::setw(47) << topic.edge_node_id << "║\n";
+    std::cout << "| Topic: " << std::left << std::setw(51) << topic.to_string() << "|\n";
+    std::cout << "| Group: " << std::setw(51) << topic.group_id << "|\n";
+    std::cout << "| Edge Node: " << std::setw(47) << topic.edge_node_id << "|\n";
 
     if (!topic.device_id.empty()) {
-      std::cout << "║ Device: " << std::setw(50) << topic.device_id << "║\n";
+      std::cout << "| Device: " << std::setw(50) << topic.device_id << "|\n";
     }
 
     if (payload.has_timestamp()) {
-      std::cout << "║ Payload Timestamp: " << std::setw(39) << payload.timestamp() << "║\n";
+      std::cout << "| Payload Timestamp: " << std::setw(39) << payload.timestamp()
+                << "|\n";
     }
 
     if (payload.has_seq()) {
-      std::cout << "║ Sequence: " << std::setw(48) << payload.seq() << "║\n";
+      std::cout << "| Sequence: " << std::setw(48) << payload.seq() << "|\n";
     } else {
-      std::cout << "║ Sequence: " << std::setw(48) << "(none)" << "║\n";
+      std::cout << "| Sequence: " << std::setw(48) << "(none)" << "|\n";
     }
 
-    std::cout << "╠════════════════════════════════════════════════════════════╣\n";
-    std::cout << "║ Metrics: " << std::setw(49) << payload.metrics_size() << "║\n";
-    std::cout << "╚════════════════════════════════════════════════════════════╝\n";
+    std::cout << "+============================================================+\n";
+    std::cout << "| Metrics: " << std::setw(49) << payload.metrics_size() << "|\n";
+    std::cout << "+============================================================+\n";
 
     for (const auto& metric : payload.metrics()) {
       print_metric(metric);
@@ -207,8 +208,9 @@ int main() {
     if (current_count == last_count) {
       if (++idle_seconds % 10 == 0) {
         std::cout << "Still waiting... (received " << current_count
-                  << " messages: " << nbirth_count.load() << " NBIRTH, " << ndata_count.load()
-                  << " NDATA, " << ndeath_count.load() << " NDEATH)\n"
+                  << " messages: " << nbirth_count.load() << " NBIRTH, "
+                  << ndata_count.load() << " NDATA, " << ndeath_count.load()
+                  << " NDEATH)\n"
                   << std::flush;
       }
     } else {

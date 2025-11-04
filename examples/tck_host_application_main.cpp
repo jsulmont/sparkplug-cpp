@@ -36,13 +36,15 @@ int main(int argc, char* argv[]) {
     } else if (arg == "--help" || arg == "-h") {
       std::cout << "Usage: " << argv[0] << " [options]\n\n";
       std::cout << "Options:\n";
-      std::cout << "  --broker <url>      MQTT broker URL (default: tcp://localhost:1883)\n";
+      std::cout
+          << "  --broker <url>      MQTT broker URL (default: tcp://localhost:1883)\n";
       std::cout << "  --host-id <id>      Host Application ID (default: scada_host_id)\n";
       std::cout << "  --username <user>   MQTT username (optional)\n";
       std::cout << "  --password <pass>   MQTT password (optional)\n";
       std::cout << "  --help, -h          Show this help message\n\n";
       std::cout << "Example:\n";
-      std::cout << "  " << argv[0] << " --broker tcp://localhost:1883 --host-id my_scada\n\n";
+      std::cout << "  " << argv[0]
+                << " --broker tcp://localhost:1883 --host-id my_scada\n\n";
       return 0;
     } else {
       std::cerr << "Unknown argument: " << arg << "\n";

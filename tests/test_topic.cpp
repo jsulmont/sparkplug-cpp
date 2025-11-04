@@ -12,7 +12,7 @@ void test_topic_to_string() {
 
   auto topic_str = topic.to_string();
   assert(topic_str == "spBv1.0/Energy/NBIRTH/Gateway01");
-  std::cout << "✓ Topic to string\n";
+  std::cout << "[OK] Topic to string\n";
 }
 
 void test_topic_with_device() {
@@ -23,7 +23,7 @@ void test_topic_with_device() {
 
   auto topic_str = topic.to_string();
   assert(topic_str == "spBv1.0/Energy/DBIRTH/Gateway01/Sensor01");
-  std::cout << "✓ Topic with device\n";
+  std::cout << "[OK] Topic with device\n";
 }
 
 void test_state_topic() {
@@ -34,7 +34,7 @@ void test_state_topic() {
 
   auto topic_str = topic.to_string();
   assert(topic_str == "spBv1.0/STATE/scada_host");
-  std::cout << "✓ STATE topic\n";
+  std::cout << "[OK] STATE topic\n";
 }
 
 void test_parse_topic() {
@@ -46,7 +46,7 @@ void test_parse_topic() {
   assert(topic.message_type == sparkplug::MessageType::NDATA);
   assert(topic.edge_node_id == "Gateway01");
   assert(topic.device_id.empty());
-  std::cout << "✓ Parse topic\n";
+  std::cout << "[OK] Parse topic\n";
 }
 
 void test_parse_device_topic() {
@@ -58,7 +58,7 @@ void test_parse_device_topic() {
   assert(topic.message_type == sparkplug::MessageType::DDATA);
   assert(topic.edge_node_id == "Gateway01");
   assert(topic.device_id == "Sensor01");
-  std::cout << "✓ Parse device topic\n";
+  std::cout << "[OK] Parse device topic\n";
 }
 
 void test_parse_state_topic() {
@@ -68,7 +68,7 @@ void test_parse_state_topic() {
   [[maybe_unused]] auto& topic = *result;
   assert(topic.message_type == sparkplug::MessageType::STATE);
   assert(topic.edge_node_id == "scada_host");
-  std::cout << "✓ Parse STATE topic\n";
+  std::cout << "[OK] Parse STATE topic\n";
 }
 
 int main() {

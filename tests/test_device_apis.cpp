@@ -61,7 +61,8 @@ void test_dbirth_sequence_zero() {
 
   auto callback = [&](const sparkplug::Topic& topic,
                       const org::eclipse::tahu::protobuf::Payload& payload) {
-    if (topic.message_type == sparkplug::MessageType::DBIRTH && topic.device_id == "Device01") {
+    if (topic.message_type == sparkplug::MessageType::DBIRTH &&
+        topic.device_id == "Device01") {
       found_dbirth = true;
       if (payload.has_seq()) {
         dbirth_seq = payload.seq();
@@ -272,15 +273,16 @@ void test_device_sequence_shared() {
 
   // After NBIRTH(0), DBIRTH(1), we publish 5 NDATA and 5 DDATA alternating
   // Last NDATA should be seq=10 (2,4,6,8,10), last DDATA should be seq=11 (3,5,7,9,11)
-  bool passed =
-      (ndata_count == 5) && (ddata_count == 5) && (last_ndata_seq == 10) && (last_ddata_seq == 11);
+  bool passed = (ndata_count == 5) && (ddata_count == 5) && (last_ndata_seq == 10) &&
+                (last_ddata_seq == 11);
 
-  report_test("Device and node share sequence", passed,
-              passed ? ""
-                     : std::format("NDATA count={} seq={} (expected 5/10), DDATA count={} seq={} "
-                                   "(expected 5/11)",
-                                   ndata_count.load(), last_ndata_seq.load(), ddata_count.load(),
-                                   last_ddata_seq.load()));
+  report_test(
+      "Device and node share sequence", passed,
+      passed ? ""
+             : std::format("NDATA count={} seq={} (expected 5/10), DDATA count={} seq={} "
+                           "(expected 5/11)",
+                           ndata_count.load(), last_ndata_seq.load(), ddata_count.load(),
+                           last_ddata_seq.load()));
 
   (void)pub.disconnect();
   (void)sub.disconnect();
@@ -293,7 +295,8 @@ void test_ddata_sequence_increments() {
 
   auto callback = [&](const sparkplug::Topic& topic,
                       const org::eclipse::tahu::protobuf::Payload& payload) {
-    if (topic.message_type == sparkplug::MessageType::DBIRTH && topic.device_id == "Device01") {
+    if (topic.message_type == sparkplug::MessageType::DBIRTH &&
+        topic.device_id == "Device01") {
       if (payload.has_seq()) {
         dbirth_seq = payload.seq();
       }
@@ -367,7 +370,8 @@ void test_ddata_sequence_increments() {
     sparkplug::PayloadBuilder ddata;
     ddata.add_metric_by_alias(1, 20.5 + i);
     if (!pub.publish_device_data("Device01", ddata)) {
-      report_test("DDATA sequence increments (TCK)", false, std::format("DDATA #{} failed", i + 1));
+      report_test("DDATA sequence increments (TCK)", false,
+                  std::format("DDATA #{} failed", i + 1));
       (void)pub.disconnect();
       (void)sub.disconnect();
       return;
@@ -387,18 +391,20 @@ void test_ddata_sequence_increments() {
 
   if (dbirth_seq != 1) {
     passed = false;
-    error_msg = std::format("DBIRTH seq={}, expected 1 (after NBIRTH seq=0)", dbirth_seq.load());
+    error_msg =
+        std::format("DBIRTH seq={}, expected 1 (after NBIRTH seq=0)", dbirth_seq.load());
   } else if (ddata_sequences.size() != 10) {
     passed = false;
-    error_msg = std::format("Received {} DDATA messages, expected 10", ddata_sequences.size());
+    error_msg =
+        std::format("Received {} DDATA messages, expected 10", ddata_sequences.size());
   } else {
     // Check each DDATA sequence increments correctly
     for (size_t i = 0; i < ddata_sequences.size(); i++) {
       uint64_t expected_seq = i + 2; // First DDATA should be 2 (after DBIRTH=1)
       if (ddata_sequences[i] != expected_seq) {
         passed = false;
-        error_msg = std::format("DDATA #{} has seq={}, expected {}", i + 1, ddata_sequences[i],
-                                expected_seq);
+        error_msg = std::format("DDATA #{} has seq={}, expected {}", i + 1,
+                                ddata_sequences[i], expected_seq);
         break;
       }
     }
@@ -417,13 +423,15 @@ void test_ddeath() {
   auto callback = [&](const sparkplug::Topic& topic,
                       const org::eclipse::tahu::protobuf::Payload& payload) {
     (void)payload;
-    if (topic.message_type == sparkplug::MessageType::DDEATH && topic.device_id == "Device01") {
+    if (topic.message_type == sparkplug::MessageType::DDEATH &&
+        topic.device_id == "Device01") {
       got_ddeath = true;
     }
   };
 
-  sparkplug::HostApplication::Config sub_config{
-      .broker_url = "tcp://localhost:1883", .client_id = "test_ddeath_sub", .host_id = "TestGroup"};
+  sparkplug::HostApplication::Config sub_config{.broker_url = "tcp://localhost:1883",
+                                                .client_id = "test_ddeath_sub",
+                                                .host_id = "TestGroup"};
 
   sub_config.message_callback = callback;
   sparkplug::HostApplication sub(std::move(sub_config));

@@ -1,9 +1,9 @@
 // examples/host_application_example.cpp
 // Example of using the HostApplication class for a SCADA/Primary Application
 /*
-  STATE messages are a special type of Sparkplug message used by Host Applications (SCADA/Primary
-  Applications) to declare their online/offline status. They work fundamentally differently from
-  normal Sparkplug messages:
+  STATE messages are a special type of Sparkplug message used by Host Applications
+  (SCADA/Primary Applications) to declare their online/offline status. They work
+  fundamentally differently from normal Sparkplug messages:
 
 
   1. Who Publishes STATE Messages?
@@ -34,9 +34,9 @@
   How STATE Messages Work
 
   1. Connect to broker (no automatic messages)
-  2. Publish STATE birth → tells Edge Nodes "I'm online and monitoring"
-  3. Send NCMD/DCMD commands → control Edge Nodes and devices
-  4. Publish STATE death → tells Edge Nodes "I'm going offline"
+  2. Publish STATE birth -> tells Edge Nodes "I'm online and monitoring"
+  3. Send NCMD/DCMD commands -> control Edge Nodes and devices
+  4. Publish STATE death -> tells Edge Nodes "I'm going offline"
   5. Disconnect
 
 */
@@ -88,9 +88,10 @@ int main() {
   }
   std::cout << "Connected successfully\n\n";
 
-  auto timestamp = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
-                                             std::chrono::system_clock::now().time_since_epoch())
-                                             .count());
+  auto timestamp =
+      static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                std::chrono::system_clock::now().time_since_epoch())
+                                .count());
 
   // Publish STATE birth (declare Host Application is online)
   std::cout << "Publishing STATE birth (Host Application online)...\n";
@@ -106,7 +107,8 @@ int main() {
   std::cout << "  QoS: 1, Retained: true\n\n";
 
   std::cout << "Host Application is now online and monitoring...\n";
-  std::cout << "Waiting for edge nodes to connect (monitor with mosquitto_sub -v -t '#')\n\n";
+  std::cout
+      << "Waiting for edge nodes to connect (monitor with mosquitto_sub -v -t '#')\n\n";
 
   // Example: Send periodic commands (every 30 seconds)
   auto last_command_time = std::chrono::steady_clock::now();
@@ -139,7 +141,8 @@ int main() {
       sparkplug::PayloadBuilder device_cmd;
       device_cmd.add_metric("SetPoint", 75.0 + (command_count * 5.0));
 
-      result = host_app.publish_device_command("Energy", "Gateway01", "Motor01", device_cmd);
+      result =
+          host_app.publish_device_command("Energy", "Gateway01", "Motor01", device_cmd);
       if (!result) {
         std::cerr << "  Failed to publish DCMD: " << result.error() << "\n";
       } else {
@@ -157,9 +160,10 @@ int main() {
   // Graceful shutdown
   std::cout << "\nShutting down...\n";
 
-  timestamp = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
-                                        std::chrono::system_clock::now().time_since_epoch())
-                                        .count());
+  timestamp =
+      static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                std::chrono::system_clock::now().time_since_epoch())
+                                .count());
 
   std::cout << "Publishing STATE death (Host Application going offline)...\n";
   result = host_app.publish_state_death(timestamp);

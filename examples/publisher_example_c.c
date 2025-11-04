@@ -26,7 +26,8 @@ int main(void) {
   }
 
   printf("[OK] Connected to broker\n");
-  printf("  Initial bdSeq: %llu\n", (unsigned long long)sparkplug_publisher_get_bd_seq(pub));
+  printf("  Initial bdSeq: %llu\n",
+         (unsigned long long)sparkplug_publisher_get_bd_seq(pub));
 
   sparkplug_payload_t* birth = sparkplug_payload_create();
 
@@ -95,8 +96,10 @@ int main(void) {
   printf("\nTesting rebirth...\n");
   if (sparkplug_publisher_rebirth(pub) == 0) {
     printf("[OK] Rebirth complete\n");
-    printf("  New bdSeq: %llu\n", (unsigned long long)sparkplug_publisher_get_bd_seq(pub));
-    printf("  Sequence reset to: %llu\n", (unsigned long long)sparkplug_publisher_get_seq(pub));
+    printf("  New bdSeq: %llu\n",
+           (unsigned long long)sparkplug_publisher_get_bd_seq(pub));
+    printf("  Sequence reset to: %llu\n",
+           (unsigned long long)sparkplug_publisher_get_seq(pub));
   } else {
     fprintf(stderr, "Failed to rebirth\n");
   }

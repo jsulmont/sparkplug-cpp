@@ -84,7 +84,9 @@ EdgeNode::EdgeNode(Config config) : config_(std::move(config)) {
   will_opts_ = MQTTAsync_willOptions_initializer;
 }
 
-int EdgeNode::on_message_arrived(void* context, char* topicName, int topicLen,
+int EdgeNode::on_message_arrived(void* context,
+                                 char* topicName,
+                                 int topicLen,
                                  MQTTAsync_message* message) {
   auto* edge_node = static_cast<EdgeNode*>(context);
 
@@ -172,8 +174,9 @@ stdx::expected<void, std::string> EdgeNode::connect() {
   std::lock_guard<std::mutex> lock(mutex_);
 
   MQTTAsync raw_client = nullptr;
-  int rc = MQTTAsync_create(&raw_client, config_.broker_url.c_str(), config_.client_id.c_str(),
-                            MQTTCLIENT_PERSISTENCE_NONE, nullptr);
+  int rc =
+      MQTTAsync_create(&raw_client, config_.broker_url.c_str(), config_.client_id.c_str(),
+                       MQTTCLIENT_PERSISTENCE_NONE, nullptr);
   if (rc != MQTTASYNC_SUCCESS) {
     return stdx::unexpected(std::format("Failed to create client: {}", rc));
   }
@@ -181,7 +184,8 @@ stdx::expected<void, std::string> EdgeNode::connect() {
 
   // Set callbacks (MUST be called after creating client but before connecting)
   // Note: Paho requires message_arrived callback to be non-null, so always pass it
-  rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost, on_message_arrived, nullptr);
+  rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost, on_message_arrived,
+                              nullptr);
   if (rc != MQTTASYNC_SUCCESS) {
     return stdx::unexpected(std::format("Failed to set callbacks: {}", rc));
   }
@@ -286,7 +290,8 @@ stdx::expected<void, std::string> EdgeNode::connect() {
       return stdx::unexpected(std::format("Failed to subscribe to NCMD: {}", rc));
     }
 
-    auto sub_status = subscribe_future.wait_for(std::chrono::milliseconds(SUBSCRIBE_TIMEOUT_MS));
+    auto sub_status =
+        subscribe_future.wait_for(std::chrono::milliseconds(SUBSCRIBE_TIMEOUT_MS));
     if (sub_status == std::future_status::timeout) {
       return stdx::unexpected("NCMD subscription timeout");
     }
@@ -322,7 +327,8 @@ stdx::expected<void, std::string> EdgeNode::disconnect() {
     return stdx::unexpected(std::format("Failed to disconnect: {}", rc));
   }
 
-  auto status = disconnect_future.wait_for(std::chrono::milliseconds(DISCONNECT_TIMEOUT_MS));
+  auto status =
+      disconnect_future.wait_for(std::chrono::milliseconds(DISCONNECT_TIMEOUT_MS));
   if (status == std::future_status::timeout) {
     is_connected_ = false;
     return {};
@@ -337,10 +343,12 @@ stdx::expected<void, std::string> EdgeNode::disconnect() {
   return {};
 }
 
-stdx::expected<void, std::string> EdgeNode::publish_message(MQTTAsync client,
-                                                            const std::string& topic_str,
-                                                            std::span<const uint8_t> payload_data,
-                                                            int qos, bool retain) {
+stdx::expected<void, std::string>
+EdgeNode::publish_message(MQTTAsync client,
+                          const std::string& topic_str,
+                          std::span<const uint8_t> payload_data,
+                          int qos,
+                          bool retain) {
   if (!client) {
     return stdx::unexpected("Not connected");
   }
@@ -517,7 +525,8 @@ stdx::expected<void, std::string> EdgeNode::rebirth() {
     proto_payload.set_seq(0);
 
     payload_data.resize(proto_payload.ByteSizeLong());
-    proto_payload.SerializeToArray(payload_data.data(), static_cast<int>(payload_data.size()));
+    proto_payload.SerializeToArray(payload_data.data(),
+                                   static_cast<int>(payload_data.size()));
     last_birth_payload_ = payload_data;
 
     Topic topic{.group_id = config_.group_id,
@@ -558,8 +567,8 @@ stdx::expected<void, std::string> EdgeNode::rebirth() {
   return {};
 }
 
-stdx::expected<void, std::string> EdgeNode::publish_device_birth(std::string_view device_id,
-                                                                 PayloadBuilder& payload) {
+stdx::expected<void, std::string>
+EdgeNode::publish_device_birth(std::string_view device_id, PayloadBuilder& payload) {
   MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;
@@ -605,8 +614,8 @@ stdx::expected<void, std::string> EdgeNode::publish_device_birth(std::string_vie
   return {};
 }
 
-stdx::expected<void, std::string> EdgeNode::publish_device_data(std::string_view device_id,
-                                                                PayloadBuilder& payload) {
+stdx::expected<void, std::string>
+EdgeNode::publish_device_data(std::string_view device_id, PayloadBuilder& payload) {
   MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;
@@ -645,7 +654,8 @@ stdx::expected<void, std::string> EdgeNode::publish_device_data(std::string_view
   return publish_message(client, topic_str, payload_data, qos, false);
 }
 
-stdx::expected<void, std::string> EdgeNode::publish_device_death(std::string_view device_id) {
+stdx::expected<void, std::string>
+EdgeNode::publish_device_death(std::string_view device_id) {
   MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;
@@ -693,7 +703,8 @@ stdx::expected<void, std::string> EdgeNode::publish_device_death(std::string_vie
 }
 
 stdx::expected<void, std::string>
-EdgeNode::publish_node_command(std::string_view target_edge_node_id, PayloadBuilder& payload) {
+EdgeNode::publish_node_command(std::string_view target_edge_node_id,
+                               PayloadBuilder& payload) {
   MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;
@@ -722,7 +733,8 @@ EdgeNode::publish_node_command(std::string_view target_edge_node_id, PayloadBuil
 
 stdx::expected<void, std::string>
 EdgeNode::publish_device_command(std::string_view target_edge_node_id,
-                                 std::string_view target_device_id, PayloadBuilder& payload) {
+                                 std::string_view target_device_id,
+                                 PayloadBuilder& payload) {
   MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;

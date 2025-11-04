@@ -37,7 +37,8 @@ int main() {
   std::cout << "  Broker URL: " << config.broker_url << "\n";
   std::cout << "  Client ID: " << config.client_id << "\n";
   std::cout << "  Username: " << config.username.value_or("(none)") << "\n";
-  std::cout << "  Password: " << (config.password.has_value() ? "***" : "(none)") << "\n\n";
+  std::cout << "  Password: " << (config.password.has_value() ? "***" : "(none)")
+            << "\n\n";
 
   sparkplug::EdgeNode publisher(std::move(config));
 
@@ -48,7 +49,8 @@ int main() {
     std::cerr << "\nTroubleshooting:\n";
     std::cerr << "  1. Verify Mosquitto is running: brew services list\n";
     std::cerr << "  2. Check credentials are correct (admin/admin)\n";
-    std::cerr << "  3. Verify passwordfile exists at /opt/homebrew/etc/mosquitto/passwordfile\n";
+    std::cerr << "  3. Verify passwordfile exists at "
+                 "/opt/homebrew/etc/mosquitto/passwordfile\n";
     return 1;
   }
 
@@ -79,7 +81,8 @@ int main() {
     if (!data_result) {
       std::cerr << "FAILED to publish NDATA: " << data_result.error() << "\n";
     } else {
-      std::cout << "  Published NDATA #" << (i + 1) << " (seq: " << publisher.get_seq() << ")\n";
+      std::cout << "  Published NDATA #" << (i + 1) << " (seq: " << publisher.get_seq()
+                << ")\n";
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(500));

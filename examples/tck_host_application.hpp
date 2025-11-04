@@ -42,7 +42,9 @@ public:
 private:
   // MQTT callbacks for TCK control client
   static void on_connection_lost(void* context, char* cause);
-  static int on_message_arrived(void* context, char* topicName, int topicLen,
+  static int on_message_arrived(void* context,
+                                char* topicName,
+                                int topicLen,
                                 MQTTAsync_message* message);
   static void on_delivery_complete(void* context, MQTTAsync_token token);
   static void on_connect_success(void* context, MQTTAsync_successData* response);
@@ -71,8 +73,9 @@ private:
   void publish_console_reply(const std::string& reply);
 
   // MQTT publish helper for TCK topics
-  [[nodiscard]] auto publish_tck(const std::string& topic, const std::string& payload, int qos)
-      -> stdx::expected<void, std::string>;
+  [[nodiscard]] auto publish_tck(const std::string& topic,
+                                 const std::string& payload,
+                                 int qos) -> stdx::expected<void, std::string>;
 
   // Helper to get current UTC timestamp in milliseconds
   [[nodiscard]] static auto get_timestamp() -> uint64_t;

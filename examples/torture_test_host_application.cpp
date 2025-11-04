@@ -64,8 +64,11 @@ struct NodeStats {
 
 class TortureTestSubscriber {
 public:
-  TortureTestSubscriber(std::string broker_url, std::string group_id, std::string subscriber_id,
-                        bool send_commands, int cycle_interval_sec)
+  TortureTestSubscriber(std::string broker_url,
+                        std::string group_id,
+                        std::string subscriber_id,
+                        bool send_commands,
+                        int cycle_interval_sec)
       : broker_url_(std::move(broker_url)), group_id_(std::move(group_id)),
         subscriber_id_(std::move(subscriber_id)), send_commands_(send_commands),
         cycle_interval_sec_(cycle_interval_sec) {
@@ -90,21 +93,22 @@ public:
     std::cout << log_prefix() << " Connecting to broker: " << broker_url_ << "\n";
 
     if (!command_publisher_) {
-      sparkplug::EdgeNode::Config pub_config{.broker_url = broker_url_,
-                                             .client_id = "torture_test_cmd_" + subscriber_id_,
-                                             .group_id = group_id_,
-                                             .edge_node_id = "CommandHost_" + subscriber_id_,
-                                             .data_qos = 0,
-                                             .death_qos = 1,
-                                             .clean_session = true};
+      sparkplug::EdgeNode::Config pub_config{
+          .broker_url = broker_url_,
+          .client_id = "torture_test_cmd_" + subscriber_id_,
+          .group_id = group_id_,
+          .edge_node_id = "CommandHost_" + subscriber_id_,
+          .data_qos = 0,
+          .death_qos = 1,
+          .clean_session = true};
 
       command_publisher_ = std::make_unique<sparkplug::EdgeNode>(std::move(pub_config));
     }
 
     auto pub_result = command_publisher_->connect();
     if (!pub_result) {
-      std::cerr << log_prefix() << " Command publisher connection failed: " << pub_result.error()
-                << "\n";
+      std::cerr << log_prefix()
+                << " Command publisher connection failed: " << pub_result.error() << "\n";
       return false;
     }
 
@@ -112,8 +116,8 @@ public:
     birth.add_metric("Host Type", "Torture Test Command Host");
     auto birth_result = command_publisher_->publish_birth(birth);
     if (!birth_result) {
-      std::cerr << log_prefix() << " Command publisher NBIRTH failed: " << birth_result.error()
-                << "\n";
+      std::cerr << log_prefix()
+                << " Command publisher NBIRTH failed: " << birth_result.error() << "\n";
     }
 
     std::cout << log_prefix() << " Command publisher ready\n";
@@ -140,11 +144,13 @@ public:
 
     auto subscribe_result = subscriber_->subscribe_group(group_id_);
     if (!subscribe_result) {
-      std::cerr << log_prefix() << " Subscribe failed: " << subscribe_result.error() << "\n";
+      std::cerr << log_prefix() << " Subscribe failed: " << subscribe_result.error()
+                << "\n";
       return false;
     }
 
-    std::cout << log_prefix() << " Connected and subscribed to group: " << group_id_ << "\n";
+    std::cout << log_prefix() << " Connected and subscribed to group: " << group_id_
+              << "\n";
 
     if (reconnect_count > 0) {
       std::cout << log_prefix() << " This is reconnection #" << reconnect_count << "\n";
@@ -248,8 +254,8 @@ public:
 
     case sparkplug::MessageType::NDATA: {
       if (stats.sleeping() || stats.state == NodeSleepState::UNKNOWN) {
-        std::cout << log_prefix(topic.edge_node_id) << " NDATA from " << topic.edge_node_id
-                  << " (seq=" << static_cast<int>(payload.seq())
+        std::cout << log_prefix(topic.edge_node_id) << " NDATA from "
+                  << topic.edge_node_id << " (seq=" << static_cast<int>(payload.seq())
                   << ") - node alive! Requesting rebirth\n";
         send_rebirth_command(topic.edge_node_id);
         stats.state = NodeSleepState::WAKE_PENDING;
@@ -259,15 +265,15 @@ public:
       }
 
       if (stats.wake_pending()) {
-        std::cout << log_prefix(topic.edge_node_id) << " NDATA from " << topic.edge_node_id
-                  << " (seq=" << static_cast<int>(payload.seq())
+        std::cout << log_prefix(topic.edge_node_id) << " NDATA from "
+                  << topic.edge_node_id << " (seq=" << static_cast<int>(payload.seq())
                   << ") - waiting for NBIRTH, ignoring\n";
         return;
       }
 
       if (!stats.online()) {
-        std::cerr << log_prefix(topic.edge_node_id) << " NDATA from " << topic.edge_node_id
-                  << " in unexpected state, requesting rebirth\n";
+        std::cerr << log_prefix(topic.edge_node_id) << " NDATA from "
+                  << topic.edge_node_id << " in unexpected state, requesting rebirth\n";
         send_rebirth_command(topic.edge_node_id);
         stats.state = NodeSleepState::WAKE_PENDING;
         stats.last_wake_attempt = std::chrono::steady_clock::now();
@@ -279,9 +285,9 @@ public:
 
       uint8_t expected_seq = (stats.last_seq + 1) % 256;
       if (payload.seq() != expected_seq && stats.last_seq != 255) {
-        std::cerr << log_prefix(topic.edge_node_id) << " SEQUENCE ERROR on " << topic.edge_node_id
-                  << ": expected " << static_cast<int>(expected_seq) << ", got "
-                  << static_cast<int>(payload.seq()) << "\n";
+        std::cerr << log_prefix(topic.edge_node_id) << " SEQUENCE ERROR on "
+                  << topic.edge_node_id << ": expected " << static_cast<int>(expected_seq)
+                  << ", got " << static_cast<int>(payload.seq()) << "\n";
         sequence_errors++;
       }
 
@@ -289,28 +295,28 @@ public:
 
       std::cout << log_prefix(topic.edge_node_id) << " NDATA from " << topic.edge_node_id
                 << " (seq=" << static_cast<int>(payload.seq())
-                << ", metrics=" << payload.metrics_size() << ", count=" << stats.data_count
-                << ")\n";
+                << ", metrics=" << payload.metrics_size()
+                << ", count=" << stats.data_count << ")\n";
       break;
     }
 
     case sparkplug::MessageType::DBIRTH: {
-      std::cout << log_prefix() << " DBIRTH from " << topic.edge_node_id << "/" << topic.device_id
-                << " (seq=" << static_cast<int>(payload.seq())
+      std::cout << log_prefix() << " DBIRTH from " << topic.edge_node_id << "/"
+                << topic.device_id << " (seq=" << static_cast<int>(payload.seq())
                 << ", metrics=" << payload.metrics_size() << ")\n";
       break;
     }
 
     case sparkplug::MessageType::DDATA: {
-      std::cout << log_prefix() << " DDATA from " << topic.edge_node_id << "/" << topic.device_id
-                << " (seq=" << static_cast<int>(payload.seq())
+      std::cout << log_prefix() << " DDATA from " << topic.edge_node_id << "/"
+                << topic.device_id << " (seq=" << static_cast<int>(payload.seq())
                 << ", metrics=" << payload.metrics_size() << ")\n";
       break;
     }
 
     case sparkplug::MessageType::DDEATH: {
-      std::cout << log_prefix() << " DDEATH from " << topic.edge_node_id << "/" << topic.device_id
-                << "\n";
+      std::cout << log_prefix() << " DDEATH from " << topic.edge_node_id << "/"
+                << topic.device_id << "\n";
       break;
     }
 
@@ -328,13 +334,14 @@ public:
       int backoff_seconds = std::min(60, 5 * (1 << stats.wake_attempt_count));
 
       auto time_since_last_attempt =
-          std::chrono::duration_cast<std::chrono::seconds>(now - stats.last_wake_attempt).count();
+          std::chrono::duration_cast<std::chrono::seconds>(now - stats.last_wake_attempt)
+              .count();
 
       if (time_since_last_attempt >= backoff_seconds) {
         if (stats.wake_pending()) {
-          std::cout << log_prefix() << " Node " << node_id << " did not respond to wake attempt #"
-                    << stats.wake_attempt_count << " (waited " << time_since_last_attempt
-                    << "s), back to SLEEPING\n";
+          std::cout << log_prefix() << " Node " << node_id
+                    << " did not respond to wake attempt #" << stats.wake_attempt_count
+                    << " (waited " << time_since_last_attempt << "s), back to SLEEPING\n";
           stats.state = NodeSleepState::SLEEPING;
         }
 
@@ -363,7 +370,8 @@ public:
 
     auto result = command_publisher_->publish_node_command(edge_node_id, cmd);
     if (!result) {
-      std::cerr << log_prefix() << " Failed to send rebirth command: " << result.error() << "\n";
+      std::cerr << log_prefix() << " Failed to send rebirth command: " << result.error()
+                << "\n";
     }
   }
 
@@ -380,7 +388,8 @@ public:
 
     auto result = command_publisher_->publish_node_command(edge_node_id, cmd);
     if (!result) {
-      std::cerr << log_prefix() << " Failed to send reboot command: " << result.error() << "\n";
+      std::cerr << log_prefix() << " Failed to send reboot command: " << result.error()
+                << "\n";
     }
   }
 
@@ -405,7 +414,8 @@ public:
       check_sleeping_nodes(now);
 
       if (send_commands_ &&
-          std::chrono::duration_cast<std::chrono::seconds>(now - last_command).count() >= 15) {
+          std::chrono::duration_cast<std::chrono::seconds>(now - last_command).count() >=
+              15) {
         int action = action_dis(gen);
 
         if (action < 30 && !node_stats_.empty()) {
@@ -450,15 +460,16 @@ public:
     if (subscriber_) {
       auto sub_result = subscriber_->disconnect();
       if (!sub_result) {
-        std::cerr << log_prefix() << " Subscriber disconnect failed: " << sub_result.error()
-                  << "\n";
+        std::cerr << log_prefix()
+                  << " Subscriber disconnect failed: " << sub_result.error() << "\n";
       }
     }
 
     if (command_publisher_) {
       auto pub_result = command_publisher_->disconnect();
       if (!pub_result) {
-        std::cerr << log_prefix() << " Command publisher disconnect failed: " << pub_result.error()
+        std::cerr << log_prefix()
+                  << " Command publisher disconnect failed: " << pub_result.error()
                   << "\n";
       }
     }
@@ -535,11 +546,13 @@ int main(int argc, char* argv[]) {
     } else if (arg == "--help") {
       std::cout << "Usage: " << argv[0] << " [options]\n";
       std::cout << "Options:\n";
-      std::cout << "  --broker <url>    MQTT broker URL (default: tcp://localhost:1883)\n";
+      std::cout
+          << "  --broker <url>    MQTT broker URL (default: tcp://localhost:1883)\n";
       std::cout << "  --group <id>      Sparkplug group ID (default: TortureTest)\n";
       std::cout << "  --id <id>         Subscriber identifier (default: 01)\n";
       std::cout << "  --commands        Enable sending commands to publishers\n";
-      std::cout << "  --cycle <sec>     Cycle connection every N seconds (0=never, default: 0)\n";
+      std::cout << "  --cycle <sec>     Cycle connection every N seconds (0=never, "
+                   "default: 0)\n";
       std::cout << "  --help            Show this help\n";
       return 0;
     }
@@ -551,7 +564,8 @@ int main(int argc, char* argv[]) {
   std::cout << "Subscriber ID: " << subscriber_id << "\n";
   std::cout << "Commands: " << (send_commands ? "ENABLED" : "DISABLED") << "\n";
   std::cout << "Connection cycling: "
-            << (cycle_interval > 0 ? std::to_string(cycle_interval) + "s" : "DISABLED") << "\n\n";
+            << (cycle_interval > 0 ? std::to_string(cycle_interval) + "s" : "DISABLED")
+            << "\n\n";
 
   TortureTestSubscriber subscriber(broker_url, group_id, subscriber_id, send_commands,
                                    cycle_interval);

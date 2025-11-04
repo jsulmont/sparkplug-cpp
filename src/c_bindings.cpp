@@ -20,9 +20,10 @@ struct sparkplug_host_application {
   sparkplug::HostApplication impl;
 };
 
-static void copy_metrics_to_builder(sparkplug::PayloadBuilder& builder,
-                                    const org::eclipse::tahu::protobuf::Payload& proto_payload,
-                                    bool copy_seq = true) {
+static void
+copy_metrics_to_builder(sparkplug::PayloadBuilder& builder,
+                        const org::eclipse::tahu::protobuf::Payload& proto_payload,
+                        bool copy_seq = true) {
   if (proto_payload.has_timestamp()) {
     builder.set_timestamp(proto_payload.timestamp());
   }
@@ -45,7 +46,8 @@ static void copy_metrics_to_builder(sparkplug::PayloadBuilder& builder,
       if (alias.has_value() && std::string(name).empty()) {
         builder.add_metric_by_alias(*alias, static_cast<int32_t>(metric.int_value()));
       } else if (alias.has_value()) {
-        builder.add_metric_with_alias(name, *alias, static_cast<int32_t>(metric.int_value()));
+        builder.add_metric_with_alias(name, *alias,
+                                      static_cast<int32_t>(metric.int_value()));
       } else {
         builder.add_metric(name, static_cast<int32_t>(metric.int_value()));
       }
@@ -67,7 +69,8 @@ static void copy_metrics_to_builder(sparkplug::PayloadBuilder& builder,
       if (alias.has_value() && std::string(name).empty()) {
         builder.add_metric_by_alias(*alias, static_cast<uint32_t>(metric.int_value()));
       } else if (alias.has_value()) {
-        builder.add_metric_with_alias(name, *alias, static_cast<uint32_t>(metric.int_value()));
+        builder.add_metric_with_alias(name, *alias,
+                                      static_cast<uint32_t>(metric.int_value()));
       } else {
         builder.add_metric(name, static_cast<uint32_t>(metric.int_value()));
       }
@@ -77,7 +80,8 @@ static void copy_metrics_to_builder(sparkplug::PayloadBuilder& builder,
       if (alias.has_value() && std::string(name).empty()) {
         builder.add_metric_by_alias(*alias, static_cast<uint64_t>(metric.long_value()));
       } else if (alias.has_value()) {
-        builder.add_metric_with_alias(name, *alias, static_cast<uint64_t>(metric.long_value()));
+        builder.add_metric_with_alias(name, *alias,
+                                      static_cast<uint64_t>(metric.long_value()));
       } else {
         builder.add_metric(name, static_cast<uint64_t>(metric.long_value()));
       }
@@ -136,8 +140,10 @@ extern "C" {
 // Publisher Functions
 // ============================================================================
 
-sparkplug_publisher_t* sparkplug_publisher_create(const char* broker_url, const char* client_id,
-                                                  const char* group_id, const char* edge_node_id) {
+sparkplug_publisher_t* sparkplug_publisher_create(const char* broker_url,
+                                                  const char* client_id,
+                                                  const char* group_id,
+                                                  const char* edge_node_id) {
   if (!broker_url || !client_id || !group_id || !edge_node_id) {
     return nullptr;
   }
@@ -153,21 +159,27 @@ void sparkplug_publisher_destroy(sparkplug_publisher_t* pub) {
   delete pub;
 }
 
-int sparkplug_publisher_set_credentials(sparkplug_publisher_t* pub, const char* username,
+int sparkplug_publisher_set_credentials(sparkplug_publisher_t* pub,
+                                        const char* username,
                                         const char* password) {
   if (!pub) {
     return -1;
   }
 
-  std::optional<std::string> user = username ? std::optional<std::string>(username) : std::nullopt;
-  std::optional<std::string> pass = password ? std::optional<std::string>(password) : std::nullopt;
+  std::optional<std::string> user =
+      username ? std::optional<std::string>(username) : std::nullopt;
+  std::optional<std::string> pass =
+      password ? std::optional<std::string>(password) : std::nullopt;
   pub->impl.set_credentials(std::move(user), std::move(pass));
   return 0;
 }
 
-int sparkplug_publisher_set_tls(sparkplug_publisher_t* pub, const char* trust_store,
-                                const char* key_store, const char* private_key,
-                                const char* private_key_password, int enable_server_cert_auth) {
+int sparkplug_publisher_set_tls(sparkplug_publisher_t* pub,
+                                const char* trust_store,
+                                const char* key_store,
+                                const char* private_key,
+                                const char* private_key_password,
+                                int enable_server_cert_auth) {
   if (!pub || !trust_store) {
     return -1;
   }
@@ -176,7 +188,8 @@ int sparkplug_publisher_set_tls(sparkplug_publisher_t* pub, const char* trust_st
       .trust_store = trust_store,
       .key_store = key_store ? std::string(key_store) : "",
       .private_key = private_key ? std::string(private_key) : "",
-      .private_key_password = private_key_password ? std::string(private_key_password) : "",
+      .private_key_password =
+          private_key_password ? std::string(private_key_password) : "",
       .enabled_cipher_suites = "",
       .enable_server_cert_auth = enable_server_cert_auth != 0};
 
@@ -196,7 +209,8 @@ int sparkplug_publisher_disconnect(sparkplug_publisher_t* pub) {
   return pub->impl.disconnect().has_value() ? 0 : -1;
 }
 
-int sparkplug_publisher_publish_birth(sparkplug_publisher_t* pub, const uint8_t* payload_data,
+int sparkplug_publisher_publish_birth(sparkplug_publisher_t* pub,
+                                      const uint8_t* payload_data,
                                       size_t payload_len) {
   if (!pub || !payload_data)
     return -1;
@@ -212,7 +226,8 @@ int sparkplug_publisher_publish_birth(sparkplug_publisher_t* pub, const uint8_t*
   return pub->impl.publish_birth(builder).has_value() ? 0 : -1;
 }
 
-int sparkplug_publisher_publish_data(sparkplug_publisher_t* pub, const uint8_t* payload_data,
+int sparkplug_publisher_publish_data(sparkplug_publisher_t* pub,
+                                     const uint8_t* payload_data,
                                      size_t payload_len) {
   if (!pub || !payload_data)
     return -1;
@@ -252,8 +267,10 @@ uint64_t sparkplug_publisher_get_bd_seq(const sparkplug_publisher_t* pub) {
   return pub->impl.get_bd_seq();
 }
 
-int sparkplug_publisher_publish_device_birth(sparkplug_publisher_t* pub, const char* device_id,
-                                             const uint8_t* payload_data, size_t payload_len) {
+int sparkplug_publisher_publish_device_birth(sparkplug_publisher_t* pub,
+                                             const char* device_id,
+                                             const uint8_t* payload_data,
+                                             size_t payload_len) {
   if (!pub || !device_id || !payload_data)
     return -1;
 
@@ -268,8 +285,10 @@ int sparkplug_publisher_publish_device_birth(sparkplug_publisher_t* pub, const c
   return pub->impl.publish_device_birth(device_id, builder).has_value() ? 0 : -1;
 }
 
-int sparkplug_publisher_publish_device_data(sparkplug_publisher_t* pub, const char* device_id,
-                                            const uint8_t* payload_data, size_t payload_len) {
+int sparkplug_publisher_publish_device_data(sparkplug_publisher_t* pub,
+                                            const char* device_id,
+                                            const uint8_t* payload_data,
+                                            size_t payload_len) {
   if (!pub || !device_id || !payload_data)
     return -1;
 
@@ -284,7 +303,8 @@ int sparkplug_publisher_publish_device_data(sparkplug_publisher_t* pub, const ch
   return pub->impl.publish_device_data(device_id, builder).has_value() ? 0 : -1;
 }
 
-int sparkplug_publisher_publish_device_death(sparkplug_publisher_t* pub, const char* device_id) {
+int sparkplug_publisher_publish_device_death(sparkplug_publisher_t* pub,
+                                             const char* device_id) {
   if (!pub || !device_id)
     return -1;
   return pub->impl.publish_device_death(device_id).has_value() ? 0 : -1;
@@ -292,7 +312,8 @@ int sparkplug_publisher_publish_device_death(sparkplug_publisher_t* pub, const c
 
 int sparkplug_publisher_publish_node_command(sparkplug_publisher_t* pub,
                                              const char* target_edge_node_id,
-                                             const uint8_t* payload_data, size_t payload_len) {
+                                             const uint8_t* payload_data,
+                                             size_t payload_len) {
   if (!pub || !target_edge_node_id || !payload_data)
     return -1;
 
@@ -304,13 +325,15 @@ int sparkplug_publisher_publish_node_command(sparkplug_publisher_t* pub,
   sparkplug::PayloadBuilder builder;
   copy_metrics_to_builder(builder, proto_payload);
 
-  return pub->impl.publish_node_command(target_edge_node_id, builder).has_value() ? 0 : -1;
+  return pub->impl.publish_node_command(target_edge_node_id, builder).has_value() ? 0
+                                                                                  : -1;
 }
 
 int sparkplug_publisher_publish_device_command(sparkplug_publisher_t* pub,
                                                const char* target_edge_node_id,
                                                const char* target_device_id,
-                                               const uint8_t* payload_data, size_t payload_len) {
+                                               const uint8_t* payload_data,
+                                               size_t payload_len) {
   if (!pub || !target_edge_node_id || !target_device_id || !payload_data)
     return -1;
 
@@ -353,153 +376,199 @@ void sparkplug_payload_set_seq(sparkplug_payload_t* payload, uint64_t seq) {
 }
 
 // Add metrics by name (for NBIRTH)
-void sparkplug_payload_add_int8(sparkplug_payload_t* payload, const char* name, int8_t value) {
+void sparkplug_payload_add_int8(sparkplug_payload_t* payload,
+                                const char* name,
+                                int8_t value) {
   if (payload && name)
     payload->impl.add_metric(name, value);
 }
 
-void sparkplug_payload_add_int16(sparkplug_payload_t* payload, const char* name, int16_t value) {
+void sparkplug_payload_add_int16(sparkplug_payload_t* payload,
+                                 const char* name,
+                                 int16_t value) {
   if (payload && name)
     payload->impl.add_metric(name, value);
 }
 
-void sparkplug_payload_add_int32(sparkplug_payload_t* payload, const char* name, int32_t value) {
+void sparkplug_payload_add_int32(sparkplug_payload_t* payload,
+                                 const char* name,
+                                 int32_t value) {
   if (payload && name)
     payload->impl.add_metric(name, value);
 }
 
-void sparkplug_payload_add_int64(sparkplug_payload_t* payload, const char* name, int64_t value) {
+void sparkplug_payload_add_int64(sparkplug_payload_t* payload,
+                                 const char* name,
+                                 int64_t value) {
   if (payload && name)
     payload->impl.add_metric(name, value);
 }
 
-void sparkplug_payload_add_uint8(sparkplug_payload_t* payload, const char* name, uint8_t value) {
+void sparkplug_payload_add_uint8(sparkplug_payload_t* payload,
+                                 const char* name,
+                                 uint8_t value) {
   if (payload && name)
     payload->impl.add_metric(name, value);
 }
 
-void sparkplug_payload_add_uint16(sparkplug_payload_t* payload, const char* name, uint16_t value) {
+void sparkplug_payload_add_uint16(sparkplug_payload_t* payload,
+                                  const char* name,
+                                  uint16_t value) {
   if (payload && name)
     payload->impl.add_metric(name, value);
 }
 
-void sparkplug_payload_add_uint32(sparkplug_payload_t* payload, const char* name, uint32_t value) {
+void sparkplug_payload_add_uint32(sparkplug_payload_t* payload,
+                                  const char* name,
+                                  uint32_t value) {
   if (payload && name)
     payload->impl.add_metric(name, value);
 }
 
-void sparkplug_payload_add_uint64(sparkplug_payload_t* payload, const char* name, uint64_t value) {
+void sparkplug_payload_add_uint64(sparkplug_payload_t* payload,
+                                  const char* name,
+                                  uint64_t value) {
   if (payload && name)
     payload->impl.add_metric(name, value);
 }
 
-void sparkplug_payload_add_float(sparkplug_payload_t* payload, const char* name, float value) {
+void sparkplug_payload_add_float(sparkplug_payload_t* payload,
+                                 const char* name,
+                                 float value) {
   if (payload && name)
     payload->impl.add_metric(name, value);
 }
 
-void sparkplug_payload_add_double(sparkplug_payload_t* payload, const char* name, double value) {
+void sparkplug_payload_add_double(sparkplug_payload_t* payload,
+                                  const char* name,
+                                  double value) {
   if (payload && name)
     payload->impl.add_metric(name, value);
 }
 
-void sparkplug_payload_add_bool(sparkplug_payload_t* payload, const char* name, bool value) {
+void sparkplug_payload_add_bool(sparkplug_payload_t* payload,
+                                const char* name,
+                                bool value) {
   if (payload && name)
     payload->impl.add_metric(name, value);
 }
 
-void sparkplug_payload_add_string(sparkplug_payload_t* payload, const char* name,
+void sparkplug_payload_add_string(sparkplug_payload_t* payload,
+                                  const char* name,
                                   const char* value) {
   if (payload && name && value)
     payload->impl.add_metric(name, std::string_view(value));
 }
 
 // Add metrics with alias (for NBIRTH with aliases)
-void sparkplug_payload_add_int32_with_alias(sparkplug_payload_t* payload, const char* name,
-                                            uint64_t alias, int32_t value) {
+void sparkplug_payload_add_int32_with_alias(sparkplug_payload_t* payload,
+                                            const char* name,
+                                            uint64_t alias,
+                                            int32_t value) {
   if (payload && name)
     payload->impl.add_metric_with_alias(name, alias, value);
 }
 
-void sparkplug_payload_add_int64_with_alias(sparkplug_payload_t* payload, const char* name,
-                                            uint64_t alias, int64_t value) {
+void sparkplug_payload_add_int64_with_alias(sparkplug_payload_t* payload,
+                                            const char* name,
+                                            uint64_t alias,
+                                            int64_t value) {
   if (payload && name)
     payload->impl.add_metric_with_alias(name, alias, value);
 }
 
-void sparkplug_payload_add_uint32_with_alias(sparkplug_payload_t* payload, const char* name,
-                                             uint64_t alias, uint32_t value) {
+void sparkplug_payload_add_uint32_with_alias(sparkplug_payload_t* payload,
+                                             const char* name,
+                                             uint64_t alias,
+                                             uint32_t value) {
   if (payload && name)
     payload->impl.add_metric_with_alias(name, alias, value);
 }
 
-void sparkplug_payload_add_uint64_with_alias(sparkplug_payload_t* payload, const char* name,
-                                             uint64_t alias, uint64_t value) {
+void sparkplug_payload_add_uint64_with_alias(sparkplug_payload_t* payload,
+                                             const char* name,
+                                             uint64_t alias,
+                                             uint64_t value) {
   if (payload && name)
     payload->impl.add_metric_with_alias(name, alias, value);
 }
 
-void sparkplug_payload_add_float_with_alias(sparkplug_payload_t* payload, const char* name,
-                                            uint64_t alias, float value) {
+void sparkplug_payload_add_float_with_alias(sparkplug_payload_t* payload,
+                                            const char* name,
+                                            uint64_t alias,
+                                            float value) {
   if (payload && name)
     payload->impl.add_metric_with_alias(name, alias, value);
 }
 
-void sparkplug_payload_add_double_with_alias(sparkplug_payload_t* payload, const char* name,
-                                             uint64_t alias, double value) {
+void sparkplug_payload_add_double_with_alias(sparkplug_payload_t* payload,
+                                             const char* name,
+                                             uint64_t alias,
+                                             double value) {
   if (payload && name)
     payload->impl.add_metric_with_alias(name, alias, value);
 }
 
-void sparkplug_payload_add_bool_with_alias(sparkplug_payload_t* payload, const char* name,
-                                           uint64_t alias, bool value) {
+void sparkplug_payload_add_bool_with_alias(sparkplug_payload_t* payload,
+                                           const char* name,
+                                           uint64_t alias,
+                                           bool value) {
   if (payload && name)
     payload->impl.add_metric_with_alias(name, alias, value);
 }
 
 // Add metrics by alias only (for NDATA)
-void sparkplug_payload_add_int32_by_alias(sparkplug_payload_t* payload, uint64_t alias,
+void sparkplug_payload_add_int32_by_alias(sparkplug_payload_t* payload,
+                                          uint64_t alias,
                                           int32_t value) {
   if (payload)
     payload->impl.add_metric_by_alias(alias, value);
 }
 
-void sparkplug_payload_add_int64_by_alias(sparkplug_payload_t* payload, uint64_t alias,
+void sparkplug_payload_add_int64_by_alias(sparkplug_payload_t* payload,
+                                          uint64_t alias,
                                           int64_t value) {
   if (payload)
     payload->impl.add_metric_by_alias(alias, value);
 }
 
-void sparkplug_payload_add_uint32_by_alias(sparkplug_payload_t* payload, uint64_t alias,
+void sparkplug_payload_add_uint32_by_alias(sparkplug_payload_t* payload,
+                                           uint64_t alias,
                                            uint32_t value) {
   if (payload)
     payload->impl.add_metric_by_alias(alias, value);
 }
 
-void sparkplug_payload_add_uint64_by_alias(sparkplug_payload_t* payload, uint64_t alias,
+void sparkplug_payload_add_uint64_by_alias(sparkplug_payload_t* payload,
+                                           uint64_t alias,
                                            uint64_t value) {
   if (payload)
     payload->impl.add_metric_by_alias(alias, value);
 }
 
-void sparkplug_payload_add_float_by_alias(sparkplug_payload_t* payload, uint64_t alias,
+void sparkplug_payload_add_float_by_alias(sparkplug_payload_t* payload,
+                                          uint64_t alias,
                                           float value) {
   if (payload)
     payload->impl.add_metric_by_alias(alias, value);
 }
 
-void sparkplug_payload_add_double_by_alias(sparkplug_payload_t* payload, uint64_t alias,
+void sparkplug_payload_add_double_by_alias(sparkplug_payload_t* payload,
+                                           uint64_t alias,
                                            double value) {
   if (payload)
     payload->impl.add_metric_by_alias(alias, value);
 }
 
-void sparkplug_payload_add_bool_by_alias(sparkplug_payload_t* payload, uint64_t alias, bool value) {
+void sparkplug_payload_add_bool_by_alias(sparkplug_payload_t* payload,
+                                         uint64_t alias,
+                                         bool value) {
   if (payload)
     payload->impl.add_metric_by_alias(alias, value);
 }
 
-size_t sparkplug_payload_serialize(const sparkplug_payload_t* payload, uint8_t* buffer,
+size_t sparkplug_payload_serialize(const sparkplug_payload_t* payload,
+                                   uint8_t* buffer,
                                    size_t buffer_size) {
   if (!payload || !buffer)
     return 0;
@@ -533,7 +602,8 @@ sparkplug_payload_t* sparkplug_payload_parse(const uint8_t* data, size_t data_le
   return payload;
 }
 
-bool sparkplug_payload_get_timestamp(const sparkplug_payload_t* payload, uint64_t* out_timestamp) {
+bool sparkplug_payload_get_timestamp(const sparkplug_payload_t* payload,
+                                     uint64_t* out_timestamp) {
   if (!payload || !out_timestamp)
     return false;
 
@@ -579,7 +649,8 @@ size_t sparkplug_payload_get_metric_count(const sparkplug_payload_t* payload) {
   return static_cast<size_t>(proto_payload.metrics_size());
 }
 
-bool sparkplug_payload_get_metric_at(const sparkplug_payload_t* payload, size_t index,
+bool sparkplug_payload_get_metric_at(const sparkplug_payload_t* payload,
+                                     size_t index,
                                      sparkplug_metric_t* out_metric) {
   if (!payload || !out_metric)
     return false;
@@ -677,8 +748,8 @@ sparkplug_host_application_t* sparkplug_host_application_create(const char* brok
     sparkplug::HostApplication::Config config{
         .broker_url = broker_url, .client_id = client_id, .host_id = host_id};
 
-    auto* host =
-        new sparkplug_host_application{.impl = sparkplug::HostApplication(std::move(config))};
+    auto* host = new sparkplug_host_application{
+        .impl = sparkplug::HostApplication(std::move(config))};
     return host;
   } catch (...) {
     return nullptr;
@@ -690,19 +761,24 @@ void sparkplug_host_application_destroy(sparkplug_host_application_t* host) {
 }
 
 int sparkplug_host_application_set_credentials(sparkplug_host_application_t* host,
-                                               const char* username, const char* password) {
+                                               const char* username,
+                                               const char* password) {
   if (!host) {
     return -1;
   }
 
-  std::optional<std::string> user = username ? std::optional<std::string>(username) : std::nullopt;
-  std::optional<std::string> pass = password ? std::optional<std::string>(password) : std::nullopt;
+  std::optional<std::string> user =
+      username ? std::optional<std::string>(username) : std::nullopt;
+  std::optional<std::string> pass =
+      password ? std::optional<std::string>(password) : std::nullopt;
   host->impl.set_credentials(std::move(user), std::move(pass));
   return 0;
 }
 
-int sparkplug_host_application_set_tls(sparkplug_host_application_t* host, const char* trust_store,
-                                       const char* key_store, const char* private_key,
+int sparkplug_host_application_set_tls(sparkplug_host_application_t* host,
+                                       const char* trust_store,
+                                       const char* key_store,
+                                       const char* private_key,
                                        const char* private_key_password,
                                        int enable_server_cert_auth) {
   if (!host || !trust_store) {
@@ -713,7 +789,8 @@ int sparkplug_host_application_set_tls(sparkplug_host_application_t* host, const
       .trust_store = trust_store,
       .key_store = key_store ? std::string(key_store) : "",
       .private_key = private_key ? std::string(private_key) : "",
-      .private_key_password = private_key_password ? std::string(private_key_password) : "",
+      .private_key_password =
+          private_key_password ? std::string(private_key_password) : "",
       .enabled_cipher_suites = "",
       .enable_server_cert_auth = enable_server_cert_auth != 0};
 
@@ -789,9 +866,12 @@ int sparkplug_host_application_publish_node_command(sparkplug_host_application_t
   }
 }
 
-int sparkplug_host_application_publish_device_command(
-    sparkplug_host_application_t* host, const char* group_id, const char* target_edge_node_id,
-    const char* target_device_id, const uint8_t* payload_data, size_t payload_len) {
+int sparkplug_host_application_publish_device_command(sparkplug_host_application_t* host,
+                                                      const char* group_id,
+                                                      const char* target_edge_node_id,
+                                                      const char* target_device_id,
+                                                      const uint8_t* payload_data,
+                                                      size_t payload_len) {
   if (!host || !group_id || !target_edge_node_id || !target_device_id || !payload_data) {
     return -1;
   }
@@ -805,8 +885,8 @@ int sparkplug_host_application_publish_device_command(
     sparkplug::PayloadBuilder builder;
     copy_metrics_to_builder(builder, proto_payload);
 
-    auto result =
-        host->impl.publish_device_command(group_id, target_edge_node_id, target_device_id, builder);
+    auto result = host->impl.publish_device_command(group_id, target_edge_node_id,
+                                                    target_device_id, builder);
     return result.has_value() ? 0 : -1;
   } catch (...) {
     return -1;
@@ -822,12 +902,13 @@ int sparkplug_host_application_set_message_callback(sparkplug_host_application_t
 
   try {
     if (callback) {
-      auto cpp_callback = [callback,
-                           user_data](const sparkplug::Topic& topic,
-                                      const org::eclipse::tahu::protobuf::Payload& payload) {
+      auto cpp_callback = [callback, user_data](
+                              const sparkplug::Topic& topic,
+                              const org::eclipse::tahu::protobuf::Payload& payload) {
         std::string topic_str = topic.to_string();
         std::vector<uint8_t> payload_data(payload.ByteSizeLong());
-        if (!payload.SerializeToArray(payload_data.data(), static_cast<int>(payload_data.size()))) {
+        if (!payload.SerializeToArray(payload_data.data(),
+                                      static_cast<int>(payload_data.size()))) {
           return; // Serialization failed, skip this message
         }
 
@@ -887,7 +968,8 @@ int sparkplug_host_application_subscribe_group(sparkplug_host_application_t* hos
 }
 
 int sparkplug_host_application_subscribe_node(sparkplug_host_application_t* host,
-                                              const char* group_id, const char* edge_node_id) {
+                                              const char* group_id,
+                                              const char* edge_node_id) {
   if (!host || !group_id || !edge_node_id) {
     return -1;
   }
@@ -897,17 +979,20 @@ int sparkplug_host_application_subscribe_node(sparkplug_host_application_t* host
 }
 
 int sparkplug_host_application_get_metric_name(sparkplug_host_application_t* host,
-                                               const char* group_id, const char* edge_node_id,
-                                               const char* device_id, uint64_t alias,
-                                               char* name_buffer, size_t buffer_size) {
+                                               const char* group_id,
+                                               const char* edge_node_id,
+                                               const char* device_id,
+                                               uint64_t alias,
+                                               char* name_buffer,
+                                               size_t buffer_size) {
   if (!host || !group_id || !edge_node_id || !name_buffer || buffer_size == 0) {
     return -1;
   }
 
   try {
     auto result = host->impl.get_metric_name(
-        group_id, edge_node_id, device_id ? std::string_view(device_id) : std::string_view(""),
-        alias);
+        group_id, edge_node_id,
+        device_id ? std::string_view(device_id) : std::string_view(""), alias);
 
     if (result.has_value()) {
       auto name = result.value();

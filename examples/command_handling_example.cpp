@@ -69,7 +69,8 @@ void scada_host_thread() {
 
   cmd_result = scada.publish_node_command("Gateway01", scan_cmd);
   if (!cmd_result) {
-    std::cerr << "[SCADA] Failed to send scan rate command: " << cmd_result.error() << "\n";
+    std::cerr << "[SCADA] Failed to send scan rate command: " << cmd_result.error()
+              << "\n";
   } else {
     std::cout << "[SCADA] Scan rate command sent\n";
   }
@@ -113,7 +114,8 @@ int main() {
           std::cout << "[EDGE NODE]   -> Changing scan rate to " << new_rate << "ms\n";
           scan_rate_ms = new_rate;
         } else if (metric.name() == "Node Control/Reboot" && metric.boolean_value()) {
-          std::cout << "[EDGE NODE]   -> REBOOT requested (not implemented in this example)\n";
+          std::cout
+              << "[EDGE NODE]   -> REBOOT requested (not implemented in this example)\n";
         }
       }
     } else if (topic.message_type == sparkplug::MessageType::DCMD) {
@@ -169,7 +171,8 @@ int main() {
 
   auto device_birth_result = publisher->publish_device_birth("Motor01", device_birth);
   if (!device_birth_result) {
-    std::cerr << "[EDGE NODE] Failed to publish DBIRTH: " << device_birth_result.error() << "\n";
+    std::cerr << "[EDGE NODE] Failed to publish DBIRTH: " << device_birth_result.error()
+              << "\n";
     return 1;
   }
 
@@ -191,8 +194,8 @@ int main() {
       if (!rebirth_result) {
         std::cerr << "[EDGE NODE] Rebirth failed: " << rebirth_result.error() << "\n";
       } else {
-        std::cout << "[EDGE NODE] Rebirth complete (new bdSeq: " << publisher->get_bd_seq()
-                  << ")\n";
+        std::cout << "[EDGE NODE] Rebirth complete (new bdSeq: "
+                  << publisher->get_bd_seq() << ")\n";
       }
       do_rebirth = false;
     }
@@ -205,8 +208,8 @@ int main() {
     if (data_result) {
       count++;
       if (count % 5 == 0) {
-        std::cout << "[EDGE NODE] Published " << count << " NDATA messages (temp=" << temperature
-                  << ")\n";
+        std::cout << "[EDGE NODE] Published " << count
+                  << " NDATA messages (temp=" << temperature << ")\n";
       }
     }
 

@@ -20,7 +20,7 @@ IndentPPDirectives: AfterHash
 IndentWrappedFunctionNames: false
 
 # Line width
-ColumnLimit: 100
+ColumnLimit: 90
 
 # Braces
 BreakBeforeBraces: Attach  # K&R style - opening brace on same line
@@ -60,7 +60,8 @@ AlwaysBreakAfterReturnType: None
 AlwaysBreakBeforeMultilineStrings: false
 AlwaysBreakTemplateDeclarations: Yes
 BinPackArguments: true
-BinPackParameters: true
+BinPackParameters: false
+AllowAllParametersOfDeclarationOnNextLine: false
 BreakBeforeBinaryOperators: None
 BreakBeforeTernaryOperators: true
 BreakConstructorInitializers: BeforeColon

@@ -59,7 +59,8 @@ int main() {
 
   auto sensor_birth_result = publisher.publish_device_birth("Sensor01", sensor_birth);
   if (!sensor_birth_result) {
-    std::cerr << "Failed to publish DBIRTH for Sensor01: " << sensor_birth_result.error() << "\n";
+    std::cerr << "Failed to publish DBIRTH for Sensor01: " << sensor_birth_result.error()
+              << "\n";
     return 1;
   }
 
@@ -74,7 +75,8 @@ int main() {
 
   auto motor_birth_result = publisher.publish_device_birth("Motor01", motor_birth);
   if (!motor_birth_result) {
-    std::cerr << "Failed to publish DBIRTH for Motor01: " << motor_birth_result.error() << "\n";
+    std::cerr << "Failed to publish DBIRTH for Motor01: " << motor_birth_result.error()
+              << "\n";
     return 1;
   }
 
@@ -97,7 +99,8 @@ int main() {
 
     auto sensor_data_result = publisher.publish_device_data("Sensor01", sensor_data);
     if (!sensor_data_result) {
-      std::cerr << "Failed to publish DDATA for Sensor01: " << sensor_data_result.error() << "\n";
+      std::cerr << "Failed to publish DDATA for Sensor01: " << sensor_data_result.error()
+                << "\n";
     }
 
     // Update Motor01 data
@@ -110,7 +113,8 @@ int main() {
 
       auto motor_data_result = publisher.publish_device_data("Motor01", motor_data);
       if (!motor_data_result) {
-        std::cerr << "Failed to publish DDATA for Motor01: " << motor_data_result.error() << "\n";
+        std::cerr << "Failed to publish DDATA for Motor01: " << motor_data_result.error()
+                  << "\n";
       } else {
         std::cout << "Motor01 started\n";
       }
@@ -123,7 +127,8 @@ int main() {
 
       auto motor_data_result = publisher.publish_device_data("Motor01", motor_data);
       if (!motor_data_result) {
-        std::cerr << "Failed to publish DDATA for Motor01: " << motor_data_result.error() << "\n";
+        std::cerr << "Failed to publish DDATA for Motor01: " << motor_data_result.error()
+                  << "\n";
       }
     }
 

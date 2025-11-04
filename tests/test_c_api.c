@@ -10,17 +10,17 @@
 static int tests_passed = 0;
 static int tests_failed = 0;
 
-#define TEST(name)                                                                                 \
-  printf("Testing: %s ... ", name);                                                                \
+#define TEST(name)                                                                       \
+  printf("Testing: %s ... ", name);                                                      \
   fflush(stdout);
 
-#define PASS()                                                                                     \
-  printf("PASS\n");                                                                                \
+#define PASS()                                                                           \
+  printf("PASS\n");                                                                      \
   tests_passed++;
 
-#define FAIL(msg)                                                                                  \
-  printf("FAIL: %s\n", msg);                                                                       \
-  tests_failed++;                                                                                  \
+#define FAIL(msg)                                                                        \
+  printf("FAIL: %s\n", msg);                                                             \
+  tests_failed++;                                                                        \
   return;
 
 /* Test payload creation and destruction */
@@ -141,8 +141,8 @@ void test_payload_empty(void) {
 void test_publisher_create_destroy(void) {
   TEST("publisher create/destroy");
 
-  sparkplug_publisher_t* pub = sparkplug_publisher_create("tcp://localhost:1883", "test_c_api_pub",
-                                                          "TestGroup", "TestNodeC01");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create(
+      "tcp://localhost:1883", "test_c_api_pub", "TestGroup", "TestNodeC01");
   assert(pub != NULL);
 
   sparkplug_publisher_destroy(pub);
@@ -155,8 +155,8 @@ void test_publisher_create_destroy(void) {
 void test_publisher_connect(void) {
   TEST("publisher connect/disconnect");
 
-  sparkplug_publisher_t* pub = sparkplug_publisher_create("tcp://localhost:1883", "test_c_connect",
-                                                          "TestGroup", "TestNodeC02");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create(
+      "tcp://localhost:1883", "test_c_connect", "TestGroup", "TestNodeC02");
   assert(pub != NULL);
 
   int result = sparkplug_publisher_connect(pub);
@@ -180,8 +180,8 @@ void test_publisher_connect(void) {
 void test_publisher_birth(void) {
   TEST("publisher publish NBIRTH");
 
-  sparkplug_publisher_t* pub = sparkplug_publisher_create("tcp://localhost:1883", "test_c_birth",
-                                                          "TestGroup", "TestNodeC03");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create(
+      "tcp://localhost:1883", "test_c_birth", "TestGroup", "TestNodeC03");
   assert(pub != NULL);
 
   int result = sparkplug_publisher_connect(pub);
@@ -220,8 +220,8 @@ void test_publisher_birth(void) {
 void test_publisher_data(void) {
   TEST("publisher publish NDATA");
 
-  sparkplug_publisher_t* pub =
-      sparkplug_publisher_create("tcp://localhost:1883", "test_c_data", "TestGroup", "TestNodeC04");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create(
+      "tcp://localhost:1883", "test_c_data", "TestGroup", "TestNodeC04");
   assert(pub != NULL);
 
   int result = sparkplug_publisher_connect(pub);
@@ -268,8 +268,8 @@ void test_publisher_data(void) {
 void test_publisher_rebirth(void) {
   TEST("publisher rebirth");
 
-  sparkplug_publisher_t* pub = sparkplug_publisher_create("tcp://localhost:1883", "test_c_rebirth",
-                                                          "TestGroup", "TestNodeC05");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create(
+      "tcp://localhost:1883", "test_c_rebirth", "TestGroup", "TestNodeC05");
   assert(pub != NULL);
 
   int result = sparkplug_publisher_connect(pub);
@@ -315,7 +315,8 @@ void test_publisher_rebirth(void) {
 }
 
 /* Dummy callback for subscriber tests */
-static void dummy_callback(const char* topic, const uint8_t* data, size_t len, void* ctx) {
+static void
+dummy_callback(const char* topic, const uint8_t* data, size_t len, void* ctx) {
   (void)topic;
   (void)data;
   (void)len;
@@ -326,8 +327,8 @@ static void dummy_callback(const char* topic, const uint8_t* data, size_t len, v
 void test_subscriber_create_destroy(void) {
   TEST("host application create/destroy");
 
-  sparkplug_host_application_t* host =
-      sparkplug_host_application_create("tcp://localhost:1883", "test_c_api_host", "TestHost");
+  sparkplug_host_application_t* host = sparkplug_host_application_create(
+      "tcp://localhost:1883", "test_c_api_host", "TestHost");
   assert(host != NULL);
 
   sparkplug_host_application_set_message_callback(host, dummy_callback, NULL);
@@ -342,8 +343,8 @@ void test_subscriber_create_destroy(void) {
 void test_subscriber_connect(void) {
   TEST("host application connect/disconnect");
 
-  sparkplug_host_application_t* host =
-      sparkplug_host_application_create("tcp://localhost:1883", "test_c_host_connect", "TestHost");
+  sparkplug_host_application_t* host = sparkplug_host_application_create(
+      "tcp://localhost:1883", "test_c_host_connect", "TestHost");
   assert(host != NULL);
 
   sparkplug_host_application_set_message_callback(host, dummy_callback, NULL);
@@ -368,8 +369,8 @@ void test_subscriber_connect(void) {
 void test_subscriber_subscribe_all(void) {
   TEST("host application subscribe_all");
 
-  sparkplug_host_application_t* host =
-      sparkplug_host_application_create("tcp://localhost:1883", "test_c_host_all", "TestHost");
+  sparkplug_host_application_t* host = sparkplug_host_application_create(
+      "tcp://localhost:1883", "test_c_host_all", "TestHost");
   assert(host != NULL);
 
   sparkplug_host_application_set_message_callback(host, dummy_callback, NULL);
@@ -398,8 +399,8 @@ void test_subscriber_subscribe_all(void) {
 void test_publisher_device_birth(void) {
   TEST("publisher publish DBIRTH");
 
-  sparkplug_publisher_t* pub = sparkplug_publisher_create("tcp://localhost:1883", "test_c_dbirth",
-                                                          "TestGroup", "TestNodeC06");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create(
+      "tcp://localhost:1883", "test_c_dbirth", "TestGroup", "TestNodeC06");
   assert(pub != NULL);
 
   int result = sparkplug_publisher_connect(pub);
@@ -442,8 +443,8 @@ void test_publisher_device_birth(void) {
 void test_publisher_device_data(void) {
   TEST("publisher publish DDATA");
 
-  sparkplug_publisher_t* pub = sparkplug_publisher_create("tcp://localhost:1883", "test_c_ddata",
-                                                          "TestGroup", "TestNodeC07");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create(
+      "tcp://localhost:1883", "test_c_ddata", "TestGroup", "TestNodeC07");
   assert(pub != NULL);
 
   int result = sparkplug_publisher_connect(pub);
@@ -555,8 +556,8 @@ void test_device_data_ignores_payload_seq(void) {
 void test_publisher_device_death(void) {
   TEST("publisher publish DDEATH");
 
-  sparkplug_publisher_t* pub = sparkplug_publisher_create("tcp://localhost:1883", "test_c_ddeath",
-                                                          "TestGroup", "TestNodeC09");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create(
+      "tcp://localhost:1883", "test_c_ddeath", "TestGroup", "TestNodeC09");
   assert(pub != NULL);
 
   int result = sparkplug_publisher_connect(pub);
@@ -601,8 +602,8 @@ void test_publisher_device_death(void) {
 void test_publisher_node_command(void) {
   TEST("publisher publish NCMD");
 
-  sparkplug_publisher_t* pub =
-      sparkplug_publisher_create("tcp://localhost:1883", "test_c_ncmd", "TestGroup", "HostNodeC10");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create(
+      "tcp://localhost:1883", "test_c_ncmd", "TestGroup", "HostNodeC10");
   assert(pub != NULL);
 
   int result = sparkplug_publisher_connect(pub);
@@ -634,8 +635,8 @@ void test_publisher_node_command(void) {
 void test_publisher_device_command(void) {
   TEST("publisher publish DCMD");
 
-  sparkplug_publisher_t* pub =
-      sparkplug_publisher_create("tcp://localhost:1883", "test_c_dcmd", "TestGroup", "HostNodeC11");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create(
+      "tcp://localhost:1883", "test_c_dcmd", "TestGroup", "HostNodeC11");
   assert(pub != NULL);
 
   int result = sparkplug_publisher_connect(pub);
@@ -653,7 +654,8 @@ void test_publisher_device_command(void) {
 
   uint8_t buffer[4096];
   size_t size = sparkplug_payload_serialize(cmd, buffer, sizeof(buffer));
-  result = sparkplug_publisher_publish_device_command(pub, "TargetNode", "Motor01", buffer, size);
+  result = sparkplug_publisher_publish_device_command(pub, "TargetNode", "Motor01",
+                                                      buffer, size);
   assert(result == 0);
 
   sparkplug_payload_destroy(cmd);
@@ -667,12 +669,12 @@ void test_publisher_device_command(void) {
 void test_subscriber_command_callback(void) {
   TEST("host application receives commands");
 
-  sparkplug_publisher_t* pub = sparkplug_publisher_create("tcp://localhost:1883", "test_c_cmd_pub",
-                                                          "TestGroup", "HostNodeC12");
+  sparkplug_publisher_t* pub = sparkplug_publisher_create(
+      "tcp://localhost:1883", "test_c_cmd_pub", "TestGroup", "HostNodeC12");
   assert(pub != NULL);
 
-  sparkplug_host_application_t* host =
-      sparkplug_host_application_create("tcp://localhost:1883", "test_c_cmd_host", "TestHost");
+  sparkplug_host_application_t* host = sparkplug_host_application_create(
+      "tcp://localhost:1883", "test_c_cmd_host", "TestHost");
   assert(host != NULL);
 
   sparkplug_host_application_set_message_callback(host, dummy_callback, NULL);
@@ -839,7 +841,8 @@ void test_payload_parse_invalid(void) {
   TEST("payload parse invalid data");
 
   uint8_t invalid_data[] = {0xFF, 0xFF, 0xFF, 0xFF};
-  sparkplug_payload_t* parsed = sparkplug_payload_parse(invalid_data, sizeof(invalid_data));
+  sparkplug_payload_t* parsed =
+      sparkplug_payload_parse(invalid_data, sizeof(invalid_data));
   assert(parsed == NULL); /* Should fail gracefully */
 
   /* Test NULL inputs */
@@ -898,8 +901,10 @@ void test_payload_parse_no_optional(void) {
 static int host_callback_invoked = 0;
 
 /* Callback for testing HostApplication message callback */
-static void test_host_message_callback(const char* topic, const uint8_t* payload_data,
-                                       size_t payload_len, void* user_data) {
+static void test_host_message_callback(const char* topic,
+                                       const uint8_t* payload_data,
+                                       size_t payload_len,
+                                       void* user_data) {
   (void)payload_data;
   (void)payload_len;
 
@@ -916,8 +921,8 @@ void test_host_application_with_callback(void) {
   TEST("host application with message callback");
 
   /* Create host application */
-  sparkplug_host_application_t* host =
-      sparkplug_host_application_create("tcp://localhost:1883", "test_host_c_api", "TEST_HOST");
+  sparkplug_host_application_t* host = sparkplug_host_application_create(
+      "tcp://localhost:1883", "test_host_c_api", "TEST_HOST");
 
   if (host == NULL) {
     FAIL("Failed to create host application");
@@ -927,8 +932,8 @@ void test_host_application_with_callback(void) {
   int user_counter = 0;
 
   /* Set message callback */
-  int ret = sparkplug_host_application_set_message_callback(host, test_host_message_callback,
-                                                            &user_counter);
+  int ret = sparkplug_host_application_set_message_callback(
+      host, test_host_message_callback, &user_counter);
   assert(ret == 0);
 
   /* Connect */

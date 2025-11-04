@@ -43,9 +43,10 @@ int main() {
     return 1;
   }
 
-  auto timestamp = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
-                                             std::chrono::system_clock::now().time_since_epoch())
-                                             .count());
+  auto timestamp =
+      static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                std::chrono::system_clock::now().time_since_epoch())
+                                .count());
 
   // Publish STATE birth (declare Host Application is online)
   std::cout << "Publishing STATE birth (Host Application online)...\n";
@@ -113,7 +114,8 @@ int main() {
   sparkplug::PayloadBuilder device_cmd;
   device_cmd.add_metric("SetPoint", 75.0);
 
-  result = host_app.publish_device_command("TestGroup", "SparkplugCPP", "Sensor01", device_cmd);
+  result = host_app.publish_device_command("TestGroup", "SparkplugCPP", "Sensor01",
+                                           device_cmd);
   if (!result) {
     std::cerr << "Failed to publish DCMD: " << result.error() << "\n";
   } else {
