@@ -38,7 +38,7 @@ int main() {
     return 1;
   }
 
-  std::cout << "✓ Connected to broker\n";
+  std::cout << "[OK] Connected to broker\n";
   std::cout << "  Initial bdSeq: " << publisher.get_bd_seq() << "\n";
 
   // Build NBIRTH payload
@@ -78,7 +78,7 @@ int main() {
     return 1;
   }
 
-  std::cout << "✓ Published NBIRTH\n";
+  std::cout << "[OK] Published NBIRTH\n";
   std::cout << "  Sequence: " << publisher.get_seq() << "\n";
   std::cout << "  bdSeq: " << publisher.get_bd_seq() << "\n";
 
@@ -92,12 +92,12 @@ int main() {
   while (running) {
     // Check for rebirth command (simulated)
     if (do_rebirth) {
-      std::cout << "\n⟳ Rebirth requested, publishing new NBIRTH...\n";
+      std::cout << "\n[REBIRTH] Rebirth requested, publishing new NBIRTH...\n";
       auto rebirth_result = publisher.rebirth();
       if (!rebirth_result) {
         std::cerr << "Failed to rebirth: " << rebirth_result.error() << "\n";
       } else {
-        std::cout << "✓ Rebirth complete\n";
+        std::cout << "[OK] Rebirth complete\n";
         std::cout << "  New bdSeq: " << publisher.get_bd_seq() << "\n";
       }
       do_rebirth = false;
@@ -125,7 +125,7 @@ int main() {
     } else {
       count++;
       if (count % 10 == 0) {
-        std::cout << "✓ Published " << count << " NDATA messages"
+        std::cout << "[OK] Published " << count << " NDATA messages"
                   << " (seq: " << publisher.get_seq() << ")\n";
       }
     }
@@ -138,14 +138,14 @@ int main() {
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
-  std::cout << "\n⏹ Shutting down...\n";
+  std::cout << "\n[STOP] Shutting down...\n";
 
   // Graceful disconnect will trigger NDEATH via MQTT Will
   auto disconnect_result = publisher.disconnect();
   if (!disconnect_result) {
     std::cerr << "Failed to disconnect: " << disconnect_result.error() << "\n";
   } else {
-    std::cout << "✓ Disconnected (NDEATH sent via MQTT Will)\n";
+    std::cout << "[OK] Disconnected (NDEATH sent via MQTT Will)\n";
   }
 
   std::cout << "\nSession Statistics:\n";

@@ -47,7 +47,8 @@ int main() {
   std::cout << "  Authentication Layers:\n";
   std::cout << "    1. Transport: TLS 1.2+ (encrypted connection)\n";
   std::cout << "    2. Client Auth: mTLS (client certificates)\n";
-  std::cout << "    3. User Auth: Username/Password (" << config.username.value() << "/***)\n";
+  std::cout << "    3. User Auth: Username/Password (" << config.username.value()
+            << "/***)\n";
   std::cout << "  CA Certificate: " << tls.trust_store << "\n";
   std::cout << "  Client Certificate: " << tls.key_store << "\n\n";
 
@@ -76,7 +77,8 @@ int main() {
   birth.add_metric("bdSeq", static_cast<uint64_t>(publisher.get_bd_seq()));
   birth.add_node_control_rebirth(false);
   birth.add_metric("Test/AuthMethod", "Combined (mTLS + Username/Password)");
-  birth.add_metric("Test/Security", "Production-grade: TLS 1.2+ + Client Certs + Credentials");
+  birth.add_metric("Test/Security",
+                   "Production-grade: TLS 1.2+ + Client Certs + Credentials");
   birth.add_metric_with_alias("Temperature", 1, 25.5);
 
   auto birth_result = publisher.publish_birth(birth);
@@ -97,7 +99,8 @@ int main() {
     if (!data_result) {
       std::cerr << "FAILED to publish NDATA: " << data_result.error() << "\n";
     } else {
-      std::cout << "  Published NDATA #" << (i + 1) << " (seq: " << publisher.get_seq() << ")\n";
+      std::cout << "  Published NDATA #" << (i + 1) << " (seq: " << publisher.get_seq()
+                << ")\n";
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(500));

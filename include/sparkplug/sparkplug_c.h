@@ -86,16 +86,18 @@ typedef enum {
  *
  * @par Example Usage (Rust FFI)
  * @code{.rust}
- * extern "C" fn log_callback(level: c_int, msg: *const c_char, len: usize, _user_data: *mut c_void)
- * { let level = match level { 0 => log::Level::Debug, 1 => log::Level::Info, 2 => log::Level::Warn,
- *         _ => log::Level::Error,
+ * extern "C" fn log_callback(level: c_int, msg: *const c_char, len: usize, _user_data:
+ * *mut c_void) { let level = match level { 0 => log::Level::Debug, 1 => log::Level::Info,
+ * 2 => log::Level::Warn, _ => log::Level::Error,
  *     };
  *     let msg = unsafe { std::slice::from_raw_parts(msg as *const u8, len) };
  *     log::log!(level, "{}", String::from_utf8_lossy(msg));
  * }
  * @endcode
  */
-typedef void (*sparkplug_log_callback_t)(int level, const char* message, size_t message_len,
+typedef void (*sparkplug_log_callback_t)(int level,
+                                         const char* message,
+                                         size_t message_len,
                                          void* user_data);
 
 /**
@@ -109,8 +111,10 @@ typedef void (*sparkplug_log_callback_t)(int level, const char* message, size_t 
  * @warning The topic and payload_data pointers are only valid during the callback.
  * Do not store these pointers. Copy the data if needed after the callback returns.
  */
-typedef void (*sparkplug_message_callback_t)(const char* topic, const uint8_t* payload_data,
-                                             size_t payload_len, void* user_data);
+typedef void (*sparkplug_message_callback_t)(const char* topic,
+                                             const uint8_t* payload_data,
+                                             size_t payload_len,
+                                             void* user_data);
 
 /**
  * @brief Callback function type for Sparkplug command messages (NCMD/DCMD).
@@ -123,8 +127,10 @@ typedef void (*sparkplug_message_callback_t)(const char* topic, const uint8_t* p
  * @warning The topic and payload_data pointers are only valid during the callback.
  * Do not store these pointers. Copy the data if needed after the callback returns.
  */
-typedef void (*sparkplug_command_callback_t)(const char* topic, const uint8_t* payload_data,
-                                             size_t payload_len, void* user_data);
+typedef void (*sparkplug_command_callback_t)(const char* topic,
+                                             const uint8_t* payload_data,
+                                             size_t payload_len,
+                                             void* user_data);
 
 /* ============================================================================
  * Publisher API
@@ -142,8 +148,10 @@ typedef void (*sparkplug_command_callback_t)(const char* topic, const uint8_t* p
  *
  * @note Caller must call sparkplug_publisher_destroy() to free resources.
  */
-sparkplug_publisher_t* sparkplug_publisher_create(const char* broker_url, const char* client_id,
-                                                  const char* group_id, const char* edge_node_id);
+sparkplug_publisher_t* sparkplug_publisher_create(const char* broker_url,
+                                                  const char* client_id,
+                                                  const char* group_id,
+                                                  const char* edge_node_id);
 
 /**
  * @brief Destroys a publisher and frees all resources.
@@ -162,7 +170,8 @@ void sparkplug_publisher_destroy(sparkplug_publisher_t* pub);
  *
  * @note Must be called before sparkplug_publisher_connect().
  */
-int sparkplug_publisher_set_credentials(sparkplug_publisher_t* pub, const char* username,
+int sparkplug_publisher_set_credentials(sparkplug_publisher_t* pub,
+                                        const char* username,
                                         const char* password);
 
 /**
@@ -171,7 +180,8 @@ int sparkplug_publisher_set_credentials(sparkplug_publisher_t* pub, const char* 
  * @param pub Publisher handle
  * @param trust_store Path to CA certificate file (PEM format) - REQUIRED for TLS
  * @param key_store Path to client certificate file (PEM format, NULL for server-only TLS)
- * @param private_key Path to client private key file (PEM format, NULL for server-only TLS)
+ * @param private_key Path to client private key file (PEM format, NULL for server-only
+ * TLS)
  * @param private_key_password Password for encrypted private key (NULL if not encrypted)
  * @param enable_server_cert_auth Enable server certificate verification (1=yes, 0=no)
  *
@@ -193,9 +203,12 @@ int sparkplug_publisher_set_credentials(sparkplug_publisher_t* pub, const char* 
  *                            "certs/client.key", NULL, 1);
  * @endcode
  */
-int sparkplug_publisher_set_tls(sparkplug_publisher_t* pub, const char* trust_store,
-                                const char* key_store, const char* private_key,
-                                const char* private_key_password, int enable_server_cert_auth);
+int sparkplug_publisher_set_tls(sparkplug_publisher_t* pub,
+                                const char* trust_store,
+                                const char* key_store,
+                                const char* private_key,
+                                const char* private_key_password,
+                                int enable_server_cert_auth);
 
 /**
  * @brief Connects the publisher to the MQTT broker.
@@ -226,7 +239,8 @@ int sparkplug_publisher_disconnect(sparkplug_publisher_t* pub);
  *
  * @note Must be called after connect() and before any publish_data() calls.
  */
-int sparkplug_publisher_publish_birth(sparkplug_publisher_t* pub, const uint8_t* payload_data,
+int sparkplug_publisher_publish_birth(sparkplug_publisher_t* pub,
+                                      const uint8_t* payload_data,
                                       size_t payload_len);
 
 /**
@@ -240,7 +254,8 @@ int sparkplug_publisher_publish_birth(sparkplug_publisher_t* pub, const uint8_t*
  *
  * @note Sequence number is automatically incremented.
  */
-int sparkplug_publisher_publish_data(sparkplug_publisher_t* pub, const uint8_t* payload_data,
+int sparkplug_publisher_publish_data(sparkplug_publisher_t* pub,
+                                     const uint8_t* payload_data,
                                      size_t payload_len);
 
 /**
@@ -289,8 +304,10 @@ uint64_t sparkplug_publisher_get_bd_seq(const sparkplug_publisher_t* pub);
  *
  * @note Must call publish_birth() before publishing any device births.
  */
-int sparkplug_publisher_publish_device_birth(sparkplug_publisher_t* pub, const char* device_id,
-                                             const uint8_t* payload_data, size_t payload_len);
+int sparkplug_publisher_publish_device_birth(sparkplug_publisher_t* pub,
+                                             const char* device_id,
+                                             const uint8_t* payload_data,
+                                             size_t payload_len);
 
 /**
  * @brief Publishes a DDATA (Device Data) message for a device.
@@ -304,8 +321,10 @@ int sparkplug_publisher_publish_device_birth(sparkplug_publisher_t* pub, const c
  *
  * @note Must call publish_device_birth() before the first publish_device_data().
  */
-int sparkplug_publisher_publish_device_data(sparkplug_publisher_t* pub, const char* device_id,
-                                            const uint8_t* payload_data, size_t payload_len);
+int sparkplug_publisher_publish_device_data(sparkplug_publisher_t* pub,
+                                            const char* device_id,
+                                            const uint8_t* payload_data,
+                                            size_t payload_len);
 
 /**
  * @brief Publishes a DDEATH (Device Death) message for a device.
@@ -315,7 +334,8 @@ int sparkplug_publisher_publish_device_data(sparkplug_publisher_t* pub, const ch
  *
  * @return 0 on success, -1 on failure
  */
-int sparkplug_publisher_publish_device_death(sparkplug_publisher_t* pub, const char* device_id);
+int sparkplug_publisher_publish_device_death(sparkplug_publisher_t* pub,
+                                             const char* device_id);
 
 /**
  * @brief Publishes an NCMD (Node Command) message to another edge node.
@@ -329,7 +349,8 @@ int sparkplug_publisher_publish_device_death(sparkplug_publisher_t* pub, const c
  */
 int sparkplug_publisher_publish_node_command(sparkplug_publisher_t* pub,
                                              const char* target_edge_node_id,
-                                             const uint8_t* payload_data, size_t payload_len);
+                                             const uint8_t* payload_data,
+                                             size_t payload_len);
 
 /**
  * @brief Publishes a DCMD (Device Command) message to a device on another edge node.
@@ -345,7 +366,8 @@ int sparkplug_publisher_publish_node_command(sparkplug_publisher_t* pub,
 int sparkplug_publisher_publish_device_command(sparkplug_publisher_t* pub,
                                                const char* target_edge_node_id,
                                                const char* target_device_id,
-                                               const uint8_t* payload_data, size_t payload_len);
+                                               const uint8_t* payload_data,
+                                               size_t payload_len);
 
 /* ============================================================================
  * Host Application API
@@ -359,7 +381,8 @@ typedef struct sparkplug_host_application sparkplug_host_application_t;
  *
  * Host Applications have different behavior than Edge Nodes:
  * - Publish STATE messages (JSON, not protobuf) to indicate online/offline status
- * - Publish NCMD/DCMD commands to control Edge Nodes and Devices (group_id specified per command)
+ * - Publish NCMD/DCMD commands to control Edge Nodes and Devices (group_id specified per
+ * command)
  * - Do NOT publish NBIRTH/NDATA/NDEATH (those are for Edge Nodes only)
  *
  * @param broker_url MQTT broker URL (e.g., "tcp://localhost:1883")
@@ -392,7 +415,8 @@ void sparkplug_host_application_destroy(sparkplug_host_application_t* host);
  * @note Must be called before sparkplug_host_application_connect().
  */
 int sparkplug_host_application_set_credentials(sparkplug_host_application_t* host,
-                                               const char* username, const char* password);
+                                               const char* username,
+                                               const char* password);
 
 /**
  * @brief Configures TLS/SSL for secure MQTT connections.
@@ -400,7 +424,8 @@ int sparkplug_host_application_set_credentials(sparkplug_host_application_t* hos
  * @param host Host Application handle
  * @param trust_store Path to CA certificate file (PEM format) - REQUIRED for TLS
  * @param key_store Path to client certificate file (PEM format, NULL for server-only TLS)
- * @param private_key Path to client private key file (PEM format, NULL for server-only TLS)
+ * @param private_key Path to client private key file (PEM format, NULL for server-only
+ * TLS)
  * @param private_key_password Password for encrypted private key (NULL if not encrypted)
  * @param enable_server_cert_auth Enable server certificate verification (1=yes, 0=no)
  *
@@ -422,8 +447,10 @@ int sparkplug_host_application_set_credentials(sparkplug_host_application_t* hos
  *                                   "certs/client.key", NULL, 1);
  * @endcode
  */
-int sparkplug_host_application_set_tls(sparkplug_host_application_t* host, const char* trust_store,
-                                       const char* key_store, const char* private_key,
+int sparkplug_host_application_set_tls(sparkplug_host_application_t* host,
+                                       const char* trust_store,
+                                       const char* key_store,
+                                       const char* private_key,
                                        const char* private_key_password,
                                        int enable_server_cert_auth);
 
@@ -508,9 +535,12 @@ int sparkplug_host_application_publish_node_command(sparkplug_host_application_t
  *
  * @return 0 on success, -1 on failure
  */
-int sparkplug_host_application_publish_device_command(
-    sparkplug_host_application_t* host, const char* group_id, const char* target_edge_node_id,
-    const char* target_device_id, const uint8_t* payload_data, size_t payload_len);
+int sparkplug_host_application_publish_device_command(sparkplug_host_application_t* host,
+                                                      const char* group_id,
+                                                      const char* target_edge_node_id,
+                                                      const char* target_device_id,
+                                                      const uint8_t* payload_data,
+                                                      size_t payload_len);
 
 /**
  * @brief Sets a message callback for receiving Sparkplug messages.
@@ -524,8 +554,8 @@ int sparkplug_host_application_publish_device_command(
  * @return 0 on success, -1 on failure
  *
  * @note Must be called before sparkplug_host_application_connect().
- * @note After setting the callback, use sparkplug_host_application_subscribe_* functions to
- * subscribe.
+ * @note After setting the callback, use sparkplug_host_application_subscribe_* functions
+ * to subscribe.
  */
 int sparkplug_host_application_set_message_callback(sparkplug_host_application_t* host,
                                                     sparkplug_message_callback_t callback,
@@ -558,7 +588,8 @@ void sparkplug_host_application_set_log_callback(sparkplug_host_application_t* h
  * @param host Host Application handle
  * @return 0 on success, -1 on failure
  *
- * @note Requires message callback to be set via sparkplug_host_application_set_message_callback().
+ * @note Requires message callback to be set via
+ * sparkplug_host_application_set_message_callback().
  * @note Must be called after sparkplug_host_application_connect().
  */
 int sparkplug_host_application_subscribe_all(sparkplug_host_application_t* host);
@@ -572,7 +603,8 @@ int sparkplug_host_application_subscribe_all(sparkplug_host_application_t* host)
  * @param group_id Sparkplug group ID to subscribe to
  * @return 0 on success, -1 on failure
  *
- * @note Requires message callback to be set via sparkplug_host_application_set_message_callback().
+ * @note Requires message callback to be set via
+ * sparkplug_host_application_set_message_callback().
  * @note Must be called after sparkplug_host_application_connect().
  */
 int sparkplug_host_application_subscribe_group(sparkplug_host_application_t* host,
@@ -588,11 +620,13 @@ int sparkplug_host_application_subscribe_group(sparkplug_host_application_t* hos
  * @param edge_node_id Edge node identifier to subscribe to
  * @return 0 on success, -1 on failure
  *
- * @note Requires message callback to be set via sparkplug_host_application_set_message_callback().
+ * @note Requires message callback to be set via
+ * sparkplug_host_application_set_message_callback().
  * @note Must be called after sparkplug_host_application_connect().
  */
 int sparkplug_host_application_subscribe_node(sparkplug_host_application_t* host,
-                                              const char* group_id, const char* edge_node_id);
+                                              const char* group_id,
+                                              const char* edge_node_id);
 
 /**
  * @brief Resolves a metric alias to its name for a specific node or device.
@@ -607,15 +641,18 @@ int sparkplug_host_application_subscribe_node(sparkplug_host_application_t* host
  * @param alias Metric alias value
  * @param name_buffer Buffer to store the resolved metric name
  * @param buffer_size Size of name_buffer in bytes
- * @return Number of bytes written to name_buffer (including null terminator) on success, 0 if not
- * found, -1 on error
+ * @return Number of bytes written to name_buffer (including null terminator) on success,
+ * 0 if not found, -1 on error
  *
  * @note Requires message callback to be set to track alias mappings from BIRTH messages.
  */
 int sparkplug_host_application_get_metric_name(sparkplug_host_application_t* host,
-                                               const char* group_id, const char* edge_node_id,
-                                               const char* device_id, uint64_t alias,
-                                               char* name_buffer, size_t buffer_size);
+                                               const char* group_id,
+                                               const char* edge_node_id,
+                                               const char* device_id,
+                                               uint64_t alias,
+                                               char* name_buffer,
+                                               size_t buffer_size);
 
 /* ============================================================================
  * Payload Builder API
@@ -658,77 +695,122 @@ void sparkplug_payload_set_seq(sparkplug_payload_t* payload, uint64_t seq);
 /* Metric functions by name */
 
 /** @brief Adds an int8_t metric by name. */
-void sparkplug_payload_add_int8(sparkplug_payload_t* payload, const char* name, int8_t value);
+void sparkplug_payload_add_int8(sparkplug_payload_t* payload,
+                                const char* name,
+                                int8_t value);
 /** @brief Adds an int16_t metric by name. */
-void sparkplug_payload_add_int16(sparkplug_payload_t* payload, const char* name, int16_t value);
+void sparkplug_payload_add_int16(sparkplug_payload_t* payload,
+                                 const char* name,
+                                 int16_t value);
 /** @brief Adds an int32_t metric by name. */
-void sparkplug_payload_add_int32(sparkplug_payload_t* payload, const char* name, int32_t value);
+void sparkplug_payload_add_int32(sparkplug_payload_t* payload,
+                                 const char* name,
+                                 int32_t value);
 /** @brief Adds an int64_t metric by name. */
-void sparkplug_payload_add_int64(sparkplug_payload_t* payload, const char* name, int64_t value);
+void sparkplug_payload_add_int64(sparkplug_payload_t* payload,
+                                 const char* name,
+                                 int64_t value);
 /** @brief Adds a uint8_t metric by name. */
-void sparkplug_payload_add_uint8(sparkplug_payload_t* payload, const char* name, uint8_t value);
+void sparkplug_payload_add_uint8(sparkplug_payload_t* payload,
+                                 const char* name,
+                                 uint8_t value);
 /** @brief Adds a uint16_t metric by name. */
-void sparkplug_payload_add_uint16(sparkplug_payload_t* payload, const char* name, uint16_t value);
+void sparkplug_payload_add_uint16(sparkplug_payload_t* payload,
+                                  const char* name,
+                                  uint16_t value);
 /** @brief Adds a uint32_t metric by name. */
-void sparkplug_payload_add_uint32(sparkplug_payload_t* payload, const char* name, uint32_t value);
+void sparkplug_payload_add_uint32(sparkplug_payload_t* payload,
+                                  const char* name,
+                                  uint32_t value);
 /** @brief Adds a uint64_t metric by name. */
-void sparkplug_payload_add_uint64(sparkplug_payload_t* payload, const char* name, uint64_t value);
+void sparkplug_payload_add_uint64(sparkplug_payload_t* payload,
+                                  const char* name,
+                                  uint64_t value);
 /** @brief Adds a float metric by name. */
-void sparkplug_payload_add_float(sparkplug_payload_t* payload, const char* name, float value);
+void sparkplug_payload_add_float(sparkplug_payload_t* payload,
+                                 const char* name,
+                                 float value);
 /** @brief Adds a double metric by name. */
-void sparkplug_payload_add_double(sparkplug_payload_t* payload, const char* name, double value);
+void sparkplug_payload_add_double(sparkplug_payload_t* payload,
+                                  const char* name,
+                                  double value);
 /** @brief Adds a boolean metric by name. */
-void sparkplug_payload_add_bool(sparkplug_payload_t* payload, const char* name, bool value);
+void sparkplug_payload_add_bool(sparkplug_payload_t* payload,
+                                const char* name,
+                                bool value);
 /** @brief Adds a string metric by name. */
-void sparkplug_payload_add_string(sparkplug_payload_t* payload, const char* name,
+void sparkplug_payload_add_string(sparkplug_payload_t* payload,
+                                  const char* name,
                                   const char* value);
 
 /* Metric functions with alias */
 
 /** @brief Adds an int32_t metric with both name and alias (for NBIRTH). */
-void sparkplug_payload_add_int32_with_alias(sparkplug_payload_t* payload, const char* name,
-                                            uint64_t alias, int32_t value);
+void sparkplug_payload_add_int32_with_alias(sparkplug_payload_t* payload,
+                                            const char* name,
+                                            uint64_t alias,
+                                            int32_t value);
 /** @brief Adds an int64_t metric with both name and alias (for NBIRTH). */
-void sparkplug_payload_add_int64_with_alias(sparkplug_payload_t* payload, const char* name,
-                                            uint64_t alias, int64_t value);
+void sparkplug_payload_add_int64_with_alias(sparkplug_payload_t* payload,
+                                            const char* name,
+                                            uint64_t alias,
+                                            int64_t value);
 /** @brief Adds a uint32_t metric with both name and alias (for NBIRTH). */
-void sparkplug_payload_add_uint32_with_alias(sparkplug_payload_t* payload, const char* name,
-                                             uint64_t alias, uint32_t value);
+void sparkplug_payload_add_uint32_with_alias(sparkplug_payload_t* payload,
+                                             const char* name,
+                                             uint64_t alias,
+                                             uint32_t value);
 /** @brief Adds a uint64_t metric with both name and alias (for NBIRTH). */
-void sparkplug_payload_add_uint64_with_alias(sparkplug_payload_t* payload, const char* name,
-                                             uint64_t alias, uint64_t value);
+void sparkplug_payload_add_uint64_with_alias(sparkplug_payload_t* payload,
+                                             const char* name,
+                                             uint64_t alias,
+                                             uint64_t value);
 /** @brief Adds a float metric with both name and alias (for NBIRTH). */
-void sparkplug_payload_add_float_with_alias(sparkplug_payload_t* payload, const char* name,
-                                            uint64_t alias, float value);
+void sparkplug_payload_add_float_with_alias(sparkplug_payload_t* payload,
+                                            const char* name,
+                                            uint64_t alias,
+                                            float value);
 /** @brief Adds a double metric with both name and alias (for NBIRTH). */
-void sparkplug_payload_add_double_with_alias(sparkplug_payload_t* payload, const char* name,
-                                             uint64_t alias, double value);
+void sparkplug_payload_add_double_with_alias(sparkplug_payload_t* payload,
+                                             const char* name,
+                                             uint64_t alias,
+                                             double value);
 /** @brief Adds a boolean metric with both name and alias (for NBIRTH). */
-void sparkplug_payload_add_bool_with_alias(sparkplug_payload_t* payload, const char* name,
-                                           uint64_t alias, bool value);
+void sparkplug_payload_add_bool_with_alias(sparkplug_payload_t* payload,
+                                           const char* name,
+                                           uint64_t alias,
+                                           bool value);
 
 /* Metric functions by alias only */
 
 /** @brief Adds an int32_t metric by alias only (for NDATA). */
-void sparkplug_payload_add_int32_by_alias(sparkplug_payload_t* payload, uint64_t alias,
+void sparkplug_payload_add_int32_by_alias(sparkplug_payload_t* payload,
+                                          uint64_t alias,
                                           int32_t value);
 /** @brief Adds an int64_t metric by alias only (for NDATA). */
-void sparkplug_payload_add_int64_by_alias(sparkplug_payload_t* payload, uint64_t alias,
+void sparkplug_payload_add_int64_by_alias(sparkplug_payload_t* payload,
+                                          uint64_t alias,
                                           int64_t value);
 /** @brief Adds a uint32_t metric by alias only (for NDATA). */
-void sparkplug_payload_add_uint32_by_alias(sparkplug_payload_t* payload, uint64_t alias,
+void sparkplug_payload_add_uint32_by_alias(sparkplug_payload_t* payload,
+                                           uint64_t alias,
                                            uint32_t value);
 /** @brief Adds a uint64_t metric by alias only (for NDATA). */
-void sparkplug_payload_add_uint64_by_alias(sparkplug_payload_t* payload, uint64_t alias,
+void sparkplug_payload_add_uint64_by_alias(sparkplug_payload_t* payload,
+                                           uint64_t alias,
                                            uint64_t value);
 /** @brief Adds a float metric by alias only (for NDATA). */
-void sparkplug_payload_add_float_by_alias(sparkplug_payload_t* payload, uint64_t alias,
+void sparkplug_payload_add_float_by_alias(sparkplug_payload_t* payload,
+                                          uint64_t alias,
                                           float value);
 /** @brief Adds a double metric by alias only (for NDATA). */
-void sparkplug_payload_add_double_by_alias(sparkplug_payload_t* payload, uint64_t alias,
+void sparkplug_payload_add_double_by_alias(sparkplug_payload_t* payload,
+                                           uint64_t alias,
                                            double value);
 /** @brief Adds a boolean metric by alias only (for NDATA). */
-void sparkplug_payload_add_bool_by_alias(sparkplug_payload_t* payload, uint64_t alias, bool value);
+void sparkplug_payload_add_bool_by_alias(sparkplug_payload_t* payload,
+                                         uint64_t alias,
+                                         bool value);
 
 /**
  * @brief Serializes the payload to a binary Protocol Buffers format.
@@ -741,7 +823,8 @@ void sparkplug_payload_add_bool_by_alias(sparkplug_payload_t* payload, uint64_t 
  *
  * @note The serialized data can be passed to publish_birth() or publish_data().
  */
-size_t sparkplug_payload_serialize(const sparkplug_payload_t* payload, uint8_t* buffer,
+size_t sparkplug_payload_serialize(const sparkplug_payload_t* payload,
+                                   uint8_t* buffer,
                                    size_t buffer_size);
 
 /* ============================================================================
@@ -769,7 +852,8 @@ sparkplug_payload_t* sparkplug_payload_parse(const uint8_t* data, size_t data_le
  *
  * @return true if timestamp is present, false otherwise
  */
-bool sparkplug_payload_get_timestamp(const sparkplug_payload_t* payload, uint64_t* out_timestamp);
+bool sparkplug_payload_get_timestamp(const sparkplug_payload_t* payload,
+                                     uint64_t* out_timestamp);
 
 /**
  * @brief Gets the payload-level sequence number.
@@ -786,8 +870,8 @@ bool sparkplug_payload_get_seq(const sparkplug_payload_t* payload, uint64_t* out
  *
  * @param payload Payload handle
  *
- * @return UUID string (owned by payload, valid until sparkplug_payload_destroy()), or NULL if not
- * present
+ * @return UUID string (owned by payload, valid until sparkplug_payload_destroy()), or
+ * NULL if not present
  */
 const char* sparkplug_payload_get_uuid(const sparkplug_payload_t* payload);
 
@@ -838,7 +922,8 @@ typedef union {
   float float_value;
   double double_value;
   bool boolean_value;
-  const char* string_value; /** Owned by payload, valid until sparkplug_payload_destroy() */
+  const char*
+      string_value; /** Owned by payload, valid until sparkplug_payload_destroy() */
 } sparkplug_metric_value_t;
 
 /**
@@ -868,7 +953,8 @@ typedef struct {
  *
  * @return true on success, false if index is out of bounds or payload is NULL
  *
- * @note The returned pointers in out_metric are valid until sparkplug_payload_destroy() is called.
+ * @note The returned pointers in out_metric are valid until sparkplug_payload_destroy()
+ * is called.
  *
  * @par Example
  * @code
@@ -888,7 +974,8 @@ typedef struct {
  * }
  * @endcode
  */
-bool sparkplug_payload_get_metric_at(const sparkplug_payload_t* payload, size_t index,
+bool sparkplug_payload_get_metric_at(const sparkplug_payload_t* payload,
+                                     size_t index,
                                      sparkplug_metric_t* out_metric);
 
 #ifdef __cplusplus

@@ -13,7 +13,9 @@ void signal_handler(int signum) {
 }
 
 // Callback function that gets called for each received message
-void on_message(const char* topic, const uint8_t* payload_data, size_t payload_len,
+void on_message(const char* topic,
+                const uint8_t* payload_data,
+                size_t payload_len,
                 void* user_data) {
   (void)user_data;
 
@@ -114,8 +116,8 @@ int main(void) {
   signal(SIGINT, signal_handler);
   signal(SIGTERM, signal_handler);
 
-  sparkplug_host_application_t* host =
-      sparkplug_host_application_create("tcp://localhost:1883", "c_host_example", "SCADA01");
+  sparkplug_host_application_t* host = sparkplug_host_application_create(
+      "tcp://localhost:1883", "c_host_example", "SCADA01");
 
   if (!host) {
     fprintf(stderr, "Failed to create host application\n");

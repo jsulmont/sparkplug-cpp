@@ -45,21 +45,25 @@ using CommandCallback =
  * - Methods can be safely called from any thread concurrently
  * - Callbacks (e.g., command_callback) are invoked on MQTT thread WITHOUT holding mutex
  * - Mutex is released before MQTT publish to prevent callback deadlocks
- * - Performance: Suitable for typical IIoT applications; not optimized for ultra-high-frequency
+ * - Performance: Suitable for typical IIoT applications; not optimized for
+ * ultra-high-frequency
  *   (>10kHz) publishing from multiple threads
  *
  * @par Threading Model
  * - **Application threads**: Call EdgeNode methods (connect, publish_*, disconnect)
  * - **MQTT client thread**: Paho async library handles network I/O and invokes callbacks
- * - **Synchronization**: Single std::mutex protects all mutable state (seq_num_, bd_seq_num_,
- *   device_states_, last_birth_payload_, etc.)
- * - **Lock acquisition**: Methods acquire mutex, prepare data, release before MQTT operations
- * - **Callback safety**: User callbacks invoked without mutex held (safe to call EdgeNode methods)
+ * - **Synchronization**: Single std::mutex protects all mutable state (seq_num_,
+ * bd_seq_num_, device_states_, last_birth_payload_, etc.)
+ * - **Lock acquisition**: Methods acquire mutex, prepare data, release before MQTT
+ * operations
+ * - **Callback safety**: User callbacks invoked without mutex held (safe to call EdgeNode
+ * methods)
  * - **Blocking operations**: connect() and disconnect() block until completion or timeout
  *
  * @par Rust FFI Compatibility
  * - Implements Send: Can transfer between threads safely (all state mutex-protected)
- * - Implements Sync: Can access from multiple threads concurrently (mutex-guarded methods)
+ * - Implements Sync: Can access from multiple threads concurrently (mutex-guarded
+ * methods)
  *
  * @par Example Usage
  * @code
@@ -95,11 +99,12 @@ public:
    * @brief TLS/SSL configuration options for secure MQTT connections.
    */
   struct TlsOptions {
-    std::string trust_store;             ///< Path to CA certificate file (PEM format)
-    std::string key_store;               ///< Path to client certificate file (PEM format, optional)
-    std::string private_key;             ///< Path to client private key file (PEM format, optional)
-    std::string private_key_password;    ///< Password for encrypted private key (optional)
-    std::string enabled_cipher_suites;   ///< Colon-separated list of cipher suites (optional)
+    std::string trust_store; ///< Path to CA certificate file (PEM format)
+    std::string key_store;   ///< Path to client certificate file (PEM format, optional)
+    std::string private_key; ///< Path to client private key file (PEM format, optional)
+    std::string private_key_password; ///< Password for encrypted private key (optional)
+    std::string
+        enabled_cipher_suites; ///< Colon-separated list of cipher suites (optional)
     bool enable_server_cert_auth = true; ///< Verify server certificate (default: true)
   };
 
@@ -107,21 +112,26 @@ public:
    * @brief Configuration parameters for the Sparkplug B Edge Node.
    */
   struct Config {
-    std::string
-        broker_url; ///< MQTT broker URL (e.g., "tcp://localhost:1883" or "ssl://localhost:8883")
+    std::string broker_url;   ///< MQTT broker URL (e.g., "tcp://localhost:1883" or
+                              ///< "ssl://localhost:8883")
     std::string client_id;    ///< Unique MQTT client identifier
     std::string group_id;     ///< Sparkplug group ID (topic namespace)
     std::string edge_node_id; ///< Edge node identifier within the group
-    int data_qos =
-        0; ///< MQTT QoS for data messages (NBIRTH/NDATA/DBIRTH/DDATA). Sparkplug requires 0.
-    int death_qos = 1;            ///< MQTT QoS for NDEATH Will Message. Sparkplug requires 1.
-    bool clean_session = true;    ///< MQTT clean session flag
-    int keep_alive_interval = 60; ///< MQTT keep-alive interval in seconds (Sparkplug recommends 60)
-    std::optional<TlsOptions> tls{};       ///< TLS/SSL options (required if broker_url uses ssl://)
-    std::optional<std::string> username{}; ///< MQTT username for authentication (optional)
-    std::optional<std::string> password{}; ///< MQTT password for authentication (optional)
+    int data_qos = 0;         ///< MQTT QoS for data messages (NBIRTH/NDATA/DBIRTH/DDATA).
+                              ///< Sparkplug requires 0.
+    int death_qos = 1;        ///< MQTT QoS for NDEATH Will Message. Sparkplug requires 1.
+    bool clean_session = true; ///< MQTT clean session flag
+    int keep_alive_interval =
+        60; ///< MQTT keep-alive interval in seconds (Sparkplug recommends 60)
+    std::optional<TlsOptions>
+        tls{}; ///< TLS/SSL options (required if broker_url uses ssl://)
+    std::optional<std::string>
+        username{}; ///< MQTT username for authentication (optional)
+    std::optional<std::string>
+        password{}; ///< MQTT password for authentication (optional)
     std::optional<CommandCallback>
-        command_callback{}; ///< Optional callback for NCMD messages (subscribed before NBIRTH)
+        command_callback{}; ///< Optional callback for NCMD messages (subscribed before
+                            ///< NBIRTH)
   };
 
   /**
@@ -152,7 +162,8 @@ public:
    *
    * @note Must be called before connect().
    */
-  void set_credentials(std::optional<std::string> username, std::optional<std::string> password);
+  void set_credentials(std::optional<std::string> username,
+                       std::optional<std::string> password);
 
   /**
    * @brief Configures TLS/SSL options for secure MQTT connections.
@@ -302,14 +313,15 @@ public:
    * @see publish_device_data() for subsequent device updates
    * @see publish_device_death() for device disconnection
    */
-  [[nodiscard]] stdx::expected<void, std::string> publish_device_birth(std::string_view device_id,
-                                                                       PayloadBuilder& payload);
+  [[nodiscard]] stdx::expected<void, std::string>
+  publish_device_birth(std::string_view device_id, PayloadBuilder& payload);
 
   /**
    * @brief Publishes a DDATA (Device Data) message.
    *
    * DDATA messages report device metric changes by exception. Only include metrics
-   * that have changed since the last DDATA message. Uses aliases for bandwidth efficiency.
+   * that have changed since the last DDATA message. Uses aliases for bandwidth
+   * efficiency.
    *
    * @param device_id The device identifier
    * @param payload PayloadBuilder containing changed metrics (by alias only)
@@ -321,8 +333,8 @@ public:
    *
    * @see publish_device_birth() for establishing aliases
    */
-  [[nodiscard]] stdx::expected<void, std::string> publish_device_data(std::string_view device_id,
-                                                                      PayloadBuilder& payload);
+  [[nodiscard]] stdx::expected<void, std::string>
+  publish_device_data(std::string_view device_id, PayloadBuilder& payload);
 
   /**
    * @brief Publishes a DDEATH (Device Death) message.
@@ -335,7 +347,8 @@ public:
    *
    * @note After DDEATH, publish_device_birth() must be called again before DDATA.
    */
-  [[nodiscard]] stdx::expected<void, std::string> publish_device_death(std::string_view device_id);
+  [[nodiscard]] stdx::expected<void, std::string>
+  publish_device_death(std::string_view device_id);
 
   /**
    * @brief Publishes an NCMD (Node Command) message to another edge node.
@@ -344,7 +357,8 @@ public:
    * to request actions like rebirth, reboot, or custom operations.
    *
    * @param target_edge_node_id The target edge node identifier
-   * @param payload PayloadBuilder containing command metrics (e.g., "Node Control/Rebirth")
+   * @param payload PayloadBuilder containing command metrics (e.g., "Node
+   * Control/Rebirth")
    *
    * @return void on success, error message on failure
    *
@@ -383,7 +397,8 @@ public:
    * @endcode
    */
   [[nodiscard]] stdx::expected<void, std::string>
-  publish_device_command(std::string_view target_edge_node_id, std::string_view target_device_id,
+  publish_device_command(std::string_view target_edge_node_id,
+                         std::string_view target_device_id,
                          PayloadBuilder& payload);
 
 private:
@@ -402,7 +417,7 @@ private:
 
   // Store the NDEATH payload for the MQTT Will
   std::vector<uint8_t> death_payload_data_;
-  std::string death_topic_str_;     // Topic string for MQTT Will (must outlive async connect)
+  std::string death_topic_str_; // Topic string for MQTT Will (must outlive async connect)
   MQTTAsync_willOptions will_opts_; // Will options struct (must outlive async connect)
   MQTTAsync_SSLOptions ssl_opts_{};
 
@@ -419,7 +434,8 @@ private:
 
   struct StringEqual {
     using is_transparent = void;
-    [[nodiscard]] bool operator()(std::string_view lhs, std::string_view rhs) const noexcept {
+    [[nodiscard]] bool operator()(std::string_view lhs,
+                                  std::string_view rhs) const noexcept {
       return lhs == rhs;
     }
   };
@@ -433,11 +449,16 @@ private:
   mutable std::mutex mutex_;
 
   [[nodiscard]] static stdx::expected<void, std::string>
-  publish_message(MQTTAsync client, const std::string& topic_str,
-                  std::span<const uint8_t> payload_data, int qos, bool retain);
+  publish_message(MQTTAsync client,
+                  const std::string& topic_str,
+                  std::span<const uint8_t> payload_data,
+                  int qos,
+                  bool retain);
 
   // Static MQTT callback for message arrived (NCMD)
-  static int on_message_arrived(void* context, char* topicName, int topicLen,
+  static int on_message_arrived(void* context,
+                                char* topicName,
+                                int topicLen,
                                 MQTTAsync_message* message);
 
   // Static MQTT callback for connection lost

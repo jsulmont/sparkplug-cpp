@@ -20,7 +20,7 @@ std::vector<TestResult> results;
 
 void report_test(const std::string& name, bool passed, const std::string& msg = "") {
   results.push_back({name, passed, msg});
-  std::cout << (passed ? "✓" : "✗") << " " << name;
+  std::cout << (passed ? "[OK]" : "[FAIL]") << " " << name;
   if (!msg.empty()) {
     std::cout << ": " << msg;
   }
@@ -84,7 +84,8 @@ void test_sequence_wraps() {
     sparkplug::PayloadBuilder data;
     data.add_metric("test", i);
     if (!pub.publish_data(data)) {
-      report_test("Sequence wraps at 256", false, std::format("Failed at iteration {}", i));
+      report_test("Sequence wraps at 256", false,
+                  std::format("Failed at iteration {}", i));
       (void)pub.disconnect();
       return;
     }
@@ -131,7 +132,8 @@ void test_bdseq_increment() {
   bool passed = (second_bdseq == first_bdseq + 1);
 
   report_test("bdSeq increments on rebirth", passed,
-              passed ? "" : std::format("First={}, Second={}", first_bdseq, second_bdseq));
+              passed ? ""
+                     : std::format("First={}, Second={}", first_bdseq, second_bdseq));
 
   (void)pub.disconnect();
 }
@@ -193,7 +195,8 @@ void test_nbirth_has_bdseq() {
 
   auto birth_result = pub.publish_birth(birth);
   if (!birth_result) {
-    report_test("NBIRTH contains bdSeq", false, "Failed to publish: " + birth_result.error());
+    report_test("NBIRTH contains bdSeq", false,
+                "Failed to publish: " + birth_result.error());
     (void)pub.disconnect();
     (void)sub.disconnect();
     return;
@@ -357,7 +360,8 @@ void test_auto_sequence() {
   birth.add_metric("test", 0);
   auto birth_result = pub.publish_birth(birth);
   if (!birth_result) {
-    report_test("Auto sequence management", false, "NBIRTH failed: " + birth_result.error());
+    report_test("Auto sequence management", false,
+                "NBIRTH failed: " + birth_result.error());
     (void)pub.disconnect();
     return;
   }
@@ -369,7 +373,8 @@ void test_auto_sequence() {
   data.add_metric("test", 1);
   auto data_result = pub.publish_data(data);
   if (!data_result) {
-    report_test("Auto sequence management", false, "NDATA failed: " + data_result.error());
+    report_test("Auto sequence management", false,
+                "NDATA failed: " + data_result.error());
     (void)pub.disconnect();
     return;
   }
@@ -378,7 +383,7 @@ void test_auto_sequence() {
   bool passed = (new_seq == 1 && prev_seq == 0);
 
   report_test("Auto sequence management", passed,
-              passed ? "" : std::format("Expected 0→1, got {}→{}", prev_seq, new_seq));
+              passed ? "" : std::format("Expected 0->1, got {}->{}", prev_seq, new_seq));
 
   (void)pub.disconnect();
 }
@@ -390,7 +395,8 @@ void test_dbirth_sequence_zero() {
 
   auto callback = [&](const sparkplug::Topic& topic,
                       const org::eclipse::tahu::protobuf::Payload& payload) {
-    if (topic.message_type == sparkplug::MessageType::DBIRTH && topic.device_id == "Device01") {
+    if (topic.message_type == sparkplug::MessageType::DBIRTH &&
+        topic.device_id == "Device01") {
       got_dbirth = true;
       if (payload.has_seq()) {
         dbirth_seq = payload.seq();
@@ -495,7 +501,8 @@ void test_device_sequence_shared() {
 
   auto callback = [&](const sparkplug::Topic& topic,
                       const org::eclipse::tahu::protobuf::Payload& payload) {
-    if (topic.message_type == sparkplug::MessageType::DDATA && topic.device_id == "Device01") {
+    if (topic.message_type == sparkplug::MessageType::DDATA &&
+        topic.device_id == "Device01") {
       got_ddata = true;
       if (payload.has_seq()) {
         ddata_seq = payload.seq();
@@ -583,9 +590,10 @@ void test_device_sequence_shared() {
   // So pub.get_seq() should be 3, and DDATA seq should be 3
   bool passed = got_ddata && ddata_seq == 3 && pub.get_seq() == 3;
   report_test("Device and node share sequence", passed,
-              !got_ddata ? "No DDATA received"
-                         : std::format("Expected seq=3 for both, got DDATA seq={}, node seq={}",
-                                       ddata_seq.load(), pub.get_seq()));
+              !got_ddata
+                  ? "No DDATA received"
+                  : std::format("Expected seq=3 for both, got DDATA seq={}, node seq={}",
+                                ddata_seq.load(), pub.get_seq()));
 
   (void)pub.disconnect();
   (void)sub.disconnect();
@@ -665,7 +673,8 @@ void test_dcmd_publishing() {
 
   auto callback = [&](const sparkplug::Topic& topic,
                       const org::eclipse::tahu::protobuf::Payload& payload) {
-    if (topic.message_type == sparkplug::MessageType::DCMD && topic.device_id == "Motor01") {
+    if (topic.message_type == sparkplug::MessageType::DCMD &&
+        topic.device_id == "Motor01") {
       got_dcmd = true;
       for (const auto& metric : payload.metrics()) {
         if (metric.name() == "SetPoint") {
@@ -741,7 +750,8 @@ void test_command_callback() {
                                                 .message_callback = general_callback};
 
   sparkplug::HostApplication sub(std::move(sub_config));
-  // Note: set_command_callback not implemented yet - will need to be added or test modified
+  // Note: set_command_callback not implemented yet - will need to be added or test
+  // modified
 
   if (!sub.connect() || !sub.subscribe_all_groups()) {
     report_test("Command callback invoked", false, "Subscriber setup failed");
@@ -825,10 +835,10 @@ int main() {
   std::cout << "Failed: " << failed << "\n";
 
   if (failed == 0) {
-    std::cout << "\n✓ All tests passed! Library is Sparkplug 2.2 compliant.\n";
+    std::cout << "\n[OK] All tests passed! Library is Sparkplug 2.2 compliant.\n";
     return 0;
   } else {
-    std::cout << "\n✗ Some tests failed. Review implementation.\n";
+    std::cout << "\n[FAIL] Some tests failed. Review implementation.\n";
     return 1;
   }
 }

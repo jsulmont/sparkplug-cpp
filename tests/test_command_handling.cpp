@@ -94,7 +94,8 @@ void test_ncmd_callback_invoked() {
 
   auto cmd_result = pub.publish_node_command("Gateway01", cmd);
   if (!cmd_result) {
-    report_test("NCMD callback invoked", false, "Failed to send command: " + cmd_result.error());
+    report_test("NCMD callback invoked", false,
+                "Failed to send command: " + cmd_result.error());
     (void)pub.disconnect();
     (void)sub.disconnect();
     return;
@@ -179,7 +180,8 @@ void test_dcmd_callback_invoked() {
 
   auto cmd_result = pub.publish_device_command("Gateway01", "Motor01", cmd);
   if (!cmd_result) {
-    report_test("DCMD callback invoked", false, "Failed to send command: " + cmd_result.error());
+    report_test("DCMD callback invoked", false,
+                "Failed to send command: " + cmd_result.error());
     (void)pub.disconnect();
     (void)sub.disconnect();
     return;
@@ -187,12 +189,13 @@ void test_dcmd_callback_invoked() {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-  bool passed =
-      command_received && (received_device == "Motor01") && (received_metric == "SetPoint");
+  bool passed = command_received && (received_device == "Motor01") &&
+                (received_metric == "SetPoint");
   report_test("DCMD callback invoked", passed,
               passed ? ""
-                     : std::format("Received: {}, Device: {}, Metric: {}", command_received.load(),
-                                   received_device, received_metric));
+                     : std::format("Received: {}, Device: {}, Metric: {}",
+                                   command_received.load(), received_device,
+                                   received_metric));
 
   (void)pub.disconnect();
   (void)sub.disconnect();
@@ -278,9 +281,10 @@ void test_multiple_commands() {
 
   bool passed = (command_count == 2) && rebirth_cmd && (scan_rate == 500);
   report_test("Multiple commands handled", passed,
-              passed ? ""
-                     : std::format("Count: {}, Rebirth: {}, Scan: {}", command_count.load(),
-                                   rebirth_cmd.load(), scan_rate.load()));
+              passed
+                  ? ""
+                  : std::format("Count: {}, Rebirth: {}, Scan: {}", command_count.load(),
+                                rebirth_cmd.load(), scan_rate.load()));
 
   (void)pub.disconnect();
   (void)sub.disconnect();
@@ -350,7 +354,8 @@ void test_both_callbacks_invoked() {
 
   bool passed = regular_callback_invoked;
   report_test("Both callbacks invoked", passed,
-              passed ? "" : std::format("Regular CB: {}", regular_callback_invoked.load()));
+              passed ? ""
+                     : std::format("Regular CB: {}", regular_callback_invoked.load()));
 
   (void)pub.disconnect();
   (void)sub.disconnect();

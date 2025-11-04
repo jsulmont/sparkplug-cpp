@@ -40,8 +40,8 @@ int main(void) {
   printf("  CA Certificate: certs/ca.crt\n");
   printf("  Client Certificate: certs/client.crt\n\n");
 
-  if (sparkplug_publisher_set_tls(pub, "certs/ca.crt", "certs/client.crt", "certs/client.key", NULL,
-                                  1) != 0) {
+  if (sparkplug_publisher_set_tls(pub, "certs/ca.crt", "certs/client.crt",
+                                  "certs/client.key", NULL, 1) != 0) {
     fprintf(stderr, "ERROR: Failed to configure TLS\n");
     sparkplug_publisher_destroy(pub);
     return 1;
@@ -61,7 +61,8 @@ int main(void) {
   if (sparkplug_publisher_connect(pub) != 0) {
     fprintf(stderr, "ERROR: Failed to connect to broker\n");
     fprintf(stderr, "\nTroubleshooting:\n");
-    fprintf(stderr, "  1. Start test broker: mosquitto -c certs/mosquitto_test.conf -d\n");
+    fprintf(stderr,
+            "  1. Start test broker: mosquitto -c certs/mosquitto_test.conf -d\n");
     fprintf(stderr, "  2. Verify certificates exist in certs/ directory\n");
     fprintf(stderr, "  3. Check passwordfile configured in mosquitto_test.conf\n");
     sparkplug_publisher_destroy(pub);
@@ -70,13 +71,15 @@ int main(void) {
 
   printf("SUCCESS: Connected with combined authentication\n");
   printf("  Security: Triple-layer (TLS + mTLS + Username/Password)\n");
-  printf("  Initial bdSeq: %llu\n\n", (unsigned long long)sparkplug_publisher_get_bd_seq(pub));
+  printf("  Initial bdSeq: %llu\n\n",
+         (unsigned long long)sparkplug_publisher_get_bd_seq(pub));
 
   sparkplug_payload_t* birth = sparkplug_payload_create();
 
   sparkplug_payload_add_uint64(birth, "bdSeq", sparkplug_publisher_get_bd_seq(pub));
   sparkplug_payload_add_bool(birth, "Node Control/Rebirth", false);
-  sparkplug_payload_add_string(birth, "Test/AuthMethod", "Combined (mTLS + Username/Password)");
+  sparkplug_payload_add_string(birth, "Test/AuthMethod",
+                               "Combined (mTLS + Username/Password)");
   sparkplug_payload_add_string(birth, "Test/Security",
                                "Production-grade: TLS 1.2+ + Client Certs + Credentials");
   sparkplug_payload_add_double_with_alias(birth, "Temperature", 1, 25.5);

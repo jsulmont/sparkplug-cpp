@@ -75,7 +75,8 @@ struct Topic {
    * }
    * @endcode
    */
-  [[nodiscard]] static stdx::expected<Topic, std::string> parse(std::string_view topic_str);
+  [[nodiscard]] static stdx::expected<Topic, std::string>
+  parse(std::string_view topic_str);
 };
 
 } // namespace sparkplug

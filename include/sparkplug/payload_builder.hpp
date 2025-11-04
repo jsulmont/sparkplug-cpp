@@ -20,9 +20,10 @@ namespace sparkplug {
 
 /// Signed integer types supported by Sparkplug B
 template <typename T>
-concept SparkplugSignedInteger =
-    std::same_as<std::remove_cvref_t<T>, int8_t> || std::same_as<std::remove_cvref_t<T>, int16_t> ||
-    std::same_as<std::remove_cvref_t<T>, int32_t> || std::same_as<std::remove_cvref_t<T>, int64_t>;
+concept SparkplugSignedInteger = std::same_as<std::remove_cvref_t<T>, int8_t> ||
+                                 std::same_as<std::remove_cvref_t<T>, int16_t> ||
+                                 std::same_as<std::remove_cvref_t<T>, int32_t> ||
+                                 std::same_as<std::remove_cvref_t<T>, int64_t>;
 
 /// Unsigned integer types supported by Sparkplug B
 template <typename T>
@@ -37,8 +38,8 @@ concept SparkplugInteger = SparkplugSignedInteger<T> || SparkplugUnsignedInteger
 
 /// Floating-point types supported by Sparkplug B
 template <typename T>
-concept SparkplugFloat =
-    std::same_as<std::remove_cvref_t<T>, float> || std::same_as<std::remove_cvref_t<T>, double>;
+concept SparkplugFloat = std::same_as<std::remove_cvref_t<T>, float> ||
+                         std::same_as<std::remove_cvref_t<T>, double>;
 
 /// Boolean type
 template <typename T>
@@ -46,8 +47,8 @@ concept SparkplugBoolean = std::same_as<std::remove_cvref_t<T>, bool>;
 
 /// String-like types supported by Sparkplug B
 template <typename T>
-concept SparkplugString =
-    std::convertible_to<T, std::string_view> && !SparkplugBoolean<T> && !SparkplugInteger<T>;
+concept SparkplugString = std::convertible_to<T, std::string_view> &&
+                          !SparkplugBoolean<T> && !SparkplugInteger<T>;
 
 /// Numeric types (integers and floats)
 template <typename T>
@@ -97,7 +98,8 @@ void set_metric_value(org::eclipse::tahu::protobuf::Payload::Metric* metric, T&&
                 std::is_same_v<BaseT, int32_t> || std::is_same_v<BaseT, uint8_t> ||
                 std::is_same_v<BaseT, uint16_t> || std::is_same_v<BaseT, uint32_t>) {
     metric->set_int_value(value);
-  } else if constexpr (std::is_same_v<BaseT, int64_t> || std::is_same_v<BaseT, uint64_t>) {
+  } else if constexpr (std::is_same_v<BaseT, int64_t> ||
+                       std::is_same_v<BaseT, uint64_t>) {
     metric->set_long_value(value);
   } else if constexpr (std::is_same_v<BaseT, float>) {
     metric->set_float_value(value);
@@ -112,8 +114,10 @@ void set_metric_value(org::eclipse::tahu::protobuf::Payload::Metric* metric, T&&
 }
 
 template <SparkplugMetricType T>
-void add_metric_to_payload(org::eclipse::tahu::protobuf::Payload& payload, std::string_view name,
-                           T&& value, std::optional<uint64_t> alias,
+void add_metric_to_payload(org::eclipse::tahu::protobuf::Payload& payload,
+                           std::string_view name,
+                           T&& value,
+                           std::optional<uint64_t> alias,
                            std::optional<uint64_t> timestamp_ms) {
   auto* metric = payload.add_metrics();
 
@@ -133,7 +137,8 @@ void add_metric_to_payload(org::eclipse::tahu::protobuf::Payload& payload, std::
     ts = *timestamp_ms;
   } else {
     auto now = std::chrono::system_clock::now();
-    ts = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+    ts = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch())
+             .count();
   }
   metric->set_timestamp(ts);
 }
@@ -234,8 +239,10 @@ public:
    * @note This establishes the name-to-alias mapping for subsequent NDATA messages.
    */
   template <SparkplugMetricType T>
-  PayloadBuilder& add_metric_with_alias(std::string_view name, uint64_t alias, T&& value) {
-    detail::add_metric_to_payload(payload_, name, std::forward<T>(value), alias, std::nullopt);
+  PayloadBuilder&
+  add_metric_with_alias(std::string_view name, uint64_t alias, T&& value) {
+    detail::add_metric_to_payload(payload_, name, std::forward<T>(value), alias,
+                                  std::nullopt);
     return *this;
   }
 
@@ -253,7 +260,8 @@ public:
    */
   template <SparkplugMetricType T>
   PayloadBuilder& add_metric_by_alias(uint64_t alias, T&& value) {
-    detail::add_metric_to_payload(payload_, "", std::forward<T>(value), alias, std::nullopt);
+    detail::add_metric_to_payload(payload_, "", std::forward<T>(value), alias,
+                                  std::nullopt);
     return *this;
   }
 
@@ -271,7 +279,8 @@ public:
    */
   template <SparkplugMetricType T>
   PayloadBuilder& add_metric_by_alias(uint64_t alias, T&& value, uint64_t timestamp_ms) {
-    detail::add_metric_to_payload(payload_, "", std::forward<T>(value), alias, timestamp_ms);
+    detail::add_metric_to_payload(payload_, "", std::forward<T>(value), alias,
+                                  timestamp_ms);
     return *this;
   }
 

@@ -25,7 +25,9 @@ void signal_handler(int signal) {
 
 class TortureTestPublisher {
 public:
-  TortureTestPublisher(std::string broker_url, std::string group_id, std::string edge_node_id)
+  TortureTestPublisher(std::string broker_url,
+                       std::string group_id,
+                       std::string edge_node_id)
       : broker_url_(std::move(broker_url)), group_id_(std::move(group_id)),
         edge_node_id_(std::move(edge_node_id)), message_count_(0), reconnect_count_(0) {
   }
@@ -109,11 +111,12 @@ public:
 
     auto motor_result = publisher_->publish_device_birth("Motor01", motor_birth);
     if (!motor_result) {
-      std::cerr << "[PUBLISHER] Failed to publish DBIRTH for Motor01: " << motor_result.error()
-                << "\n";
+      std::cerr << "[PUBLISHER] Failed to publish DBIRTH for Motor01: "
+                << motor_result.error() << "\n";
       return false;
     }
-    std::cout << "[PUBLISHER] Published DBIRTH for Motor01 (seq=" << publisher_->get_seq() << ")\n";
+    std::cout << "[PUBLISHER] Published DBIRTH for Motor01 (seq=" << publisher_->get_seq()
+              << ")\n";
 
     sparkplug::PayloadBuilder sensor_birth;
     sensor_birth.add_metric_with_alias("Level", 1, 75.5);
@@ -121,12 +124,12 @@ public:
 
     auto sensor_result = publisher_->publish_device_birth("Sensor01", sensor_birth);
     if (!sensor_result) {
-      std::cerr << "[PUBLISHER] Failed to publish DBIRTH for Sensor01: " << sensor_result.error()
-                << "\n";
+      std::cerr << "[PUBLISHER] Failed to publish DBIRTH for Sensor01: "
+                << sensor_result.error() << "\n";
       return false;
     }
-    std::cout << "[PUBLISHER] Published DBIRTH for Sensor01 (seq=" << publisher_->get_seq()
-              << ")\n";
+    std::cout << "[PUBLISHER] Published DBIRTH for Sensor01 (seq="
+              << publisher_->get_seq() << ")\n";
 
     return true;
   }
@@ -150,7 +153,8 @@ public:
           std::cout << "[PUBLISHER]   -> Reboot requested (simulating crash in 2s...)\n";
           std::thread([]() {
             std::this_thread::sleep_for(std::chrono::seconds(2));
-            std::cout << "[PUBLISHER] CRASH SIMULATION (exit without graceful shutdown)\n";
+            std::cout
+                << "[PUBLISHER] CRASH SIMULATION (exit without graceful shutdown)\n";
             std::_Exit(0);
           }).detach();
         }
@@ -181,8 +185,8 @@ public:
         if (!rebirth_result) {
           std::cerr << "[PUBLISHER] Rebirth failed: " << rebirth_result.error() << "\n";
         } else {
-          std::cout << "[PUBLISHER] Rebirth complete (new bdSeq=" << publisher_->get_bd_seq()
-                    << ")\n";
+          std::cout << "[PUBLISHER] Rebirth complete (new bdSeq="
+                    << publisher_->get_bd_seq() << ")\n";
           if (!publish_device_births()) {
             std::cerr << "[PUBLISHER] Failed to publish device births after rebirth\n";
           }
@@ -194,8 +198,8 @@ public:
       temperature += dis(gen) - 0.5;
       pressure += (dis(gen) - 0.5) * 0.1;
       humidity += (dis(gen) - 0.5) * 2.0;
-      uptime = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
-                                                                start_time)
+      uptime = std::chrono::duration_cast<std::chrono::seconds>(
+                   std::chrono::steady_clock::now() - start_time)
                    .count();
 
       sparkplug::PayloadBuilder data;
@@ -230,14 +234,17 @@ public:
     if (publisher_) {
       auto death_result = publisher_->publish_death();
       if (!death_result) {
-        std::cerr << "[PUBLISHER] Failed to publish NDEATH: " << death_result.error() << "\n";
+        std::cerr << "[PUBLISHER] Failed to publish NDEATH: " << death_result.error()
+                  << "\n";
       } else {
-        std::cout << "[PUBLISHER] Published NDEATH (bdSeq=" << publisher_->get_bd_seq() << ")\n";
+        std::cout << "[PUBLISHER] Published NDEATH (bdSeq=" << publisher_->get_bd_seq()
+                  << ")\n";
       }
 
       auto pub_result = publisher_->disconnect();
       if (!pub_result) {
-        std::cerr << "[PUBLISHER] Publisher disconnect failed: " << pub_result.error() << "\n";
+        std::cerr << "[PUBLISHER] Publisher disconnect failed: " << pub_result.error()
+                  << "\n";
       } else {
         std::cout << "[PUBLISHER] Disconnected gracefully\n";
       }
@@ -248,7 +255,8 @@ public:
 
   void reconnect() {
     reconnect_count_++;
-    std::cout << "\n[PUBLISHER] *** RECONNECTION ATTEMPT #" << reconnect_count_ << " ***\n";
+    std::cout << "\n[PUBLISHER] *** RECONNECTION ATTEMPT #" << reconnect_count_
+              << " ***\n";
 
     disconnect();
 

@@ -57,11 +57,12 @@ int main() {
                  metric.boolean_value()) {
         std::cout << " = true (REBOOT REQUESTED - simulating)\n";
         std::cout << "    (In production, this would reboot the device)\n";
-      } else if (metric.name() == "Node Control/Next Server" && metric.has_boolean_value() &&
-                 metric.boolean_value()) {
+      } else if (metric.name() == "Node Control/Next Server" &&
+                 metric.has_boolean_value() && metric.boolean_value()) {
         std::cout << " = true (NEXT SERVER REQUESTED - not implemented)\n";
       } else if (metric.name() == "Node Control/Scan Rate" && metric.has_long_value()) {
-        std::cout << " = " << metric.long_value() << " ms (SCAN RATE CHANGE - not implemented)\n";
+        std::cout << " = " << metric.long_value()
+                  << " ms (SCAN RATE CHANGE - not implemented)\n";
       } else {
         std::cout << " (value not displayed)\n";
       }
@@ -175,7 +176,8 @@ int main() {
     } else {
       count++;
       if (count % 10 == 0) {
-        std::cout << "Published " << count << " NDATA messages (seq: " << publisher.get_seq()
+        std::cout << "Published " << count
+                  << " NDATA messages (seq: " << publisher.get_seq()
                   << ", bdSeq: " << publisher.get_bd_seq() << ")\n";
       }
     }

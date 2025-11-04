@@ -114,32 +114,35 @@ int main(int argc, char* argv[]) {
                              const org::eclipse::tahu::protobuf::Payload& payload) {
         int count = ++message_count;
 
-        std::cout << "\n╔════════════════════════════════════════════════════════════╗\n";
-        std::cout << "║ Message #" << std::setw(3) << count << " - " << std::setw(7)
-                  << message_type_name(topic.message_type) << std::string(39, ' ') << "║\n";
-        std::cout << "╠════════════════════════════════════════════════════════════╣\n";
+        std::cout << "\n+============================================================+\n";
+        std::cout << "| Message #" << std::setw(3) << count << " - " << std::setw(7)
+                  << message_type_name(topic.message_type) << std::string(39, ' ')
+                  << "|\n";
+        std::cout << "+============================================================+\n";
 
-        std::cout << "║ Topic: " << std::left << std::setw(51) << topic.to_string() << "║\n";
-        std::cout << "║ Group: " << std::setw(51) << topic.group_id << "║\n";
-        std::cout << "║ Edge Node: " << std::setw(47) << topic.edge_node_id << "║\n";
+        std::cout << "| Topic: " << std::left << std::setw(51) << topic.to_string()
+                  << "|\n";
+        std::cout << "| Group: " << std::setw(51) << topic.group_id << "|\n";
+        std::cout << "| Edge Node: " << std::setw(47) << topic.edge_node_id << "|\n";
 
         if (!topic.device_id.empty()) {
-          std::cout << "║ Device: " << std::setw(50) << topic.device_id << "║\n";
+          std::cout << "| Device: " << std::setw(50) << topic.device_id << "|\n";
         }
 
         if (payload.has_timestamp()) {
-          std::cout << "║ Payload Timestamp: " << std::setw(39) << payload.timestamp() << "║\n";
+          std::cout << "| Payload Timestamp: " << std::setw(39) << payload.timestamp()
+                    << "|\n";
         }
 
         if (payload.has_seq()) {
-          std::cout << "║ Sequence: " << std::setw(48) << payload.seq() << "║\n";
+          std::cout << "| Sequence: " << std::setw(48) << payload.seq() << "|\n";
         } else {
-          std::cout << "║ Sequence: " << std::setw(48) << "(none)" << "║\n";
+          std::cout << "| Sequence: " << std::setw(48) << "(none)" << "|\n";
         }
 
-        std::cout << "╠════════════════════════════════════════════════════════════╣\n";
-        std::cout << "║ Metrics: " << std::setw(49) << payload.metrics_size() << "║\n";
-        std::cout << "╚════════════════════════════════════════════════════════════╝\n";
+        std::cout << "+============================================================+\n";
+        std::cout << "| Metrics: " << std::setw(49) << payload.metrics_size() << "|\n";
+        std::cout << "+============================================================+\n";
 
         for (const auto& metric : payload.metrics()) {
           print_metric(metric);
@@ -162,7 +165,8 @@ int main(int argc, char* argv[]) {
 
   auto subscribe_result = subscriber.subscribe_all_groups();
   if (!subscribe_result) {
-    std::cerr << "Failed to subscribe to " << groups[0] << ": " << subscribe_result.error() << "\n";
+    std::cerr << "Failed to subscribe to " << groups[0] << ": "
+              << subscribe_result.error() << "\n";
     return 1;
   }
 
@@ -171,7 +175,8 @@ int main(int argc, char* argv[]) {
   for (size_t i = 1; i < groups.size(); ++i) {
     auto result = subscriber.subscribe_group(groups[i]);
     if (!result) {
-      std::cerr << "Failed to subscribe to " << groups[i] << ": " << result.error() << "\n";
+      std::cerr << "Failed to subscribe to " << groups[i] << ": " << result.error()
+                << "\n";
       return 1;
     }
     std::cout << "Subscribed to: spBv1.0/" << groups[i] << "/#\n";
@@ -189,7 +194,8 @@ int main(int argc, char* argv[]) {
     if (current_count == last_count) {
       static int idle_count = 0;
       if (++idle_count % 10 == 0) {
-        std::cout << "Still waiting... (received " << current_count << " messages so far)\n"
+        std::cout << "Still waiting... (received " << current_count
+                  << " messages so far)\n"
                   << std::flush;
       }
     } else {

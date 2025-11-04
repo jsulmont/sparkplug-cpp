@@ -8,7 +8,8 @@ namespace sparkplug {
 PayloadBuilder::PayloadBuilder() {
   auto now = std::chrono::system_clock::now();
   auto timestamp =
-      std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+      std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch())
+          .count();
   payload_.set_timestamp(timestamp);
 }
 
@@ -17,7 +18,8 @@ std::vector<uint8_t> PayloadBuilder::build() const {
   if (!timestamp_explicitly_set_ && !payload_copy.has_timestamp()) {
     auto now = std::chrono::system_clock::now();
     auto timestamp =
-        std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+        std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch())
+            .count();
     payload_copy.set_timestamp(timestamp);
   }
 

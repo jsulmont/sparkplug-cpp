@@ -37,7 +37,8 @@ using LogCallback = std::function<void(LogLevel, std::string_view)>;
 /**
  * @brief Callback function type for receiving Sparkplug B messages.
  *
- * @param topic Parsed Sparkplug B topic containing group_id, message_type, edge_node_id, etc.
+ * @param topic Parsed Sparkplug B topic containing group_id, message_type, edge_node_id,
+ * etc.
  * @param payload Decoded Sparkplug B protobuf payload with metrics
  */
 using MessageCallback =
@@ -46,7 +47,8 @@ using MessageCallback =
 /**
  * @brief Sparkplug B Host Application for SCADA/Primary Applications.
  *
- * The HostApplication class implements the complete Sparkplug B protocol for Host Applications:
+ * The HostApplication class implements the complete Sparkplug B protocol for Host
+Applications:
  * - Subscribes to spBv1.0/# to receive all Edge Node messages (NBIRTH/NDATA/NDEATH)
  * - Validates message sequences and tracks node/device state
  * - Publishes STATE messages (JSON format) to indicate online/offline status
@@ -54,19 +56,21 @@ using MessageCallback =
  * - Does NOT publish NBIRTH/NDATA/NDEATH (those are for Edge Nodes only)
  *
  * This is the authoritative consumer and command source in a Sparkplug B topology.
- * A Host Application should use a single MQTT client that both receives data and sends commands.
+ * A Host Application should use a single MQTT client that both receives data and sends
+commands.
  *
  * @par Thread Safety
  * This class is fully thread-safe with coarse-grained locking:
  * - All public methods use a single internal mutex to protect shared state
  * - Methods can be safely called from any thread concurrently
- * - Callbacks (message_callback, log_callback) invoked on MQTT thread WITHOUT holding mutex
+ * - Callbacks (message_callback, log_callback) invoked on MQTT thread WITHOUT holding
+mutex
  * - Mutex is released before MQTT publish to prevent callback deadlocks
  *
  * @par Rust FFI Compatibility
  * - Implements Send: Can transfer between threads safely (all state mutex-protected)
- * - Implements Sync: Can access from multiple threads concurrently (mutex-guarded methods)
-ill  *
+ * - Implements Sync: Can access from multiple threads concurrently (mutex-guarded
+methods) ill  *
  * @par Example Usage
  * @code
  * auto message_callback = [](const sparkplug::Topic& topic, const auto& payload) {
@@ -109,11 +113,12 @@ public:
    * @brief TLS/SSL configuration options for secure MQTT connections.
    */
   struct TlsOptions {
-    std::string trust_store;             ///< Path to CA certificate file (PEM format)
-    std::string key_store;               ///< Path to client certificate file (PEM format, optional)
-    std::string private_key;             ///< Path to client private key file (PEM format, optional)
-    std::string private_key_password;    ///< Password for encrypted private key (optional)
-    std::string enabled_cipher_suites;   ///< Colon-separated list of cipher suites (optional)
+    std::string trust_store; ///< Path to CA certificate file (PEM format)
+    std::string key_store;   ///< Path to client certificate file (PEM format, optional)
+    std::string private_key; ///< Path to client private key file (PEM format, optional)
+    std::string private_key_password; ///< Password for encrypted private key (optional)
+    std::string
+        enabled_cipher_suites; ///< Colon-separated list of cipher suites (optional)
     bool enable_server_cert_auth = true; ///< Verify server certificate (default: true)
   };
 
@@ -163,21 +168,26 @@ public:
    * @brief Configuration parameters for the Sparkplug B Host Application.
    */
   struct Config {
-    std::string broker_url;       ///< MQTT broker URL (e.g., "tcp://localhost:1883" or
-                                  ///< "ssl://localhost:8883")
-    std::string client_id;        ///< Unique MQTT client identifier
-    std::string host_id;          ///< Host Application identifier (for STATE messages)
-    int qos = 1;                  ///< MQTT QoS for STATE messages and commands (default: 1)
-    bool clean_session = true;    ///< MQTT clean session flag (should be true per Sparkplug spec)
+    std::string broker_url; ///< MQTT broker URL (e.g., "tcp://localhost:1883" or
+                            ///< "ssl://localhost:8883")
+    std::string client_id;  ///< Unique MQTT client identifier
+    std::string host_id;    ///< Host Application identifier (for STATE messages)
+    int qos = 1;            ///< MQTT QoS for STATE messages and commands (default: 1)
+    bool clean_session =
+        true; ///< MQTT clean session flag (should be true per Sparkplug spec)
     int keep_alive_interval = 60; ///< MQTT keep-alive interval in seconds (default: 60)
-    int max_inflight = 100; ///< Maximum number of QoS 1/2 messages allowed in-flight (default: 100,
-                            ///< paho default: 10)
-    bool validate_sequence = true;   ///< Enable sequence number validation (detects packet loss)
-    std::optional<TlsOptions> tls{}; ///< TLS/SSL options (required if broker_url uses ssl://)
-    std::optional<std::string> username{}; ///< MQTT username for authentication (optional)
-    std::optional<std::string> password{}; ///< MQTT password for authentication (optional)
-    MessageCallback message_callback{};    ///< Callback for received Sparkplug messages
-    LogCallback log_callback{};            ///< Optional callback for library log messages
+    int max_inflight = 100; ///< Maximum number of QoS 1/2 messages allowed in-flight
+                            ///< (default: 100, paho default: 10)
+    bool validate_sequence =
+        true; ///< Enable sequence number validation (detects packet loss)
+    std::optional<TlsOptions>
+        tls{}; ///< TLS/SSL options (required if broker_url uses ssl://)
+    std::optional<std::string>
+        username{}; ///< MQTT username for authentication (optional)
+    std::optional<std::string>
+        password{};                     ///< MQTT password for authentication (optional)
+    MessageCallback message_callback{}; ///< Callback for received Sparkplug messages
+    LogCallback log_callback{};         ///< Optional callback for library log messages
   };
 
   /**
@@ -208,7 +218,8 @@ public:
    *
    * @note Must be called before connect().
    */
-  void set_credentials(std::optional<std::string> username, std::optional<std::string> password);
+  void set_credentials(std::optional<std::string> username,
+                       std::optional<std::string> password);
 
   /**
    * @brief Configures TLS/SSL options for secure MQTT connections.
@@ -242,7 +253,8 @@ public:
    * @brief Connects to the MQTT broker.
    *
    * Unlike Publisher::connect(), this does NOT automatically publish any messages.
-   * You should call publish_state_birth() after connecting to declare the Host App online.
+   * You should call publish_state_birth() after connecting to declare the Host App
+   * online.
    *
    * @return void on success, error message on failure
    *
@@ -286,7 +298,8 @@ public:
    *
    * @note Allows subscribing to multiple groups on a single MQTT connection.
    */
-  [[nodiscard]] stdx::expected<void, std::string> subscribe_group(std::string_view group_id);
+  [[nodiscard]] stdx::expected<void, std::string>
+  subscribe_group(std::string_view group_id);
 
   /**
    * @brief Subscribes to messages from a specific edge node in a group.
@@ -300,8 +313,8 @@ public:
    *
    * @note More efficient than subscribe_all_groups() if you only need specific nodes.
    */
-  [[nodiscard]] stdx::expected<void, std::string> subscribe_node(std::string_view group_id,
-                                                                 std::string_view edge_node_id);
+  [[nodiscard]] stdx::expected<void, std::string>
+  subscribe_node(std::string_view group_id, std::string_view edge_node_id);
 
   /**
    * @brief Subscribes to STATE messages from another primary application.
@@ -316,7 +329,8 @@ public:
    * @note STATE messages are outside the normal Sparkplug topic namespace.
    * @note Useful for High Availability (HA) setups with multiple host applications.
    */
-  [[nodiscard]] stdx::expected<void, std::string> subscribe_state(std::string_view host_id);
+  [[nodiscard]] stdx::expected<void, std::string>
+  subscribe_state(std::string_view host_id);
 
   /**
    * @brief Gets the current state of a specific edge node.
@@ -347,10 +361,11 @@ public:
    * @note Returns std::nullopt if the node/device hasn't sent a birth message yet,
    *       or if the alias is not found in the birth message.
    */
-  [[nodiscard]] std::optional<std::string_view> get_metric_name(std::string_view group_id,
-                                                                std::string_view edge_node_id,
-                                                                std::string_view device_id,
-                                                                uint64_t alias) const;
+  [[nodiscard]] std::optional<std::string_view>
+  get_metric_name(std::string_view group_id,
+                  std::string_view edge_node_id,
+                  std::string_view device_id,
+                  uint64_t alias) const;
 
   /**
    * @brief Publishes a STATE birth message to indicate Host Application is online.
@@ -365,7 +380,8 @@ public:
    *
    * @note Topic format: spBv1.0/STATE/<host_id>
    * @note Payload format: JSON {"online": true, "timestamp": <timestamp>}
-   * @note Message is published with QoS=1 and Retain=true (late-joining Edge Nodes see it)
+   * @note Message is published with QoS=1 and Retain=true (late-joining Edge Nodes see
+   * it)
    * @note This is NOT a Sparkplug protobuf message - uses raw JSON payload
    *
    * @par Example Usage
@@ -416,7 +432,8 @@ public:
    *
    * @param group_id The Sparkplug group ID containing the target Edge Node
    * @param target_edge_node_id The target Edge Node identifier
-   * @param payload PayloadBuilder containing command metrics (e.g., "Node Control/Rebirth")
+   * @param payload PayloadBuilder containing command metrics (e.g., "Node
+   * Control/Rebirth")
    *
    * @return void on success, error message on failure
    *
@@ -434,13 +451,15 @@ public:
    * @endcode
    */
   [[nodiscard]] stdx::expected<void, std::string>
-  publish_node_command(std::string_view group_id, std::string_view target_edge_node_id,
+  publish_node_command(std::string_view group_id,
+                       std::string_view target_edge_node_id,
                        PayloadBuilder& payload);
 
   /**
    * @brief Publishes a DCMD (Device Command) message to a device on an Edge Node.
    *
-   * DCMD messages are commands sent from Host Applications to devices attached to Edge Nodes.
+   * DCMD messages are commands sent from Host Applications to devices attached to Edge
+   * Nodes.
    *
    * @param group_id The Sparkplug group ID containing the target Edge Node
    * @param target_edge_node_id The target Edge Node identifier
@@ -457,8 +476,10 @@ public:
    * @endcode
    */
   [[nodiscard]] stdx::expected<void, std::string>
-  publish_device_command(std::string_view group_id, std::string_view target_edge_node_id,
-                         std::string_view target_device_id, PayloadBuilder& payload);
+  publish_device_command(std::string_view group_id,
+                         std::string_view target_edge_node_id,
+                         std::string_view target_device_id,
+                         PayloadBuilder& payload);
 
   /**
    * @brief Internal logging method accessible from C bindings.
@@ -523,16 +544,21 @@ private:
   mutable std::mutex mutex_;
 
   [[nodiscard]] stdx::expected<void, std::string>
-  publish_raw_message(std::string_view topic, std::span<const uint8_t> payload_data, int qos,
+  publish_raw_message(std::string_view topic,
+                      std::span<const uint8_t> payload_data,
+                      int qos,
                       bool retain);
 
   [[nodiscard]] stdx::expected<void, std::string>
   publish_command_message(std::string_view topic, std::span<const uint8_t> payload_data);
 
-  bool validate_message(const Topic& topic, const org::eclipse::tahu::protobuf::Payload& payload);
+  bool validate_message(const Topic& topic,
+                        const org::eclipse::tahu::protobuf::Payload& payload);
 
   // Static MQTT callback for message arrived
-  static int on_message_arrived(void* context, char* topicName, int topicLen,
+  static int on_message_arrived(void* context,
+                                char* topicName,
+                                int topicLen,
                                 MQTTAsync_message* message);
 
   static void on_connection_lost(void* context, char* cause);

@@ -130,7 +130,9 @@ void TCKHostApplication::on_connection_lost(void* context, char* cause) {
   app->connected_ = false;
 }
 
-int TCKHostApplication::on_message_arrived(void* context, char* topicName, int /*topicLen*/,
+int TCKHostApplication::on_message_arrived(void* context,
+                                           char* topicName,
+                                           int /*topicLen*/,
                                            MQTTAsync_message* message) {
   auto* app = static_cast<TCKHostApplication*>(context);
 
@@ -158,11 +160,13 @@ int TCKHostApplication::on_message_arrived(void* context, char* topicName, int /
   return 1;
 }
 
-void TCKHostApplication::on_delivery_complete(void* /*context*/, MQTTAsync_token /*token*/) {
+void TCKHostApplication::on_delivery_complete(void* /*context*/,
+                                              MQTTAsync_token /*token*/) {
   // Message delivered successfully
 }
 
-void TCKHostApplication::on_connect_success(void* context, MQTTAsync_successData* /*response*/) {
+void TCKHostApplication::on_connect_success(void* context,
+                                            MQTTAsync_successData* /*response*/) {
   auto* app = static_cast<TCKHostApplication*>(context);
   std::cout << "[TCK] Connected to broker\n";
   app->connected_ = true;
@@ -177,13 +181,15 @@ void TCKHostApplication::on_connect_success(void* context, MQTTAsync_successData
   opts.onFailure = on_subscribe_failure;
   opts.context = app;
 
-  int rc = MQTTAsync_subscribeMany(app->tck_client_, 4, const_cast<char**>(topics), qos, &opts);
+  int rc = MQTTAsync_subscribeMany(app->tck_client_, 4, const_cast<char**>(topics), qos,
+                                   &opts);
   if (rc != MQTTASYNC_SUCCESS) {
     std::cerr << "[TCK] Failed to subscribe: " << rc << "\n";
   }
 }
 
-void TCKHostApplication::on_connect_failure(void* /*context*/, MQTTAsync_failureData* response) {
+void TCKHostApplication::on_connect_failure(void* /*context*/,
+                                            MQTTAsync_failureData* response) {
   std::cerr << "[TCK] Connection failed: " << (response ? response->code : -1) << "\n";
 }
 
@@ -192,7 +198,8 @@ void TCKHostApplication::on_subscribe_success(void* /*context*/,
   std::cout << "[TCK] Subscribed to TCK control topics\n";
 }
 
-void TCKHostApplication::on_subscribe_failure(void* /*context*/, MQTTAsync_failureData* response) {
+void TCKHostApplication::on_subscribe_failure(void* /*context*/,
+                                              MQTTAsync_failureData* response) {
   std::cerr << "[TCK] Subscribe failed: " << (response ? response->code : -1) << "\n";
 }
 
@@ -282,7 +289,8 @@ void TCKHostApplication::handle_console_prompt(const std::string& message) {
       cmd.add_metric("Node Control/Rebirth", true);
 
       if (host_application_) {
-        auto result = host_application_->publish_node_command(group_id, edge_node_id, cmd);
+        auto result =
+            host_application_->publish_node_command(group_id, edge_node_id, cmd);
         if (result) {
           log("INFO", "Node Rebirth command sent");
           publish_console_reply("PASS");
@@ -310,8 +318,8 @@ void TCKHostApplication::handle_console_prompt(const std::string& message) {
       cmd.add_metric("Device Control/Rebirth", true);
 
       if (host_application_) {
-        auto result =
-            host_application_->publish_device_command(group_id, edge_node_id, device_id, cmd);
+        auto result = host_application_->publish_device_command(group_id, edge_node_id,
+                                                                device_id, cmd);
         if (result) {
           log("INFO", "Device Rebirth command sent");
           publish_console_reply("PASS");
@@ -355,7 +363,8 @@ void TCKHostApplication::handle_result_config(const std::string& message) {
 }
 
 // Test handlers
-void TCKHostApplication::run_session_establishment_test(const std::vector<std::string>& params) {
+void TCKHostApplication::run_session_establishment_test(
+    const std::vector<std::string>& params) {
   // Parameters: <host_id>
   if (params.empty()) {
     log("ERROR", "Missing host_id parameter");
@@ -379,7 +388,8 @@ void TCKHostApplication::run_session_establishment_test(const std::vector<std::s
         .keep_alive_interval = 60,
         .validate_sequence = true,
         .message_callback =
-            [this](const Topic& topic, const org::eclipse::tahu::protobuf::Payload& /*payload*/) {
+            [this](const Topic& topic,
+                   const org::eclipse::tahu::protobuf::Payload& /*payload*/) {
               log("INFO", "Received message: " + topic.to_string());
             },
         .log_callback =
@@ -446,7 +456,8 @@ void TCKHostApplication::run_session_establishment_test(const std::vector<std::s
   }
 }
 
-void TCKHostApplication::run_session_termination_test(const std::vector<std::string>& params) {
+void TCKHostApplication::run_session_termination_test(
+    const std::vector<std::string>& params) {
   // Parameters: <host_id> <client_id>
   if (params.empty()) {
     log("ERROR", "Missing host_id parameter");
@@ -558,7 +569,8 @@ void TCKHostApplication::run_receive_data_test(const std::vector<std::string>& p
   }
 }
 
-void TCKHostApplication::run_edge_session_termination_test(const std::vector<std::string>& params) {
+void TCKHostApplication::run_edge_session_termination_test(
+    const std::vector<std::string>& params) {
   // Parameters: <host_id> <group_id> <edge_node_id> <device_id>
   if (params.size() < 4) {
     log("ERROR", "Missing parameters");
@@ -588,7 +600,8 @@ void TCKHostApplication::run_edge_session_termination_test(const std::vector<std
   }
 }
 
-void TCKHostApplication::run_message_ordering_test(const std::vector<std::string>& params) {
+void TCKHostApplication::run_message_ordering_test(
+    const std::vector<std::string>& params) {
   // Parameters: <host_id> <group_id> <edge_node_id> <device_id> <reorder_timeout>
   if (params.size() < 5) {
     log("ERROR", "Missing parameters");
@@ -619,7 +632,8 @@ void TCKHostApplication::run_message_ordering_test(const std::vector<std::string
   }
 }
 
-void TCKHostApplication::run_multiple_broker_test(const std::vector<std::string>& params) {
+void TCKHostApplication::run_multiple_broker_test(
+    const std::vector<std::string>& params) {
   // Parameters: <host_id> <broker_uri>
   if (params.size() < 2) {
     log("ERROR", "Missing parameters");
@@ -650,8 +664,9 @@ void TCKHostApplication::publish_console_reply(const std::string& reply) {
   (void)publish_tck("SPARKPLUG_TCK/CONSOLE_REPLY", reply, 1);
 }
 
-auto TCKHostApplication::publish_tck(const std::string& topic, const std::string& payload, int qos)
-    -> stdx::expected<void, std::string> {
+auto TCKHostApplication::publish_tck(const std::string& topic,
+                                     const std::string& payload,
+                                     int qos) -> stdx::expected<void, std::string> {
   if (!connected_) {
     return stdx::unexpected("Not connected");
   }

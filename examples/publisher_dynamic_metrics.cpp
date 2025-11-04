@@ -42,7 +42,7 @@ int main() {
     return 1;
   }
 
-  std::cout << "✓ Connected to broker\n";
+  std::cout << "[OK] Connected to broker\n";
   std::cout << "  Initial bdSeq: " << publisher.get_bd_seq() << "\n\n";
 
   // ============================================================================
@@ -63,7 +63,7 @@ int main() {
     return 1;
   }
 
-  std::cout << "✓ Published NBIRTH\n";
+  std::cout << "[OK] Published NBIRTH\n";
   std::cout << "  Metrics: Temperature (alias:1), Voltage (alias:2)\n";
   std::cout << "  bdSeq: " << publisher.get_bd_seq() << "\n";
   std::cout << "  seq: " << publisher.get_seq() << "\n\n";
@@ -92,8 +92,8 @@ int main() {
       std::cerr << "Failed to publish NDATA: " << data_result.error() << "\n";
     } else {
       if ((i + 1) % 5 == 0) {
-        std::cout << "✓ Published " << (i + 1) << " NDATA messages (seq: " << publisher.get_seq()
-                  << ")\n";
+        std::cout << "[OK] Published " << (i + 1)
+                  << " NDATA messages (seq: " << publisher.get_seq() << ")\n";
       }
     }
 
@@ -144,7 +144,7 @@ int main() {
     return 1;
   }
 
-  std::cout << "✓ Published NEW NBIRTH (this is a rebirth)\n";
+  std::cout << "[OK] Published NEW NBIRTH (this is a rebirth)\n";
   std::cout << "  Metrics: Temperature (alias:1), Voltage (alias:2), Pressure "
                "(alias:3)\n";
   std::cout << "  bdSeq: " << publisher.get_bd_seq() << " <- INCREMENTED (new session)\n";
@@ -176,8 +176,9 @@ int main() {
       std::cerr << "Failed to publish NDATA: " << data_result.error() << "\n";
     } else {
       if ((i + 1) % 5 == 0) {
-        std::cout << "✓ Published " << (i + 1)
-                  << " NDATA messages with 3 metrics (seq: " << publisher.get_seq() << ")\n";
+        std::cout << "[OK] Published " << (i + 1)
+                  << " NDATA messages with 3 metrics (seq: " << publisher.get_seq()
+                  << ")\n";
       }
     }
 
@@ -188,19 +189,19 @@ int main() {
   // Shutdown
   // ============================================================================
 
-  std::cout << "\n⏹ Shutting down...\n";
+  std::cout << "\n[STOP] Shutting down...\n";
 
   auto disconnect_result = publisher.disconnect();
   if (!disconnect_result) {
     std::cerr << "Failed to disconnect: " << disconnect_result.error() << "\n";
   } else {
-    std::cout << "✓ Disconnected (NDEATH sent via MQTT Will)\n";
+    std::cout << "[OK] Disconnected (NDEATH sent via MQTT Will)\n";
   }
 
   std::cout << "\n";
-  std::cout << "═══════════════════════════════════════════════════════\n";
+  std::cout << "=======================================================\n";
   std::cout << "SUMMARY - What SCADA/Subscribers Saw:\n";
-  std::cout << "═══════════════════════════════════════════════════════\n";
+  std::cout << "=======================================================\n";
   std::cout << "1. NBIRTH (bdSeq=0): Temperature, Voltage\n";
   std::cout << "2. NDATA (seq 1-10): Temperature, Voltage changing\n";
   std::cout << "3. NBIRTH (bdSeq=1): Temperature, Voltage, Pressure <- NEW "
@@ -209,7 +210,7 @@ int main() {
   std::cout << "5. NDEATH: Node offline\n\n";
   std::cout << "Key Point: bdSeq increment signals 'new birth certificate'\n";
   std::cout << "           SCADA knows to update its data model\n";
-  std::cout << "═══════════════════════════════════════════════════════\n";
+  std::cout << "=======================================================\n";
 
   return 0;
 }

@@ -62,7 +62,8 @@ int main() {
     std::cerr << "  1. Start test broker: cd certs && ./start_mosquitto_test.sh\n";
     std::cerr << "  2. Verify certificates exist in certs/ directory\n";
     std::cerr << "  3. Check server certificate is valid for localhost\n";
-    std::cerr << "  4. For mTLS, ensure require_certificate=true in mosquitto_test.conf\n";
+    std::cerr
+        << "  4. For mTLS, ensure require_certificate=true in mosquitto_test.conf\n";
     return 1;
   }
 
@@ -94,7 +95,8 @@ int main() {
     if (!data_result) {
       std::cerr << "FAILED to publish NDATA: " << data_result.error() << "\n";
     } else {
-      std::cout << "  Published NDATA #" << (i + 1) << " (seq: " << publisher.get_seq() << ")\n";
+      std::cout << "  Published NDATA #" << (i + 1) << " (seq: " << publisher.get_seq()
+                << ")\n";
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(500));

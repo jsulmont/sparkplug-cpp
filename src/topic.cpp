@@ -65,8 +65,8 @@ std::string Topic::to_string() const {
     return std::format("{}/STATE/{}", NAMESPACE, edge_node_id);
   }
 
-  auto base = std::format("{}/{}/{}/{}", NAMESPACE, group_id, message_type_to_string(message_type),
-                          edge_node_id);
+  auto base = std::format("{}/{}/{}/{}", NAMESPACE, group_id,
+                          message_type_to_string(message_type), edge_node_id);
 
   if (!device_id.empty()) {
     return std::format("{}/{}", base, device_id);
@@ -76,10 +76,10 @@ std::string Topic::to_string() const {
 
 stdx::expected<Topic, std::string> Topic::parse(std::string_view topic_str) {
   // Parse without allocating vector - use iterators directly
-  auto parts =
-      topic_str | std::views::split('/') | std::views::transform([](auto&& rng) {
-        return std::string_view(rng.begin(), std::ranges::distance(rng.begin(), rng.end()));
-      });
+  auto parts = topic_str | std::views::split('/') | std::views::transform([](auto&& rng) {
+                 return std::string_view(rng.begin(),
+                                         std::ranges::distance(rng.begin(), rng.end()));
+               });
 
   auto it = parts.begin();
   auto end = parts.end();

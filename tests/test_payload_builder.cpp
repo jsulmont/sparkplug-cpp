@@ -22,7 +22,7 @@ void test_int_types() {
   auto pb = payload.payload();
   assert(pb.metrics_size() == 8);
 
-  std::cout << "✓ Integer types (int8/16/32/64, uint8/16/32/64)\n";
+  std::cout << "[OK] Integer types (int8/16/32/64, uint8/16/32/64)\n";
 }
 
 void test_float_types() {
@@ -40,7 +40,7 @@ void test_float_types() {
   assert(std::abs(pb.metrics(0).float_value() - 3.14159f) < 0.0001f);
   assert(std::abs(pb.metrics(1).double_value() - 2.718281828459045) < 0.000001);
 
-  std::cout << "✓ Floating-point types (float, double)\n";
+  std::cout << "[OK] Floating-point types (float, double)\n";
 }
 
 void test_bool_type() {
@@ -54,7 +54,7 @@ void test_bool_type() {
   assert(pb.metrics(0).boolean_value() == true);
   assert(pb.metrics(1).boolean_value() == false);
 
-  std::cout << "✓ Boolean type\n";
+  std::cout << "[OK] Boolean type\n";
 }
 
 void test_string_type() {
@@ -70,7 +70,7 @@ void test_string_type() {
   assert(pb.metrics(1).string_value() == "C++ String");
   assert(pb.metrics(2).string_value().empty());
 
-  std::cout << "✓ String types (literal, std::string, empty)\n";
+  std::cout << "[OK] String types (literal, std::string, empty)\n";
 }
 
 void test_metric_with_alias() {
@@ -96,7 +96,7 @@ void test_metric_with_alias() {
   assert(pb.metrics(2).alias() == 3);
   assert(pb.metrics(2).name() == "Humidity");
 
-  std::cout << "✓ Metrics with aliases (name + alias)\n";
+  std::cout << "[OK] Metrics with aliases (name + alias)\n";
 }
 
 void test_metric_by_alias_only() {
@@ -122,7 +122,7 @@ void test_metric_by_alias_only() {
   assert(pb.metrics(2).has_alias());
   assert(pb.metrics(2).alias() == 3);
 
-  std::cout << "✓ Metrics by alias only (NDATA pattern)\n";
+  std::cout << "[OK] Metrics by alias only (NDATA pattern)\n";
 }
 
 void test_custom_timestamp() {
@@ -135,7 +135,7 @@ void test_custom_timestamp() {
   assert(pb.metrics_size() == 1);
   assert(pb.metrics(0).timestamp() == custom_ts);
 
-  std::cout << "✓ Custom metric timestamp\n";
+  std::cout << "[OK] Custom metric timestamp\n";
 }
 
 void test_auto_timestamp() {
@@ -158,7 +158,7 @@ void test_auto_timestamp() {
   assert(ts >= static_cast<uint64_t>(before));
   assert(ts <= static_cast<uint64_t>(after));
 
-  std::cout << "✓ Auto-generated timestamp\n";
+  std::cout << "[OK] Auto-generated timestamp\n";
 }
 
 void test_payload_timestamp() {
@@ -172,7 +172,7 @@ void test_payload_timestamp() {
   assert(pb.has_timestamp());
   assert(pb.timestamp() == custom_ts);
 
-  std::cout << "✓ Payload-level timestamp\n";
+  std::cout << "[OK] Payload-level timestamp\n";
 }
 
 void test_payload_sequence() {
@@ -185,7 +185,7 @@ void test_payload_sequence() {
   assert(pb.has_seq());
   assert(pb.seq() == 123);
 
-  std::cout << "✓ Payload sequence number\n";
+  std::cout << "[OK] Payload sequence number\n";
 }
 
 void test_empty_payload() {
@@ -194,7 +194,7 @@ void test_empty_payload() {
   [[maybe_unused]] const auto& pb = payload.payload();
   assert(pb.metrics_size() == 0);
 
-  std::cout << "✓ Empty payload\n";
+  std::cout << "[OK] Empty payload\n";
 }
 
 void test_multiple_metrics() {
@@ -208,21 +208,24 @@ void test_multiple_metrics() {
   auto pb = payload.payload();
   assert(pb.metrics_size() == 4);
 
-  std::cout << "✓ Multiple metrics of different types\n";
+  std::cout << "[OK] Multiple metrics of different types\n";
 }
 
 void test_method_chaining() {
   sparkplug::PayloadBuilder payload;
 
-  payload.add_metric("m1", 1).add_metric("m2", 2).add_metric("m3", 3).set_timestamp(123456).set_seq(
-      42);
+  payload.add_metric("m1", 1)
+      .add_metric("m2", 2)
+      .add_metric("m3", 3)
+      .set_timestamp(123456)
+      .set_seq(42);
 
   auto pb = payload.payload();
   assert(pb.metrics_size() == 3);
   assert(pb.timestamp() == 123456);
   assert(pb.seq() == 42);
 
-  std::cout << "✓ Method chaining (fluent API)\n";
+  std::cout << "[OK] Method chaining (fluent API)\n";
 }
 
 void test_node_control_metrics() {
@@ -253,7 +256,7 @@ void test_node_control_metrics() {
   assert(has_next_server);
   assert(has_scan_rate);
 
-  std::cout << "✓ Node Control metrics\n";
+  std::cout << "[OK] Node Control metrics\n";
 }
 
 void test_serialize() {
@@ -264,7 +267,7 @@ void test_serialize() {
   auto data = payload.build();
   assert(!data.empty());
 
-  std::cout << "✓ Payload serialization\n";
+  std::cout << "[OK] Payload serialization\n";
 }
 
 int main() {

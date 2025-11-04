@@ -19,7 +19,7 @@ void test_invalid_broker_url() {
   assert(!result.has_value()); // Should fail
   assert(!result.error().empty());
 
-  std::cout << "✓ Invalid broker URL fails gracefully\n";
+  std::cout << "[OK] Invalid broker URL fails gracefully\n";
 }
 
 void test_publish_before_connect() {
@@ -37,7 +37,7 @@ void test_publish_before_connect() {
   auto result = pub.publish_birth(payload);
   assert(!result.has_value()); // Should fail
 
-  std::cout << "✓ Publish before connect fails gracefully\n";
+  std::cout << "[OK] Publish before connect fails gracefully\n";
 }
 
 void test_publish_data_before_birth() {
@@ -50,7 +50,7 @@ void test_publish_data_before_birth() {
 
   auto conn_result = pub.connect();
   if (!conn_result) {
-    std::cout << "⊘ Skipping (no MQTT broker): publish_data before NBIRTH\n";
+    std::cout << "[SKIP] Skipping (no MQTT broker): publish_data before NBIRTH\n";
     return;
   }
 
@@ -63,7 +63,7 @@ void test_publish_data_before_birth() {
   assert(result.has_value()); // Should succeed (but violates protocol)
 
   (void)pub.disconnect();
-  std::cout << "✓ NDATA before NBIRTH succeeds (protocol violation allowed)\n";
+  std::cout << "[OK] NDATA before NBIRTH succeeds (protocol violation allowed)\n";
 }
 
 void test_double_connect() {
@@ -76,7 +76,7 @@ void test_double_connect() {
 
   auto result1 = pub.connect();
   if (!result1) {
-    std::cout << "⊘ Skipping (no MQTT broker): double connect\n";
+    std::cout << "[SKIP] Skipping (no MQTT broker): double connect\n";
     return;
   }
 
@@ -86,7 +86,7 @@ void test_double_connect() {
   // This test just verifies it doesn't crash
 
   (void)pub.disconnect();
-  std::cout << "✓ Double connect handled (implementation allows it)\n";
+  std::cout << "[OK] Double connect handled (implementation allows it)\n";
 }
 
 void test_disconnect_not_connected() {
@@ -101,7 +101,7 @@ void test_disconnect_not_connected() {
   auto result = pub.disconnect();
   assert(!result.has_value()); // Should fail
 
-  std::cout << "✓ Disconnect without connect fails gracefully\n";
+  std::cout << "[OK] Disconnect without connect fails gracefully\n";
 }
 
 void test_invalid_topic_parse() {
@@ -117,7 +117,7 @@ void test_invalid_topic_parse() {
   auto result4 = sparkplug::Topic::parse("spBv1.0/Group/INVALID_TYPE/Node");
   assert(!result4.has_value());
 
-  std::cout << "✓ Invalid topic strings fail to parse\n";
+  std::cout << "[OK] Invalid topic strings fail to parse\n";
 }
 
 void test_move_semantics() {
@@ -134,7 +134,7 @@ void test_move_semantics() {
   // pub1 is now in moved-from state
   // Attempting to use it should fail safely (though behavior is undefined)
 
-  std::cout << "✓ Move constructor works\n";
+  std::cout << "[OK] Move constructor works\n";
 }
 
 void test_subscriber_invalid_broker() {
@@ -150,7 +150,7 @@ void test_subscriber_invalid_broker() {
   auto result = sub.connect();
   assert(!result.has_value()); // Should fail
 
-  std::cout << "✓ Subscriber invalid broker fails gracefully\n";
+  std::cout << "[OK] Subscriber invalid broker fails gracefully\n";
 }
 
 void test_subscriber_subscribe_before_connect() {
@@ -167,13 +167,15 @@ void test_subscriber_subscribe_before_connect() {
   auto result = sub.subscribe_all_groups();
   assert(!result.has_value()); // Should fail
 
-  std::cout << "✓ Subscribe before connect fails gracefully\n";
+  std::cout << "[OK] Subscribe before connect fails gracefully\n";
 }
 
 void test_empty_config_fields() {
   // Empty broker URL should fail
-  sparkplug::EdgeNode::Config config1{
-      .broker_url = "", .client_id = "test", .group_id = "Test", .edge_node_id = "NodeErr07"};
+  sparkplug::EdgeNode::Config config1{.broker_url = "",
+                                      .client_id = "test",
+                                      .group_id = "Test",
+                                      .edge_node_id = "NodeErr07"};
 
   sparkplug::EdgeNode pub1(std::move(config1));
   auto result1 = pub1.connect();
@@ -181,7 +183,7 @@ void test_empty_config_fields() {
 
   // Empty client ID is allowed by the library (MQTT will auto-generate one)
   // This test just verifies it doesn't crash
-  std::cout << "✓ Empty broker URL fails, empty client_id allowed\n";
+  std::cout << "[OK] Empty broker URL fails, empty client_id allowed\n";
 }
 
 void test_sequence_overflow() {
@@ -194,7 +196,7 @@ void test_sequence_overflow() {
 
   auto conn = pub.connect();
   if (!conn) {
-    std::cout << "⊘ Skipping (no MQTT broker): sequence overflow\n";
+    std::cout << "[SKIP] Skipping (no MQTT broker): sequence overflow\n";
     return;
   }
 
@@ -215,7 +217,7 @@ void test_sequence_overflow() {
   assert(seq < 256); // Should be within 0-255 range
 
   (void)pub.disconnect();
-  std::cout << "✓ Sequence overflow wraps correctly\n";
+  std::cout << "[OK] Sequence overflow wraps correctly\n";
 }
 
 int main() {

@@ -14,7 +14,9 @@ void signal_handler(int signum) {
   running = 0;
 }
 
-void on_message(const char* topic, const uint8_t* payload_data, size_t payload_len,
+void on_message(const char* topic,
+                const uint8_t* payload_data,
+                size_t payload_len,
                 void* user_data) {
   (void)user_data;
   (void)payload_data;

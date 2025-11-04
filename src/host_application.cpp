@@ -108,14 +108,16 @@ stdx::expected<void, std::string> HostApplication::connect() {
   std::lock_guard<std::mutex> lock(mutex_);
 
   MQTTAsync raw_client = nullptr;
-  int rc = MQTTAsync_create(&raw_client, config_.broker_url.c_str(), config_.client_id.c_str(),
-                            MQTTCLIENT_PERSISTENCE_NONE, nullptr);
+  int rc =
+      MQTTAsync_create(&raw_client, config_.broker_url.c_str(), config_.client_id.c_str(),
+                       MQTTCLIENT_PERSISTENCE_NONE, nullptr);
   if (rc != MQTTASYNC_SUCCESS) {
     return stdx::unexpected(std::format("Failed to create client: {}", rc));
   }
   client_ = MQTTAsyncHandle(raw_client);
 
-  rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost, on_message_arrived, nullptr);
+  rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost, on_message_arrived,
+                              nullptr);
   if (rc != MQTTASYNC_SUCCESS) {
     return stdx::unexpected(std::format("Failed to set callbacks: {}", rc));
   }
@@ -200,7 +202,8 @@ stdx::expected<void, std::string> HostApplication::disconnect() {
     return stdx::unexpected(std::format("Failed to disconnect: {}", rc));
   }
 
-  auto status = disconnect_future.wait_for(std::chrono::milliseconds(DISCONNECT_TIMEOUT_MS));
+  auto status =
+      disconnect_future.wait_for(std::chrono::milliseconds(DISCONNECT_TIMEOUT_MS));
   if (status == std::future_status::timeout) {
     is_connected_ = false;
     return {};
@@ -215,14 +218,16 @@ stdx::expected<void, std::string> HostApplication::disconnect() {
   return {};
 }
 
-stdx::expected<void, std::string> HostApplication::publish_state_birth(uint64_t timestamp) {
+stdx::expected<void, std::string>
+HostApplication::publish_state_birth(uint64_t timestamp) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!is_connected_) {
     return stdx::unexpected("Not connected");
   }
 
-  std::string json_payload = std::format("{{\"online\":true,\"timestamp\":{}}}", timestamp);
+  std::string json_payload =
+      std::format("{{\"online\":true,\"timestamp\":{}}}", timestamp);
 
   std::string topic = std::format("{}/STATE/{}", NAMESPACE, config_.host_id);
 
@@ -231,14 +236,16 @@ stdx::expected<void, std::string> HostApplication::publish_state_birth(uint64_t 
   return publish_raw_message(topic, payload_data, config_.qos, true);
 }
 
-stdx::expected<void, std::string> HostApplication::publish_state_death(uint64_t timestamp) {
+stdx::expected<void, std::string>
+HostApplication::publish_state_death(uint64_t timestamp) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!is_connected_) {
     return stdx::unexpected("Not connected");
   }
 
-  std::string json_payload = std::format("{{\"online\":false,\"timestamp\":{}}}", timestamp);
+  std::string json_payload =
+      std::format("{{\"online\":false,\"timestamp\":{}}}", timestamp);
 
   std::string topic = std::format("{}/STATE/{}", NAMESPACE, config_.host_id);
 
@@ -247,8 +254,10 @@ stdx::expected<void, std::string> HostApplication::publish_state_death(uint64_t 
   return publish_raw_message(topic, payload_data, config_.qos, true);
 }
 
-stdx::expected<void, std::string> HostApplication::publish_node_command(
-    std::string_view group_id, std::string_view target_edge_node_id, PayloadBuilder& payload) {
+stdx::expected<void, std::string>
+HostApplication::publish_node_command(std::string_view group_id,
+                                      std::string_view target_edge_node_id,
+                                      PayloadBuilder& payload) {
   std::string topic_str;
   std::vector<uint8_t> payload_data;
   {
@@ -270,9 +279,11 @@ stdx::expected<void, std::string> HostApplication::publish_node_command(
   return publish_command_message(topic_str, payload_data);
 }
 
-stdx::expected<void, std::string> HostApplication::publish_device_command(
-    std::string_view group_id, std::string_view target_edge_node_id,
-    std::string_view target_device_id, PayloadBuilder& payload) {
+stdx::expected<void, std::string>
+HostApplication::publish_device_command(std::string_view group_id,
+                                        std::string_view target_edge_node_id,
+                                        std::string_view target_device_id,
+                                        PayloadBuilder& payload) {
   std::string topic_str;
   std::vector<uint8_t> payload_data;
   {
@@ -295,8 +306,10 @@ stdx::expected<void, std::string> HostApplication::publish_device_command(
 }
 
 stdx::expected<void, std::string>
-HostApplication::publish_raw_message(std::string_view topic, std::span<const uint8_t> payload_data,
-                                     int qos, bool retain) {
+HostApplication::publish_raw_message(std::string_view topic,
+                                     std::span<const uint8_t> payload_data,
+                                     int qos,
+                                     bool retain) {
   if (!client_ || !is_connected_) {
     return stdx::unexpected("Not connected");
   }
@@ -359,7 +372,8 @@ stdx::expected<void, std::string> HostApplication::subscribe_all_groups() {
   return {};
 }
 
-stdx::expected<void, std::string> HostApplication::subscribe_group(std::string_view group_id) {
+stdx::expected<void, std::string>
+HostApplication::subscribe_group(std::string_view group_id) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!client_) {
@@ -378,8 +392,9 @@ stdx::expected<void, std::string> HostApplication::subscribe_group(std::string_v
   return {};
 }
 
-stdx::expected<void, std::string> HostApplication::subscribe_node(std::string_view group_id,
-                                                                  std::string_view edge_node_id) {
+stdx::expected<void, std::string>
+HostApplication::subscribe_node(std::string_view group_id,
+                                std::string_view edge_node_id) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!client_) {
@@ -398,7 +413,8 @@ stdx::expected<void, std::string> HostApplication::subscribe_node(std::string_vi
   return {};
 }
 
-stdx::expected<void, std::string> HostApplication::subscribe_state(std::string_view host_id) {
+stdx::expected<void, std::string>
+HostApplication::subscribe_state(std::string_view host_id) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!client_) {
@@ -418,7 +434,8 @@ stdx::expected<void, std::string> HostApplication::subscribe_state(std::string_v
 }
 
 std::optional<std::reference_wrapper<const HostApplication::NodeState>>
-HostApplication::get_node_state(std::string_view group_id, std::string_view edge_node_id) const {
+HostApplication::get_node_state(std::string_view group_id,
+                                std::string_view edge_node_id) const {
   std::lock_guard<std::mutex> lock(mutex_);
 
   auto it = node_states_.find(std::make_pair(group_id, edge_node_id));
@@ -428,10 +445,11 @@ HostApplication::get_node_state(std::string_view group_id, std::string_view edge
   return std::nullopt;
 }
 
-std::optional<std::string_view> HostApplication::get_metric_name(std::string_view group_id,
-                                                                 std::string_view edge_node_id,
-                                                                 std::string_view device_id,
-                                                                 uint64_t alias) const {
+std::optional<std::string_view>
+HostApplication::get_metric_name(std::string_view group_id,
+                                 std::string_view edge_node_id,
+                                 std::string_view device_id,
+                                 uint64_t alias) const {
   std::lock_guard<std::mutex> lock(mutex_);
 
   auto it = node_states_.find(std::make_pair(group_id, edge_node_id));
@@ -468,8 +486,9 @@ void HostApplication::log(LogLevel level, std::string_view message) const noexce
   }
 }
 
-bool HostApplication::validate_message(const Topic& topic,
-                                       const org::eclipse::tahu::protobuf::Payload& payload) {
+bool HostApplication::validate_message(
+    const Topic& topic,
+    const org::eclipse::tahu::protobuf::Payload& payload) {
   if (!config_.validate_sequence) {
     return true;
   }
@@ -481,8 +500,8 @@ bool HostApplication::validate_message(const Topic& topic,
   switch (topic.message_type) {
   case MessageType::NBIRTH: {
     if (payload.has_seq() && payload.seq() != 0) {
-      log(LogLevel::WARN,
-          std::format("NBIRTH for {} has invalid seq: {} (expected 0)", node_id, payload.seq()));
+      log(LogLevel::WARN, std::format("NBIRTH for {} has invalid seq: {} (expected 0)",
+                                      node_id, payload.seq()));
       return false;
     }
 
@@ -497,7 +516,8 @@ bool HostApplication::validate_message(const Topic& topic,
     }
 
     if (!has_bdseq) {
-      log(LogLevel::WARN, std::format("NBIRTH for {} missing required bdSeq metric", node_id));
+      log(LogLevel::WARN,
+          std::format("NBIRTH for {} missing required bdSeq metric", node_id));
       return false;
     }
 
@@ -527,8 +547,9 @@ bool HostApplication::validate_message(const Topic& topic,
     }
 
     if (state.birth_received && bd_seq != state.bd_seq) {
-      log(LogLevel::WARN, std::format("NDEATH bdSeq mismatch for {} (NDEATH: {}, NBIRTH: {})",
-                                      node_id, bd_seq, state.bd_seq));
+      log(LogLevel::WARN,
+          std::format("NDEATH bdSeq mismatch for {} (NDEATH: {}, NBIRTH: {})", node_id,
+                      bd_seq, state.bd_seq));
     }
 
     state.is_online = false;
@@ -546,8 +567,9 @@ bool HostApplication::validate_message(const Topic& topic,
       uint64_t expected_seq = (state.last_seq + 1) % SEQ_NUMBER_MAX;
 
       if (seq != expected_seq) {
-        log(LogLevel::WARN, std::format("Sequence number gap for {} (got {}, expected {})", node_id,
-                                        seq, expected_seq));
+        log(LogLevel::WARN,
+            std::format("Sequence number gap for {} (got {}, expected {})", node_id, seq,
+                        expected_seq));
       }
 
       state.last_seq = seq;
@@ -569,8 +591,9 @@ bool HostApplication::validate_message(const Topic& topic,
 
       if (seq != expected_seq) {
         log(LogLevel::WARN,
-            std::format("Sequence number gap for DBIRTH device '{}' on {} (got {}, expected {})",
-                        topic.device_id, node_id, seq, expected_seq));
+            std::format(
+                "Sequence number gap for DBIRTH device '{}' on {} (got {}, expected {})",
+                topic.device_id, node_id, seq, expected_seq));
       }
 
       state.last_seq = seq;
@@ -594,15 +617,17 @@ bool HostApplication::validate_message(const Topic& topic,
 
   case MessageType::DDATA: {
     if (!state.birth_received) {
-      log(LogLevel::WARN, std::format("Received DDATA for device '{}' on {} before node NBIRTH",
-                                      topic.device_id, node_id));
+      log(LogLevel::WARN,
+          std::format("Received DDATA for device '{}' on {} before node NBIRTH",
+                      topic.device_id, node_id));
       return false;
     }
 
     auto device_it = state.devices.find(topic.device_id);
     if (device_it == state.devices.end() || !device_it->second.birth_received) {
-      log(LogLevel::WARN, std::format("Received DDATA for device '{}' on {} before DBIRTH",
-                                      topic.device_id, node_id));
+      log(LogLevel::WARN,
+          std::format("Received DDATA for device '{}' on {} before DBIRTH",
+                      topic.device_id, node_id));
       return false;
     }
 
@@ -630,11 +655,11 @@ bool HostApplication::validate_message(const Topic& topic,
         device_it->second.offline_timestamp = payload.timestamp();
       }
       device_it->second.metrics_stale = true;
-      log(LogLevel::DEBUG,
-          std::format("Device {} offline, metrics stale on {}", topic.device_id, node_id));
+      log(LogLevel::DEBUG, std::format("Device {} offline, metrics stale on {}",
+                                       topic.device_id, node_id));
     } else {
-      log(LogLevel::WARN,
-          std::format("Received DDEATH for unknown device {} on {}", topic.device_id, node_id));
+      log(LogLevel::WARN, std::format("Received DDEATH for unknown device {} on {}",
+                                      topic.device_id, node_id));
     }
     return true;
   }
@@ -647,7 +672,9 @@ bool HostApplication::validate_message(const Topic& topic,
   std::unreachable();
 }
 
-int HostApplication::on_message_arrived(void* context, char* topicName, int topicLen,
+int HostApplication::on_message_arrived(void* context,
+                                        char* topicName,
+                                        int topicLen,
                                         MQTTAsync_message* message) {
   auto* host_app = static_cast<HostApplication*>(context);
 
@@ -687,7 +714,8 @@ int HostApplication::on_message_arrived(void* context, char* topicName, int topi
   auto topic_result = Topic::parse(topic_str);
 
   if (!topic_result) {
-    host_app->log(LogLevel::DEBUG, std::format("Ignoring non-Sparkplug topic: {}", topic_str));
+    host_app->log(LogLevel::DEBUG,
+                  std::format("Ignoring non-Sparkplug topic: {}", topic_str));
     MQTTAsync_freeMessage(&message);
     MQTTAsync_free(topicName);
     return 1;
