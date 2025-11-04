@@ -60,6 +60,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Fetch tl::expected for C++23 std::expected backport on older compilers
 include(FetchContent)
+set(EXPECTED_BUILD_TESTS OFF CACHE BOOL "Build tl::expected tests" FORCE)
 FetchContent_Declare(
     tl-expected
     GIT_REPOSITORY https://github.com/TartanLlama/expected.git

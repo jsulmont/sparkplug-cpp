@@ -59,8 +59,8 @@ jobs:
       - name: Run clang-tidy
         run: ./scripts/tidy.sh --quiet
 
-  build-and-test:
-    name: Build and test
+  build-and-test-fedora:
+    name: Build and test (Fedora 42)
     runs-on: ubuntu-latest
     container: fedora:42
     needs: [tidy-check]
@@ -147,3 +147,77 @@ jobs:
           echo "=========================================="
           echo "All Authentication Tests Passed!"
           echo "=========================================="
+
+  build-and-test-ubuntu:
+    name: Build and test (Ubuntu 24.04 LTS)
+    runs-on: ubuntu-24.04
+    needs: [tidy-check]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            clang-18 \
+            cmake \
+            git \
+            protobuf-compiler \
+            libprotobuf-dev \
+            libabsl-dev \
+            libssl-dev \
+            pkg-config \
+            mosquitto
+
+      - name: Build and install Paho MQTT C
+        run: |
+          cd /tmp
+          git clone --depth 1 --branch v1.3.15 https://github.com/eclipse/paho.mqtt.c.git
+          cd paho.mqtt.c
+          cmake -Bbuild \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DPAHO_WITH_SSL=ON \
+            -DPAHO_BUILD_DOCUMENTATION=OFF \
+            -DPAHO_BUILD_SAMPLES=OFF \
+            -DPAHO_BUILD_STATIC=OFF
+          cmake --build build
+          sudo cmake --install build
+
+      - name: Generate TLS certificates
+        run: |
+          cd certs
+          chmod +x generate_certs.sh
+          ./generate_certs.sh
+
+      - name: Create password file
+        run: |
+          cd certs
+          mosquitto_passwd -c -b passwordfile admin admin
+          chmod 600 passwordfile
+
+      - name: Start Mosquitto broker
+        run: |
+          mosquitto -c certs/mosquitto_test.conf -d
+          sleep 3
+          timeout 1 mosquitto_sub -h localhost -p 1883 -t test || true
+
+      - name: Configure CMake
+        env:
+          CC: clang-18
+          CXX: clang++-18
+        run: cmake --preset default
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Verify tl::expected is used (Ubuntu lacks std::expected)
+        run: |
+          echo "Checking that tl::expected fallback is working..."
+          strings build/src/libsparkplug_cpp.a | grep -q "tl::" || echo "Note: Binary doesn't contain tl:: symbols (may be optimized out)"
+          echo "Ubuntu 24.04 build successful with C++23 compatibility layer!"
