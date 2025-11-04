@@ -121,9 +121,11 @@ public:
    * @brief Tracks the state of a device attached to an edge node.
    */
   struct DeviceState {
-    bool is_online{false};      ///< True if DBIRTH received and device is online
-    uint64_t last_seq{255};     ///< Last received device sequence number
-    bool birth_received{false}; ///< True if DBIRTH has been received
+    bool is_online{false};         ///< True if DBIRTH received and device is online
+    uint64_t last_seq{255};        ///< Last received device sequence number
+    bool birth_received{false};    ///< True if DBIRTH has been received
+    uint64_t offline_timestamp{0}; ///< Timestamp when device went offline (from DDEATH)
+    bool metrics_stale{false};     ///< True if metrics marked stale after DDEATH
     std::unordered_map<uint64_t, std::string>
         alias_map; ///< Maps metric alias to name (from DBIRTH)
   };

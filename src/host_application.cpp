@@ -579,6 +579,8 @@ bool HostApplication::validate_message(const Topic& topic,
     auto& device_state = state.devices[topic.device_id];
     device_state.is_online = true;
     device_state.birth_received = true;
+    device_state.metrics_stale = false;
+    device_state.offline_timestamp = 0;
 
     device_state.alias_map.clear();
     for (const auto& metric : payload.metrics()) {
@@ -624,6 +626,15 @@ bool HostApplication::validate_message(const Topic& topic,
     auto device_it = state.devices.find(topic.device_id);
     if (device_it != state.devices.end()) {
       device_it->second.is_online = false;
+      if (payload.has_timestamp()) {
+        device_it->second.offline_timestamp = payload.timestamp();
+      }
+      device_it->second.metrics_stale = true;
+      log(LogLevel::DEBUG,
+          std::format("Device {} offline, metrics stale on {}", topic.device_id, node_id));
+    } else {
+      log(LogLevel::WARN,
+          std::format("Received DDEATH for unknown device {} on {}", topic.device_id, node_id));
     }
     return true;
   }
