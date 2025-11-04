@@ -95,3 +95,4 @@ if(DOXYGEN_FOUND)
 else()
     message(STATUS "Doxygen not found - 'docs' target not available")
 endif()
+

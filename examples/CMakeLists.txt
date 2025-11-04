@@ -70,3 +70,9 @@ target_link_libraries(minimal_host_c PRIVATE sparkplug_c)
 
 add_executable(test_auth_combined_c test_auth_combined_c.c)
 target_link_libraries(test_auth_combined_c PRIVATE sparkplug_c)
+
+# TCK (Test Compatibility Kit) Host Application
+add_executable(tck_host_application
+  tck_host_application.cpp
+  tck_host_application_main.cpp)
+target_link_libraries(tck_host_application PRIVATE sparkplug_cpp)
