@@ -1,12 +1,12 @@
 // include/sparkplug/edge_node.hpp
 #pragma once
 
+#include "detail/compat.hpp"
 #include "mqtt_handle.hpp"
 #include "payload_builder.hpp"
 #include "sparkplug_b.pb.h"
 #include "topic.hpp"
 
-#include <expected>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -176,7 +176,7 @@ public:
    * @warning The EdgeNode must remain in scope while connected, or NDEATH
    *          may not be delivered properly.
    */
-  [[nodiscard]] std::expected<void, std::string> connect();
+  [[nodiscard]] stdx::expected<void, std::string> connect();
 
   /**
    * @brief Gracefully disconnects from the MQTT broker.
@@ -187,7 +187,7 @@ public:
    *
    * @note After disconnect, you can call connect() again to reconnect.
    */
-  [[nodiscard]] std::expected<void, std::string> disconnect();
+  [[nodiscard]] stdx::expected<void, std::string> disconnect();
 
   /**
    * @brief Publishes an NBIRTH (Node Birth) message.
@@ -209,7 +209,7 @@ public:
    * @see publish_data() for subsequent updates
    * @see rebirth() for publishing a new NBIRTH during runtime
    */
-  [[nodiscard]] std::expected<void, std::string> publish_birth(PayloadBuilder& payload);
+  [[nodiscard]] stdx::expected<void, std::string> publish_birth(PayloadBuilder& payload);
 
   /**
    * @brief Publishes an NDATA (Node Data) message.
@@ -229,7 +229,7 @@ public:
    *
    * @see publish_birth() for establishing aliases
    */
-  [[nodiscard]] std::expected<void, std::string> publish_data(PayloadBuilder& payload);
+  [[nodiscard]] stdx::expected<void, std::string> publish_data(PayloadBuilder& payload);
 
   /**
    * @brief Publishes an NDEATH (Node Death) message.
@@ -241,7 +241,7 @@ public:
    *
    * @note Prefer using disconnect() which handles NDEATH automatically.
    */
-  [[nodiscard]] std::expected<void, std::string> publish_death();
+  [[nodiscard]] stdx::expected<void, std::string> publish_death();
 
   /**
    * @brief Triggers a rebirth by publishing a new NBIRTH with incremented bdSeq.
@@ -258,7 +258,7 @@ public:
    *
    * @warning The new NBIRTH should contain ALL metrics (old + new), not just additions.
    */
-  [[nodiscard]] std::expected<void, std::string> rebirth();
+  [[nodiscard]] stdx::expected<void, std::string> rebirth();
 
   /**
    * @brief Gets the current message sequence number.
@@ -302,8 +302,8 @@ public:
    * @see publish_device_data() for subsequent device updates
    * @see publish_device_death() for device disconnection
    */
-  [[nodiscard]] std::expected<void, std::string> publish_device_birth(std::string_view device_id,
-                                                                      PayloadBuilder& payload);
+  [[nodiscard]] stdx::expected<void, std::string> publish_device_birth(std::string_view device_id,
+                                                                       PayloadBuilder& payload);
 
   /**
    * @brief Publishes a DDATA (Device Data) message.
@@ -321,8 +321,8 @@ public:
    *
    * @see publish_device_birth() for establishing aliases
    */
-  [[nodiscard]] std::expected<void, std::string> publish_device_data(std::string_view device_id,
-                                                                     PayloadBuilder& payload);
+  [[nodiscard]] stdx::expected<void, std::string> publish_device_data(std::string_view device_id,
+                                                                      PayloadBuilder& payload);
 
   /**
    * @brief Publishes a DDEATH (Device Death) message.
@@ -335,7 +335,7 @@ public:
    *
    * @note After DDEATH, publish_device_birth() must be called again before DDATA.
    */
-  [[nodiscard]] std::expected<void, std::string> publish_device_death(std::string_view device_id);
+  [[nodiscard]] stdx::expected<void, std::string> publish_device_death(std::string_view device_id);
 
   /**
    * @brief Publishes an NCMD (Node Command) message to another edge node.
@@ -361,7 +361,7 @@ public:
    * edge_node.publish_node_command("Gateway01", cmd);
    * @endcode
    */
-  [[nodiscard]] std::expected<void, std::string>
+  [[nodiscard]] stdx::expected<void, std::string>
   publish_node_command(std::string_view target_edge_node_id, PayloadBuilder& payload);
 
   /**
@@ -382,7 +382,7 @@ public:
    * edge_node.publish_device_command("Gateway01", "Motor01", cmd);
    * @endcode
    */
-  [[nodiscard]] std::expected<void, std::string>
+  [[nodiscard]] stdx::expected<void, std::string>
   publish_device_command(std::string_view target_edge_node_id, std::string_view target_device_id,
                          PayloadBuilder& payload);
 
@@ -432,7 +432,7 @@ private:
   // Mutex for thread-safe access to all mutable state
   mutable std::mutex mutex_;
 
-  [[nodiscard]] static std::expected<void, std::string>
+  [[nodiscard]] static stdx::expected<void, std::string>
   publish_message(MQTTAsync client, const std::string& topic_str,
                   std::span<const uint8_t> payload_data, int qos, bool retain);
 

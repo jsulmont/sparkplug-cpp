@@ -105,11 +105,42 @@ cmake --preset default
 cmake --build build -j$(nproc)
 ```
 
-**Linux (Ubuntu/Debian):**
+**Linux (Ubuntu 24.04 LTS):**
 
-**Not currently supported** - Ubuntu 24.04's standard library lacks required C++-23 features (`std::expected`). Use Fedora 40+ or Arch Linux instead.
+```bash
+# Install dependencies
+sudo apt-get update
+sudo apt-get install -y build-essential clang-18 cmake git \
+    protobuf-compiler libprotobuf-dev libabsl-dev libssl-dev pkg-config
 
-**Note:** This project requires full C++-23 support including `std::expected` and `std::ranges::to`. Fedora 40+ ships GCC 14 with complete implementations. Arch Linux also works but is less stable for production.
+# Build and install Paho MQTT C (not packaged properly in Ubuntu)
+cd /tmp
+git clone --depth 1 --branch v1.3.15 https://github.com/eclipse/paho.mqtt.c.git
+cd paho.mqtt.c
+cmake -Bbuild -DCMAKE_BUILD_TYPE=Release -DPAHO_WITH_SSL=ON
+cmake --build build
+sudo cmake --install build
+
+# Clone and build sparkplug_cpp
+git clone <repository-url>
+cd sparkplug_cpp
+CC=clang-18 CXX=clang++-18 cmake --preset default
+cmake --build build -j$(nproc)
+```
+
+**Linux (Fedora 40+):**
+
+Fedora ships GCC 14 with native C++-23 `std::expected` support:
+
+```bash
+sudo dnf install -y gcc-c++ clang cmake git protobuf-devel abseil-cpp-devel paho-c-devel openssl-devel
+git clone <repository-url>
+cd sparkplug_cpp
+cmake --preset default
+cmake --build build -j$(nproc)
+```
+
+**Note:** This project uses a C++-23 compatibility layer. On platforms with full C++-23 support (Fedora 40+, macOS with Homebrew Clang), it uses native `std::expected`. On older platforms (Ubuntu 24.04 LTS), it automatically falls back to `tl::expected` via CMake FetchContent.
 
 ### Basic EdgeNode Example
 

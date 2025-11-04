@@ -326,8 +326,8 @@ static void dummy_callback(const char* topic, const uint8_t* data, size_t len, v
 void test_subscriber_create_destroy(void) {
   TEST("host application create/destroy");
 
-  sparkplug_host_application_t* host = sparkplug_host_application_create(
-      "tcp://localhost:1883", "test_c_api_host", "TestHost");
+  sparkplug_host_application_t* host =
+      sparkplug_host_application_create("tcp://localhost:1883", "test_c_api_host", "TestHost");
   assert(host != NULL);
 
   sparkplug_host_application_set_message_callback(host, dummy_callback, NULL);
@@ -342,8 +342,8 @@ void test_subscriber_create_destroy(void) {
 void test_subscriber_connect(void) {
   TEST("host application connect/disconnect");
 
-  sparkplug_host_application_t* host = sparkplug_host_application_create(
-      "tcp://localhost:1883", "test_c_host_connect", "TestHost");
+  sparkplug_host_application_t* host =
+      sparkplug_host_application_create("tcp://localhost:1883", "test_c_host_connect", "TestHost");
   assert(host != NULL);
 
   sparkplug_host_application_set_message_callback(host, dummy_callback, NULL);
@@ -368,8 +368,8 @@ void test_subscriber_connect(void) {
 void test_subscriber_subscribe_all(void) {
   TEST("host application subscribe_all");
 
-  sparkplug_host_application_t* host = sparkplug_host_application_create(
-      "tcp://localhost:1883", "test_c_host_all", "TestHost");
+  sparkplug_host_application_t* host =
+      sparkplug_host_application_create("tcp://localhost:1883", "test_c_host_all", "TestHost");
   assert(host != NULL);
 
   sparkplug_host_application_set_message_callback(host, dummy_callback, NULL);
@@ -671,8 +671,8 @@ void test_subscriber_command_callback(void) {
                                                           "TestGroup", "HostNodeC12");
   assert(pub != NULL);
 
-  sparkplug_host_application_t* host = sparkplug_host_application_create(
-      "tcp://localhost:1883", "test_c_cmd_host", "TestHost");
+  sparkplug_host_application_t* host =
+      sparkplug_host_application_create("tcp://localhost:1883", "test_c_cmd_host", "TestHost");
   assert(host != NULL);
 
   sparkplug_host_application_set_message_callback(host, dummy_callback, NULL);

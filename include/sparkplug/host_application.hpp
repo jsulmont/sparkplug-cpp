@@ -1,12 +1,12 @@
 // include/sparkplug/host_application.hpp
 #pragma once
 
+#include "detail/compat.hpp"
 #include "mqtt_handle.hpp"
 #include "payload_builder.hpp"
 #include "sparkplug_b.pb.h"
 #include "topic.hpp"
 
-#include <expected>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -66,7 +66,7 @@ using MessageCallback =
  * @par Rust FFI Compatibility
  * - Implements Send: Can transfer between threads safely (all state mutex-protected)
  * - Implements Sync: Can access from multiple threads concurrently (mutex-guarded methods)
- *
+ill  *
  * @par Example Usage
  * @code
  * auto message_callback = [](const sparkplug::Topic& topic, const auto& payload) {
@@ -246,7 +246,7 @@ public:
    *
    * @see publish_state_birth() to declare Host Application online
    */
-  [[nodiscard]] std::expected<void, std::string> connect();
+  [[nodiscard]] stdx::expected<void, std::string> connect();
 
   /**
    * @brief Gracefully disconnects from the MQTT broker.
@@ -256,7 +256,7 @@ public:
    * @note You should call publish_state_death() before disconnect() to properly
    *       signal that the Host Application is going offline.
    */
-  [[nodiscard]] std::expected<void, std::string> disconnect();
+  [[nodiscard]] stdx::expected<void, std::string> disconnect();
 
   /**
    * @brief Subscribes to all Sparkplug B messages across all groups.
@@ -271,7 +271,7 @@ public:
    * @note Must call connect() first.
    * @note The message_callback will be invoked for every message received.
    */
-  [[nodiscard]] std::expected<void, std::string> subscribe_all_groups();
+  [[nodiscard]] stdx::expected<void, std::string> subscribe_all_groups();
 
   /**
    * @brief Subscribes to messages from a specific group.
@@ -284,7 +284,7 @@ public:
    *
    * @note Allows subscribing to multiple groups on a single MQTT connection.
    */
-  [[nodiscard]] std::expected<void, std::string> subscribe_group(std::string_view group_id);
+  [[nodiscard]] stdx::expected<void, std::string> subscribe_group(std::string_view group_id);
 
   /**
    * @brief Subscribes to messages from a specific edge node in a group.
@@ -298,8 +298,8 @@ public:
    *
    * @note More efficient than subscribe_all_groups() if you only need specific nodes.
    */
-  [[nodiscard]] std::expected<void, std::string> subscribe_node(std::string_view group_id,
-                                                                std::string_view edge_node_id);
+  [[nodiscard]] stdx::expected<void, std::string> subscribe_node(std::string_view group_id,
+                                                                 std::string_view edge_node_id);
 
   /**
    * @brief Subscribes to STATE messages from another primary application.
@@ -314,7 +314,7 @@ public:
    * @note STATE messages are outside the normal Sparkplug topic namespace.
    * @note Useful for High Availability (HA) setups with multiple host applications.
    */
-  [[nodiscard]] std::expected<void, std::string> subscribe_state(std::string_view host_id);
+  [[nodiscard]] stdx::expected<void, std::string> subscribe_state(std::string_view host_id);
 
   /**
    * @brief Gets the current state of a specific edge node.
@@ -375,7 +375,7 @@ public:
    *
    * @see publish_state_death() for declaring Host Application offline
    */
-  [[nodiscard]] std::expected<void, std::string> publish_state_birth(uint64_t timestamp);
+  [[nodiscard]] stdx::expected<void, std::string> publish_state_birth(uint64_t timestamp);
 
   /**
    * @brief Publishes a STATE death message to indicate Host Application is offline.
@@ -404,7 +404,7 @@ public:
    *
    * @see publish_state_birth() for declaring Host Application online
    */
-  [[nodiscard]] std::expected<void, std::string> publish_state_death(uint64_t timestamp);
+  [[nodiscard]] stdx::expected<void, std::string> publish_state_death(uint64_t timestamp);
 
   /**
    * @brief Publishes an NCMD (Node Command) message to an Edge Node.
@@ -431,7 +431,7 @@ public:
    * host_app.publish_node_command("Energy", "Gateway01", cmd);
    * @endcode
    */
-  [[nodiscard]] std::expected<void, std::string>
+  [[nodiscard]] stdx::expected<void, std::string>
   publish_node_command(std::string_view group_id, std::string_view target_edge_node_id,
                        PayloadBuilder& payload);
 
@@ -454,7 +454,7 @@ public:
    * host_app.publish_device_command("Energy", "Gateway01", "Motor01", cmd);
    * @endcode
    */
-  [[nodiscard]] std::expected<void, std::string>
+  [[nodiscard]] stdx::expected<void, std::string>
   publish_device_command(std::string_view group_id, std::string_view target_edge_node_id,
                          std::string_view target_device_id, PayloadBuilder& payload);
 
@@ -520,11 +520,11 @@ private:
   // Mutex for thread-safe access to all mutable state
   mutable std::mutex mutex_;
 
-  [[nodiscard]] std::expected<void, std::string>
+  [[nodiscard]] stdx::expected<void, std::string>
   publish_raw_message(std::string_view topic, std::span<const uint8_t> payload_data, int qos,
                       bool retain);
 
-  [[nodiscard]] std::expected<void, std::string>
+  [[nodiscard]] stdx::expected<void, std::string>
   publish_command_message(std::string_view topic, std::span<const uint8_t> payload_data);
 
   bool validate_message(const Topic& topic, const org::eclipse::tahu::protobuf::Payload& payload);

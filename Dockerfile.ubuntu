@@ -1,0 +1,78 @@
+# Dockerfile for building sparkplug-cpp on Ubuntu 24.04 LTS (Noble)
+# This tests compatibility with older compilers that lack std::expected
+FROM ubuntu:24.04
+
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    clang-18 \
+    libc++-18-dev \
+    libc++abi-18-dev \
+    protobuf-compiler \
+    libprotobuf-dev \
+    libabsl-dev \
+    libssl-dev \
+    openssl \
+    pkg-config \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build and install Eclipse Paho MQTT C library
+# Ubuntu 24.04 packages may be outdated, so build from source
+RUN cd /tmp && \
+    git clone --depth 1 --branch v1.3.15 https://github.com/eclipse/paho.mqtt.c.git && \
+    cd paho.mqtt.c && \
+    cmake -Bbuild \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DPAHO_WITH_SSL=ON \
+        -DPAHO_BUILD_DOCUMENTATION=OFF \
+        -DPAHO_BUILD_SAMPLES=OFF \
+        -DPAHO_BUILD_STATIC=OFF \
+        -DCMAKE_INSTALL_PREFIX=/usr/local && \
+    cmake --build build && \
+    cmake --install build && \
+    rm -rf /tmp/paho.mqtt.c
+
+# Install Mosquitto MQTT broker for testing
+RUN apt-get update && apt-get install -y mosquitto && rm -rf /var/lib/apt/lists/*
+
+# Set Clang-18 as default compiler
+ENV CC=clang-18
+ENV CXX=clang++-18
+
+# Create working directory
+WORKDIR /workspace
+
+# Copy source code
+COPY . .
+
+# Configure with CMake
+RUN cmake --preset default
+
+# Build the project
+RUN cmake --build build
+
+# Create entrypoint script to start Mosquitto and run tests
+RUN echo '#!/bin/bash\n\
+set -e\n\
+echo "Starting Mosquitto broker..."\n\
+mosquitto -d\n\
+sleep 2\n\
+echo "Mosquitto started"\n\
+exec "$@"\n\
+' > /entrypoint.sh && chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Default command: run tests
+CMD ["ctest", "--test-dir", "build", "--output-on-failure"]
+
+# Usage:
+# Build: docker build -f Dockerfile.ubuntu -t sparkplug-cpp-ubuntu24 .
+# Run:   docker run -it sparkplug-cpp-ubuntu24
+# Test:  docker run -it sparkplug-cpp-ubuntu24 ctest --test-dir build --output-on-failure

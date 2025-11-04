@@ -168,14 +168,14 @@ void EdgeNode::set_tls(std::optional<TlsOptions> tls) {
   config_.tls = std::move(tls);
 }
 
-std::expected<void, std::string> EdgeNode::connect() {
+stdx::expected<void, std::string> EdgeNode::connect() {
   std::lock_guard<std::mutex> lock(mutex_);
 
   MQTTAsync raw_client = nullptr;
   int rc = MQTTAsync_create(&raw_client, config_.broker_url.c_str(), config_.client_id.c_str(),
                             MQTTCLIENT_PERSISTENCE_NONE, nullptr);
   if (rc != MQTTASYNC_SUCCESS) {
-    return std::unexpected(std::format("Failed to create client: {}", rc));
+    return stdx::unexpected(std::format("Failed to create client: {}", rc));
   }
   client_ = MQTTAsyncHandle(raw_client);
 
@@ -183,7 +183,7 @@ std::expected<void, std::string> EdgeNode::connect() {
   // Note: Paho requires message_arrived callback to be non-null, so always pass it
   rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost, on_message_arrived, nullptr);
   if (rc != MQTTASYNC_SUCCESS) {
-    return std::unexpected(std::format("Failed to set callbacks: {}", rc));
+    return stdx::unexpected(std::format("Failed to set callbacks: {}", rc));
   }
 
   // Increment bdSeq for this session (Sparkplug spec requires bdSeq to start at 1)
@@ -249,18 +249,18 @@ std::expected<void, std::string> EdgeNode::connect() {
 
   rc = MQTTAsync_connect(client_.get(), &conn_opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return std::unexpected(std::format("Failed to connect: {}", rc));
+    return stdx::unexpected(std::format("Failed to connect: {}", rc));
   }
 
   auto status = connect_future.wait_for(std::chrono::milliseconds(CONNECTION_TIMEOUT_MS));
   if (status == std::future_status::timeout) {
-    return std::unexpected("Connection timeout");
+    return stdx::unexpected("Connection timeout");
   }
 
   try {
     connect_future.get();
   } catch (const std::exception& e) {
-    return std::unexpected(e.what());
+    return stdx::unexpected(e.what());
   }
 
   is_connected_ = true;
@@ -283,29 +283,29 @@ std::expected<void, std::string> EdgeNode::connect() {
 
     rc = MQTTAsync_subscribe(client_.get(), ncmd_topic_str.c_str(), 1, &sub_opts);
     if (rc != MQTTASYNC_SUCCESS) {
-      return std::unexpected(std::format("Failed to subscribe to NCMD: {}", rc));
+      return stdx::unexpected(std::format("Failed to subscribe to NCMD: {}", rc));
     }
 
     auto sub_status = subscribe_future.wait_for(std::chrono::milliseconds(SUBSCRIBE_TIMEOUT_MS));
     if (sub_status == std::future_status::timeout) {
-      return std::unexpected("NCMD subscription timeout");
+      return stdx::unexpected("NCMD subscription timeout");
     }
 
     try {
       subscribe_future.get();
     } catch (const std::exception& e) {
-      return std::unexpected(std::format("NCMD subscription failed: {}", e.what()));
+      return stdx::unexpected(std::format("NCMD subscription failed: {}", e.what()));
     }
   }
 
   return {};
 }
 
-std::expected<void, std::string> EdgeNode::disconnect() {
+stdx::expected<void, std::string> EdgeNode::disconnect() {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!client_) {
-    return std::unexpected("Not connected");
+    return stdx::unexpected("Not connected");
   }
 
   std::promise<void> disconnect_promise;
@@ -319,7 +319,7 @@ std::expected<void, std::string> EdgeNode::disconnect() {
 
   int rc = MQTTAsync_disconnect(client_.get(), &opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return std::unexpected(std::format("Failed to disconnect: {}", rc));
+    return stdx::unexpected(std::format("Failed to disconnect: {}", rc));
   }
 
   auto status = disconnect_future.wait_for(std::chrono::milliseconds(DISCONNECT_TIMEOUT_MS));
@@ -337,12 +337,12 @@ std::expected<void, std::string> EdgeNode::disconnect() {
   return {};
 }
 
-std::expected<void, std::string> EdgeNode::publish_message(MQTTAsync client,
-                                                           const std::string& topic_str,
-                                                           std::span<const uint8_t> payload_data,
-                                                           int qos, bool retain) {
+stdx::expected<void, std::string> EdgeNode::publish_message(MQTTAsync client,
+                                                            const std::string& topic_str,
+                                                            std::span<const uint8_t> payload_data,
+                                                            int qos, bool retain) {
   if (!client) {
-    return std::unexpected("Not connected");
+    return stdx::unexpected("Not connected");
   }
 
   MQTTAsync_message msg = MQTTAsync_message_initializer;
@@ -355,13 +355,13 @@ std::expected<void, std::string> EdgeNode::publish_message(MQTTAsync client,
 
   int rc = MQTTAsync_sendMessage(client, topic_str.c_str(), &msg, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return std::unexpected(std::format("Failed to publish: {}", rc));
+    return stdx::unexpected(std::format("Failed to publish: {}", rc));
   }
 
   return {};
 }
 
-std::expected<void, std::string> EdgeNode::publish_birth(PayloadBuilder& payload) {
+stdx::expected<void, std::string> EdgeNode::publish_birth(PayloadBuilder& payload) {
   MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;
@@ -371,7 +371,7 @@ std::expected<void, std::string> EdgeNode::publish_birth(PayloadBuilder& payload
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_connected_) {
-      return std::unexpected("Not connected");
+      return stdx::unexpected("Not connected");
     }
 
     payload.set_seq(0);
@@ -418,7 +418,7 @@ std::expected<void, std::string> EdgeNode::publish_birth(PayloadBuilder& payload
   return {};
 }
 
-std::expected<void, std::string> EdgeNode::publish_data(PayloadBuilder& payload) {
+stdx::expected<void, std::string> EdgeNode::publish_data(PayloadBuilder& payload) {
   MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;
@@ -428,7 +428,7 @@ std::expected<void, std::string> EdgeNode::publish_data(PayloadBuilder& payload)
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_connected_) {
-      return std::unexpected("Not connected");
+      return stdx::unexpected("Not connected");
     }
 
     seq_num_ = (seq_num_ + 1) % SEQ_NUMBER_MAX;
@@ -451,7 +451,7 @@ std::expected<void, std::string> EdgeNode::publish_data(PayloadBuilder& payload)
   return publish_message(client, topic_str, payload_data, qos, false);
 }
 
-std::expected<void, std::string> EdgeNode::publish_death() {
+stdx::expected<void, std::string> EdgeNode::publish_death() {
   MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;
@@ -461,7 +461,7 @@ std::expected<void, std::string> EdgeNode::publish_death() {
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_connected_) {
-      return std::unexpected("Not connected");
+      return stdx::unexpected("Not connected");
     }
 
     Topic topic{.group_id = config_.group_id,
@@ -483,7 +483,7 @@ std::expected<void, std::string> EdgeNode::publish_death() {
   return disconnect();
 }
 
-std::expected<void, std::string> EdgeNode::rebirth() {
+stdx::expected<void, std::string> EdgeNode::rebirth() {
   std::vector<uint8_t> payload_data;
   std::string topic_str;
   int qos = 0;
@@ -492,17 +492,17 @@ std::expected<void, std::string> EdgeNode::rebirth() {
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_connected_) {
-      return std::unexpected("Not connected");
+      return stdx::unexpected("Not connected");
     }
 
     if (last_birth_payload_.empty()) {
-      return std::unexpected("No previous birth payload stored");
+      return stdx::unexpected("No previous birth payload stored");
     }
 
     org::eclipse::tahu::protobuf::Payload proto_payload;
     if (!proto_payload.ParseFromArray(last_birth_payload_.data(),
                                       static_cast<int>(last_birth_payload_.size()))) {
-      return std::unexpected("Failed to parse stored birth payload");
+      return stdx::unexpected("Failed to parse stored birth payload");
     }
 
     uint64_t new_bdseq = bd_seq_num_ + 1;
@@ -558,8 +558,8 @@ std::expected<void, std::string> EdgeNode::rebirth() {
   return {};
 }
 
-std::expected<void, std::string> EdgeNode::publish_device_birth(std::string_view device_id,
-                                                                PayloadBuilder& payload) {
+stdx::expected<void, std::string> EdgeNode::publish_device_birth(std::string_view device_id,
+                                                                 PayloadBuilder& payload) {
   MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;
@@ -569,11 +569,11 @@ std::expected<void, std::string> EdgeNode::publish_device_birth(std::string_view
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_connected_) {
-      return std::unexpected("Not connected");
+      return stdx::unexpected("Not connected");
     }
 
     if (last_birth_payload_.empty()) {
-      return std::unexpected("Must publish NBIRTH before DBIRTH");
+      return stdx::unexpected("Must publish NBIRTH before DBIRTH");
     }
 
     seq_num_ = (seq_num_ + 1) % SEQ_NUMBER_MAX;
@@ -605,8 +605,8 @@ std::expected<void, std::string> EdgeNode::publish_device_birth(std::string_view
   return {};
 }
 
-std::expected<void, std::string> EdgeNode::publish_device_data(std::string_view device_id,
-                                                               PayloadBuilder& payload) {
+stdx::expected<void, std::string> EdgeNode::publish_device_data(std::string_view device_id,
+                                                                PayloadBuilder& payload) {
   MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;
@@ -616,12 +616,12 @@ std::expected<void, std::string> EdgeNode::publish_device_data(std::string_view 
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_connected_) {
-      return std::unexpected("Not connected");
+      return stdx::unexpected("Not connected");
     }
 
     auto it = device_states_.find(device_id);
     if (it == device_states_.end() || !it->second.is_online) {
-      return std::unexpected(
+      return stdx::unexpected(
           std::format("Must publish DBIRTH for device '{}' before DDATA", device_id));
     }
 
@@ -645,7 +645,7 @@ std::expected<void, std::string> EdgeNode::publish_device_data(std::string_view 
   return publish_message(client, topic_str, payload_data, qos, false);
 }
 
-std::expected<void, std::string> EdgeNode::publish_device_death(std::string_view device_id) {
+stdx::expected<void, std::string> EdgeNode::publish_device_death(std::string_view device_id) {
   MQTTAsync client = nullptr;
   std::string topic_str;
   std::vector<uint8_t> payload_data;
@@ -655,12 +655,12 @@ std::expected<void, std::string> EdgeNode::publish_device_death(std::string_view
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_connected_) {
-      return std::unexpected("Not connected");
+      return stdx::unexpected("Not connected");
     }
 
     auto it = device_states_.find(device_id);
     if (it == device_states_.end()) {
-      return std::unexpected(std::format("Unknown device: '{}'", device_id));
+      return stdx::unexpected(std::format("Unknown device: '{}'", device_id));
     }
 
     PayloadBuilder death_payload;
@@ -692,7 +692,7 @@ std::expected<void, std::string> EdgeNode::publish_device_death(std::string_view
   return {};
 }
 
-std::expected<void, std::string>
+stdx::expected<void, std::string>
 EdgeNode::publish_node_command(std::string_view target_edge_node_id, PayloadBuilder& payload) {
   MQTTAsync client = nullptr;
   std::string topic_str;
@@ -703,7 +703,7 @@ EdgeNode::publish_node_command(std::string_view target_edge_node_id, PayloadBuil
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_connected_) {
-      return std::unexpected("Not connected");
+      return stdx::unexpected("Not connected");
     }
 
     Topic topic{.group_id = config_.group_id,
@@ -720,7 +720,7 @@ EdgeNode::publish_node_command(std::string_view target_edge_node_id, PayloadBuil
   return publish_message(client, topic_str, payload_data, qos, false);
 }
 
-std::expected<void, std::string>
+stdx::expected<void, std::string>
 EdgeNode::publish_device_command(std::string_view target_edge_node_id,
                                  std::string_view target_device_id, PayloadBuilder& payload) {
   MQTTAsync client = nullptr;
@@ -732,7 +732,7 @@ EdgeNode::publish_device_command(std::string_view target_edge_node_id,
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_connected_) {
-      return std::unexpected("Not connected");
+      return stdx::unexpected("Not connected");
     }
 
     Topic topic{.group_id = config_.group_id,

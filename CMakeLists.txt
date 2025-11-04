@@ -58,6 +58,17 @@ add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-Wno-c++98-compat>)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Fetch tl::expected for C++23 std::expected backport on older compilers
+include(FetchContent)
+set(EXPECTED_BUILD_TESTS OFF CACHE BOOL "Build tl::expected tests" FORCE)
+FetchContent_Declare(
+    tl-expected
+    GIT_REPOSITORY https://github.com/TartanLlama/expected.git
+    GIT_TAG v1.1.0
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(tl-expected)
+
 find_package(Protobuf REQUIRED)
 find_package(absl CONFIG QUIET)  # Optional - newer protobuf needs it
 find_package(OpenSSL REQUIRED)   # Required for TLS/SSL support

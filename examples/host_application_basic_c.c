@@ -114,9 +114,8 @@ int main(void) {
   signal(SIGINT, signal_handler);
   signal(SIGTERM, signal_handler);
 
-  sparkplug_host_application_t* host = sparkplug_host_application_create(
-      "tcp://localhost:1883", "c_host_example", "SCADA01"
-  );
+  sparkplug_host_application_t* host =
+      sparkplug_host_application_create("tcp://localhost:1883", "c_host_example", "SCADA01");
 
   if (!host) {
     fprintf(stderr, "Failed to create host application\n");

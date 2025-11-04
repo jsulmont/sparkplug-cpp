@@ -1,7 +1,8 @@
 // include/sparkplug/topic.hpp
 #pragma once
 
-#include <expected>
+#include "detail/compat.hpp"
+
 #include <string>
 #include <string_view>
 
@@ -74,7 +75,7 @@ struct Topic {
    * }
    * @endcode
    */
-  [[nodiscard]] static std::expected<Topic, std::string> parse(std::string_view topic_str);
+  [[nodiscard]] static stdx::expected<Topic, std::string> parse(std::string_view topic_str);
 };
 
 } // namespace sparkplug

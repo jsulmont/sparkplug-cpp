@@ -37,7 +37,7 @@ constexpr std::string_view message_type_to_string(MessageType type) noexcept {
   std::unreachable();
 }
 
-std::expected<MessageType, std::string> parse_message_type(std::string_view str) {
+stdx::expected<MessageType, std::string> parse_message_type(std::string_view str) {
   if (str == "NBIRTH")
     return MessageType::NBIRTH;
   if (str == "NDEATH")
@@ -56,7 +56,7 @@ std::expected<MessageType, std::string> parse_message_type(std::string_view str)
     return MessageType::DCMD;
   if (str == "STATE")
     return MessageType::STATE;
-  return std::unexpected(std::format("Unknown message type: {}", str));
+  return stdx::unexpected(std::format("Unknown message type: {}", str));
 }
 } // namespace
 
@@ -74,7 +74,7 @@ std::string Topic::to_string() const {
   return base;
 }
 
-std::expected<Topic, std::string> Topic::parse(std::string_view topic_str) {
+stdx::expected<Topic, std::string> Topic::parse(std::string_view topic_str) {
   // Parse without allocating vector - use iterators directly
   auto parts =
       topic_str | std::views::split('/') | std::views::transform([](auto&& rng) {
@@ -85,25 +85,25 @@ std::expected<Topic, std::string> Topic::parse(std::string_view topic_str) {
   auto end = parts.end();
 
   if (it == end) {
-    return std::unexpected("Invalid topic format");
+    return stdx::unexpected("Invalid topic format");
   }
 
   std::string_view part0 = *it++;
   if (it == end) {
-    return std::unexpected("Invalid topic format");
+    return stdx::unexpected("Invalid topic format");
   }
   std::string_view part1 = *it++;
 
   // Sparkplug B topic: spBv1.0/{group_id}/{message_type}/{edge_node_id}[/{device_id}]
   // or STATE message: spBv1.0/STATE/{host_id}
   if (part0 != NAMESPACE) {
-    return std::unexpected("Invalid Sparkplug B topic");
+    return stdx::unexpected("Invalid Sparkplug B topic");
   }
 
   // Check for STATE message: spBv1.0/STATE/{host_id}
   if (part1 == "STATE") {
     if (it == end) {
-      return std::unexpected("STATE topic requires host_id");
+      return stdx::unexpected("STATE topic requires host_id");
     }
     std::string_view host_id = *it++;
     return Topic{.group_id = "",
@@ -113,18 +113,18 @@ std::expected<Topic, std::string> Topic::parse(std::string_view topic_str) {
   }
 
   if (it == end) {
-    return std::unexpected("Invalid Sparkplug B topic");
+    return stdx::unexpected("Invalid Sparkplug B topic");
   }
   std::string_view part2 = *it++;
 
   if (it == end) {
-    return std::unexpected("Invalid Sparkplug B topic");
+    return stdx::unexpected("Invalid Sparkplug B topic");
   }
   std::string_view part3 = *it++;
 
   auto msg_type = parse_message_type(part2);
   if (!msg_type) {
-    return std::unexpected(msg_type.error());
+    return stdx::unexpected(msg_type.error());
   }
 
   std::string device_id;

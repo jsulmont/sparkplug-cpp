@@ -104,20 +104,20 @@ void HostApplication::set_log_callback(LogCallback callback) {
   config_.log_callback = std::move(callback);
 }
 
-std::expected<void, std::string> HostApplication::connect() {
+stdx::expected<void, std::string> HostApplication::connect() {
   std::lock_guard<std::mutex> lock(mutex_);
 
   MQTTAsync raw_client = nullptr;
   int rc = MQTTAsync_create(&raw_client, config_.broker_url.c_str(), config_.client_id.c_str(),
                             MQTTCLIENT_PERSISTENCE_NONE, nullptr);
   if (rc != MQTTASYNC_SUCCESS) {
-    return std::unexpected(std::format("Failed to create client: {}", rc));
+    return stdx::unexpected(std::format("Failed to create client: {}", rc));
   }
   client_ = MQTTAsyncHandle(raw_client);
 
   rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost, on_message_arrived, nullptr);
   if (rc != MQTTASYNC_SUCCESS) {
-    return std::unexpected(std::format("Failed to set callbacks: {}", rc));
+    return stdx::unexpected(std::format("Failed to set callbacks: {}", rc));
   }
 
   MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
@@ -156,7 +156,7 @@ std::expected<void, std::string> HostApplication::connect() {
   rc = MQTTAsync_connect(client_.get(), &conn_opts);
   if (rc != MQTTASYNC_SUCCESS) {
     MQTTAsync_setCallbacks(client_.get(), nullptr, nullptr, nullptr, nullptr);
-    return std::unexpected(std::format("Failed to connect: {}", rc));
+    return stdx::unexpected(std::format("Failed to connect: {}", rc));
   }
 
   auto status = connect_future.wait_for(std::chrono::milliseconds(CONNECTION_TIMEOUT_MS));
@@ -165,25 +165,25 @@ std::expected<void, std::string> HostApplication::connect() {
     MQTTAsync_disconnectOptions disc_opts = MQTTAsync_disconnectOptions_initializer;
     disc_opts.timeout = 1000;
     MQTTAsync_disconnect(client_.get(), &disc_opts);
-    return std::unexpected("Connection timeout");
+    return stdx::unexpected("Connection timeout");
   }
 
   try {
     connect_future.get();
   } catch (const std::exception& e) {
     MQTTAsync_setCallbacks(client_.get(), nullptr, nullptr, nullptr, nullptr);
-    return std::unexpected(e.what());
+    return stdx::unexpected(e.what());
   }
 
   is_connected_ = true;
   return {};
 }
 
-std::expected<void, std::string> HostApplication::disconnect() {
+stdx::expected<void, std::string> HostApplication::disconnect() {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!client_) {
-    return std::unexpected("Not connected");
+    return stdx::unexpected("Not connected");
   }
 
   std::promise<void> disconnect_promise;
@@ -197,7 +197,7 @@ std::expected<void, std::string> HostApplication::disconnect() {
 
   int rc = MQTTAsync_disconnect(client_.get(), &opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return std::unexpected(std::format("Failed to disconnect: {}", rc));
+    return stdx::unexpected(std::format("Failed to disconnect: {}", rc));
   }
 
   auto status = disconnect_future.wait_for(std::chrono::milliseconds(DISCONNECT_TIMEOUT_MS));
@@ -215,11 +215,11 @@ std::expected<void, std::string> HostApplication::disconnect() {
   return {};
 }
 
-std::expected<void, std::string> HostApplication::publish_state_birth(uint64_t timestamp) {
+stdx::expected<void, std::string> HostApplication::publish_state_birth(uint64_t timestamp) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!is_connected_) {
-    return std::unexpected("Not connected");
+    return stdx::unexpected("Not connected");
   }
 
   std::string json_payload = std::format("{{\"online\":true,\"timestamp\":{}}}", timestamp);
@@ -231,11 +231,11 @@ std::expected<void, std::string> HostApplication::publish_state_birth(uint64_t t
   return publish_raw_message(topic, payload_data, config_.qos, true);
 }
 
-std::expected<void, std::string> HostApplication::publish_state_death(uint64_t timestamp) {
+stdx::expected<void, std::string> HostApplication::publish_state_death(uint64_t timestamp) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!is_connected_) {
-    return std::unexpected("Not connected");
+    return stdx::unexpected("Not connected");
   }
 
   std::string json_payload = std::format("{{\"online\":false,\"timestamp\":{}}}", timestamp);
@@ -247,7 +247,7 @@ std::expected<void, std::string> HostApplication::publish_state_death(uint64_t t
   return publish_raw_message(topic, payload_data, config_.qos, true);
 }
 
-std::expected<void, std::string> HostApplication::publish_node_command(
+stdx::expected<void, std::string> HostApplication::publish_node_command(
     std::string_view group_id, std::string_view target_edge_node_id, PayloadBuilder& payload) {
   std::string topic_str;
   std::vector<uint8_t> payload_data;
@@ -255,7 +255,7 @@ std::expected<void, std::string> HostApplication::publish_node_command(
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_connected_) {
-      return std::unexpected("Not connected");
+      return stdx::unexpected("Not connected");
     }
 
     Topic topic{.group_id = std::string(group_id),
@@ -270,7 +270,7 @@ std::expected<void, std::string> HostApplication::publish_node_command(
   return publish_command_message(topic_str, payload_data);
 }
 
-std::expected<void, std::string> HostApplication::publish_device_command(
+stdx::expected<void, std::string> HostApplication::publish_device_command(
     std::string_view group_id, std::string_view target_edge_node_id,
     std::string_view target_device_id, PayloadBuilder& payload) {
   std::string topic_str;
@@ -279,7 +279,7 @@ std::expected<void, std::string> HostApplication::publish_device_command(
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_connected_) {
-      return std::unexpected("Not connected");
+      return stdx::unexpected("Not connected");
     }
 
     Topic topic{.group_id = std::string(group_id),
@@ -294,11 +294,11 @@ std::expected<void, std::string> HostApplication::publish_device_command(
   return publish_command_message(topic_str, payload_data);
 }
 
-std::expected<void, std::string>
+stdx::expected<void, std::string>
 HostApplication::publish_raw_message(std::string_view topic, std::span<const uint8_t> payload_data,
                                      int qos, bool retain) {
   if (!client_ || !is_connected_) {
-    return std::unexpected("Not connected");
+    return stdx::unexpected("Not connected");
   }
 
   MQTTAsync_message msg = MQTTAsync_message_initializer;
@@ -311,17 +311,17 @@ HostApplication::publish_raw_message(std::string_view topic, std::span<const uin
 
   int rc = MQTTAsync_sendMessage(client_.get(), std::string(topic).c_str(), &msg, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return std::unexpected(std::format("Failed to publish: {}", rc));
+    return stdx::unexpected(std::format("Failed to publish: {}", rc));
   }
 
   return {};
 }
 
-std::expected<void, std::string>
+stdx::expected<void, std::string>
 HostApplication::publish_command_message(std::string_view topic,
                                          std::span<const uint8_t> payload_data) {
   if (!client_ || !is_connected_) {
-    return std::unexpected("Not connected");
+    return stdx::unexpected("Not connected");
   }
 
   MQTTAsync_message msg = MQTTAsync_message_initializer;
@@ -334,17 +334,17 @@ HostApplication::publish_command_message(std::string_view topic,
 
   int rc = MQTTAsync_sendMessage(client_.get(), std::string(topic).c_str(), &msg, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return std::unexpected(std::format("Failed to publish: {}", rc));
+    return stdx::unexpected(std::format("Failed to publish: {}", rc));
   }
 
   return {};
 }
 
-std::expected<void, std::string> HostApplication::subscribe_all_groups() {
+stdx::expected<void, std::string> HostApplication::subscribe_all_groups() {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!client_) {
-    return std::unexpected("Not connected");
+    return stdx::unexpected("Not connected");
   }
 
   std::string topic = std::format("{}/#", NAMESPACE);
@@ -353,17 +353,17 @@ std::expected<void, std::string> HostApplication::subscribe_all_groups() {
 
   int rc = MQTTAsync_subscribe(client_.get(), topic.c_str(), config_.qos, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return std::unexpected(std::format("Failed to subscribe: {}", rc));
+    return stdx::unexpected(std::format("Failed to subscribe: {}", rc));
   }
 
   return {};
 }
 
-std::expected<void, std::string> HostApplication::subscribe_group(std::string_view group_id) {
+stdx::expected<void, std::string> HostApplication::subscribe_group(std::string_view group_id) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!client_) {
-    return std::unexpected("Not connected");
+    return stdx::unexpected("Not connected");
   }
 
   std::string topic = std::format("{}/{}/#", NAMESPACE, group_id);
@@ -372,18 +372,18 @@ std::expected<void, std::string> HostApplication::subscribe_group(std::string_vi
 
   int rc = MQTTAsync_subscribe(client_.get(), topic.c_str(), config_.qos, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return std::unexpected(std::format("Failed to subscribe: {}", rc));
+    return stdx::unexpected(std::format("Failed to subscribe: {}", rc));
   }
 
   return {};
 }
 
-std::expected<void, std::string> HostApplication::subscribe_node(std::string_view group_id,
-                                                                 std::string_view edge_node_id) {
+stdx::expected<void, std::string> HostApplication::subscribe_node(std::string_view group_id,
+                                                                  std::string_view edge_node_id) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!client_) {
-    return std::unexpected("Not connected");
+    return stdx::unexpected("Not connected");
   }
 
   std::string topic = std::format("{}/{}/+/{}/#", NAMESPACE, group_id, edge_node_id);
@@ -392,17 +392,17 @@ std::expected<void, std::string> HostApplication::subscribe_node(std::string_vie
 
   int rc = MQTTAsync_subscribe(client_.get(), topic.c_str(), config_.qos, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return std::unexpected(std::format("Failed to subscribe: {}", rc));
+    return stdx::unexpected(std::format("Failed to subscribe: {}", rc));
   }
 
   return {};
 }
 
-std::expected<void, std::string> HostApplication::subscribe_state(std::string_view host_id) {
+stdx::expected<void, std::string> HostApplication::subscribe_state(std::string_view host_id) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!client_) {
-    return std::unexpected("Not connected");
+    return stdx::unexpected("Not connected");
   }
 
   std::string topic = std::format("{}/STATE/{}", NAMESPACE, host_id);
@@ -411,7 +411,7 @@ std::expected<void, std::string> HostApplication::subscribe_state(std::string_vi
 
   int rc = MQTTAsync_subscribe(client_.get(), topic.c_str(), config_.qos, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return std::unexpected(std::format("Failed to subscribe: {}", rc));
+    return stdx::unexpected(std::format("Failed to subscribe: {}", rc));
   }
 
   return {};
