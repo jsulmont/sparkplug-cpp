@@ -1,31 +1,33 @@
 {
-    "cmake.configureOnOpen": true,
-    "cmake.cmakePath": "/opt/homebrew/bin/cmake",
-    "C_Cpp.default.compilerPath": "/opt/homebrew/opt/llvm/bin/clang++",
-    "C_Cpp.default.cppStandard": "c++23",
-    "C_Cpp.default.cStandard": "c17",
-    "C_Cpp.default.intelliSenseMode": "macos-clang-arm64",
-    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
-    "files.associations": {
-        "*.proto": "proto3",
-        "expected": "cpp",
-        "format": "cpp",
-        "ranges": "cpp"
-    },
-    "cmake.buildDirectory": "${workspaceFolder}/build",
+  "cmake.configureOnOpen": true,
+  // Setting these makes cmake fail when using a non-macOs setup
+  //   "cmake.cmakePath": "/opt/homebrew/bin/cmake",
+  //   "C_Cpp.default.compilerPath": "/opt/homebrew/opt/llvm/bin/clang++",
+  "C_Cpp.default.cppStandard": "c++23",
+  "C_Cpp.default.cStandard": "c17",
+  "C_Cpp.default.intelliSenseMode": "macos-clang-arm64",
+  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+  "files.associations": {
+    "*.proto": "proto3",
+    "expected": "cpp",
+    "format": "cpp",
+    "ranges": "cpp"
+  },
+  "cmake.buildDirectory": "${workspaceFolder}/build",
 
-    // clang-format configuration
-    "editor.formatOnSave": true,
-    "C_Cpp.formatting": "clangFormat",
-    "C_Cpp.clang_format_path": "/opt/homebrew/bin/clang-format",
-    "C_Cpp.clang_format_style": "file",
-    "C_Cpp.clang_format_fallbackStyle": "LLVM",
-    "[cpp]": {
-        "editor.defaultFormatter": "ms-vscode.cpptools",
-        "editor.formatOnSave": true
-    },
-    "[c]": {
-        "editor.defaultFormatter": "ms-vscode.cpptools",
-        "editor.formatOnSave": true
-    }
+  // clang-format configuration
+  "editor.formatOnSave": true,
+  "C_Cpp.formatting": "clangFormat",
+  // Setting this makes formatting fail when using a non-macOs setup
+  //   "C_Cpp.clang_format_path": "/opt/homebrew/bin/clang-format",
+  "C_Cpp.clang_format_style": "file",
+  "C_Cpp.clang_format_fallbackStyle": "LLVM",
+  "[cpp]": {
+    "editor.defaultFormatter": "ms-vscode.cpptools",
+    "editor.formatOnSave": true
+  },
+  "[c]": {
+    "editor.defaultFormatter": "ms-vscode.cpptools",
+    "editor.formatOnSave": true
+  }
 }
