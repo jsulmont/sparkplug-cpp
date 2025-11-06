@@ -3,11 +3,16 @@
 
 set -e
 
-# Detect clang-format binary
-if command -v /opt/homebrew/bin/clang-format &> /dev/null; then
-    CLANG_FORMAT=/opt/homebrew/bin/clang-format
+# Detect clang-format binary (prefer clang-format-18 to match CI)
+if [ -n "$CLANG_FORMAT" ]; then
+    # Use environment variable if set
+    :
 elif command -v clang-format-18 &> /dev/null; then
     CLANG_FORMAT=clang-format-18
+elif [ -f /opt/homebrew/opt/llvm@18/bin/clang-format ]; then
+    CLANG_FORMAT=/opt/homebrew/opt/llvm@18/bin/clang-format
+elif command -v /opt/homebrew/bin/clang-format &> /dev/null; then
+    CLANG_FORMAT=/opt/homebrew/bin/clang-format
 elif command -v clang-format &> /dev/null; then
     CLANG_FORMAT=clang-format
 else
