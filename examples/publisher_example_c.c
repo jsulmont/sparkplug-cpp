@@ -70,13 +70,14 @@ int main(void) {
     // Create NDATA payload using aliases only (bandwidth optimization)
     sparkplug_payload_t* data = sparkplug_payload_create();
 
-    // Only include changed values (Report by Exception)
+    // Application implements Report by Exception: only include changed values
+    // (in real application, determine changes based on domain-specific criteria)
     double temp = 20.5 + (i * 0.1);
     int64_t uptime = i;
 
     sparkplug_payload_add_double_by_alias(data, 1, temp);  // Temperature
     sparkplug_payload_add_int64_by_alias(data, 4, uptime); // Uptime
-    // Voltage and Active unchanged - not included
+    // Voltage and Active unchanged per application's RBE logic - not included
 
     size = sparkplug_payload_serialize(data, buffer, sizeof(buffer));
 

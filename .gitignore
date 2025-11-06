@@ -1,14 +1,40 @@
+# General ignores
 .claude/
 CLAUDE.md
 build/
 build-*/
 .cache/
-compile_commands.json
+
+# Compiled output
 *.o
 *.a
 *.so
 *.dylib
+
+# macOS
 .DS_Store
+
+# IDEs and editors
 .vscode/launch.json
 .vscode/tasks.json
-_deps/
+
+# CMake generated files
+# Settings originally copied from: https://github.com/github/gitignore/blob/main/CMake.gitignore
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Testing
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
+CMakeUserPresets.json
+examples/Makefile
+examples/cmake_install.cmake
+CMakeDoxyfile.in
+CMakeDoxygenDefaults.cmake
+CPackConfig.cmake
+CPackSourceConfig.cmake

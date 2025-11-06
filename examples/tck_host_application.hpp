@@ -67,6 +67,10 @@ private:
   void run_message_ordering_test(const std::vector<std::string>& params);
   void run_multiple_broker_test(const std::vector<std::string>& params);
 
+  // Helper to establish session without publishing test results
+  [[nodiscard]] auto establish_session(const std::string& host_id)
+      -> stdx::expected<void, std::string>;
+
   // Utility functions for TCK communication
   void log(const std::string& level, const std::string& message);
   void publish_result(const std::string& result);
