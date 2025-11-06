@@ -488,7 +488,7 @@ void TCKHostApplication::run_session_establishment_test(
     return;
   }
 
-  std::string host_id = params[0];
+  const std::string& host_id = params[0];
 
   auto result = establish_session(host_id);
   if (!result) {
@@ -509,7 +509,7 @@ void TCKHostApplication::run_session_termination_test(
     return;
   }
 
-  std::string host_id = params[0];
+  const std::string& host_id = params[0];
 
   try {
     // If host application is not running, start it first
@@ -563,7 +563,7 @@ void TCKHostApplication::run_send_command_test(const std::vector<std::string>& p
     return;
   }
 
-  std::string host_id = params[0];
+  const std::string& host_id = params[0];
   // group_id, edge_node_id, device_id stored in current_test_params_ for prompt handler
 
   try {
@@ -599,7 +599,7 @@ void TCKHostApplication::run_receive_data_test(const std::vector<std::string>& p
     return;
   }
 
-  std::string host_id = params[0];
+  const std::string& host_id = params[0];
 
   try {
     // If host application is not running, start it first
@@ -637,7 +637,7 @@ void TCKHostApplication::run_edge_session_termination_test(
     return;
   }
 
-  std::string host_id = params[0];
+  const std::string& host_id = params[0];
 
   try {
     // If host application is not running, start it first
@@ -673,7 +673,7 @@ void TCKHostApplication::run_message_ordering_test(
     return;
   }
 
-  std::string host_id = params[0];
+  const std::string& host_id = params[0];
 
   try {
     // If host application is not running, start it first
