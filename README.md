@@ -32,10 +32,45 @@ Sparkplug B is an MQTT-based protocol specification for Industrial IoT that prov
 
 - Standardized MQTT topic namespace and payload definition
 - Birth and Death certificates for edge nodes and devices
-- Report by Exception for efficient bandwidth usage
+- Metric aliases enabling Report by Exception publishing patterns
 - Automatic state management and session awareness
 
+**Note:** This library implements the Sparkplug B protocol transport layer. Report by Exception logic (deciding WHEN to publish based on metric changes) is your application's responsibility, as only your application knows the domain-specific criteria for "significant change" (deadband, threshold, etc.).
+
 Learn more: [Eclipse Sparkplug Specification](https://www.eclipse.org/tahu/spec/Sparkplug%20Topic%20Namespace%20and%20State%20ManagementV2.2-with%20appendix%20B%20format%20-%20Eclipse.pdf)
+
+### Why RBE is Not in the Library
+
+The Sparkplug specification states that data **SHOULD NOT** be published on a periodic basis and instead **SHOULD** be published using a Report by Exception approach. Note that this is a recommendation (SHOULD), not a requirement (MUST) - the decision to use RBE belongs to you, the application developer.
+
+This library intentionally does not implement RBE logic for several architectural reasons:
+
+**1. Separation of Concerns**
+- **Protocol Layer** (this library): Defines HOW to format and send Sparkplug messages
+- **Application Layer** (your code): Decides WHEN data is worth publishing
+
+Like the OSI networking model, each layer should use services from the layer below without mixing responsibilities. RBE is a "when to publish" decision, not a "how to publish" decision.
+
+**2. Domain Knowledge Required**
+
+The library cannot answer questions only your application can answer:
+- What constitutes a "significant change" for a temperature sensor? (±0.5°C? ±2°C? ±10°C?)
+- For frequency measurements? (±0.01 Hz? ±0.1 Hz?)
+- For a state machine? (any change? specific transitions only?)
+- For computed metrics derived from multiple sensors?
+
+Your application understands BESS systems, energy management, sensor characteristics, and operational requirements. The library does not and should not.
+
+**3. Flexibility Without Complexity**
+
+We could make RBE configurable (pass in thresholds, deadband functions, etc.), but this would:
+- Add complexity to the library API
+- Still require you to define all the change detection criteria
+- Create an unnecessary abstraction layer
+
+If you're already specifying the thresholds, you might as well implement the comparison logic directly and call `publish_data()` when needed. This keeps the library focused as a faithful protocol implementation, not an opinionated application framework.
+
+**Bottom line:** This library provides the transport mechanisms (aliases, efficient binary encoding, sequence management) that enable RBE. You provide the intelligence that determines when metrics have meaningfully changed. This keeps sparkplug-cpp reusable, testable, and focused on doing one thing well.
 
 ## Quick Start
 
@@ -176,10 +211,11 @@ int main() {
   }
 
   // Publish NDATA (subsequent updates)
+  // Your application decides when to call this based on RBE logic
   sparkplug::PayloadBuilder data;
-  data.add_metric_by_alias(1, 21.0);  // Temperature changed
-  // Pressure unchanged, not included (Report by Exception)
-  
+  data.add_metric_by_alias(1, 21.0);  // Application determined Temperature changed
+  // Pressure unchanged (per application's criteria), not included
+
   if (auto result = publisher.publish_data(data); !result) {
     std::cerr << "Failed to publish data: " << result.error() << "\n";
     return 1;
@@ -657,12 +693,14 @@ at your option.
 - All Sparkplug B 2.2 message types (NBIRTH, NDATA, NDEATH, DBIRTH, DDATA, DDEATH, NCMD, DCMD, STATE)
 - Sequence number management and validation
 - Birth/Death sequence (bdSeq) tracking
-- Metric aliases for bandwidth efficiency (Report by Exception)
+- Metric aliases for bandwidth efficiency (enabling Report by Exception at application layer)
 - TLS/SSL support with mutual authentication (client certificates)
 - Thread-safe EdgeNode and HostApplication classes
 - Device management APIs
 - Command handling (NCMD/DCMD callbacks)
 - Host Application STATE messages
+
+**Note on Report by Exception (RBE):** The library provides the transport mechanisms (aliases, efficient messaging) that enable RBE, but implementing the actual RBE logic (deciding when metrics have "changed" based on thresholds, deadbands, etc.) is the responsibility of your application code. This separation of concerns keeps the library protocol-focused while giving you full control over domain-specific change detection.
 
 ### Partially Implemented
 The following Sparkplug B data types are defined but not yet supported in PayloadBuilder:

@@ -104,19 +104,21 @@ int main() {
     }
 
     // Create NDATA payload
-    // BEST PRACTICE: Only include metrics that changed
-    // Use aliases to reduce bandwidth
+    // BEST PRACTICE: Implement Report by Exception at application layer
+    // Only include metrics that changed based on your domain-specific criteria
+    // (exact equality, deadband, threshold, etc.)
     sparkplug::PayloadBuilder data;
 
-    // Simulate some changing values
+    // Simulate some changing values (in real application, poll sensors/devices)
     temperature += 0.1;
     uptime += 1;
 
-    // Use alias instead of name (bandwidth optimization)
+    // Application determined these metrics changed (using alias for bandwidth
+    // optimization)
     data.add_metric_by_alias(1, temperature); // Temperature
     data.add_metric_by_alias(4, uptime);      // Uptime
 
-    // Voltage and Active unchanged, so don't include them (Report by Exception)
+    // Voltage and Active unchanged per application's RBE logic, so not included
 
     // Sequence number will be automatically incremented and set
     auto data_result = publisher.publish_data(data);

@@ -172,11 +172,13 @@ void add_metric_to_payload(org::eclipse::tahu::protobuf::Payload& payload,
  * @endcode
  *
  * **NDATA messages:**
- * Use add_metric_by_alias() for bandwidth-efficient updates (Report by Exception).
+ * Use add_metric_by_alias() for bandwidth-efficient updates. Your application decides
+ * which metrics to include based on Report by Exception principles (i.e., only metrics
+ * that have changed according to your domain-specific criteria).
  * @code
  * sparkplug::PayloadBuilder data;
- * data.add_metric_by_alias(1, 21.0);  // Only Temperature changed
- * publisher.publish_data(data);
+ * data.add_metric_by_alias(1, 21.0);  // Application determined Temperature changed
+ * publisher.publish_data(data);       // (Pressure unchanged, not included)
  * @endcode
  *
  * @see Publisher::publish_birth()
@@ -255,7 +257,9 @@ public:
    *
    * @return Reference to this builder for method chaining
    *
-   * @note Only include metrics that have changed (Report by Exception).
+   * @note Your application is responsible for implementing Report by Exception (RBE):
+   *       only call this method for metrics that have changed according to your
+   *       domain-specific criteria (e.g., deadband, threshold, exact equality).
    * @note Reduces bandwidth by 60-80% vs. using full metric names.
    */
   template <SparkplugMetricType T>

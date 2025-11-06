@@ -225,9 +225,11 @@ public:
   /**
    * @brief Publishes an NDATA (Node Data) message.
    *
-   * NDATA messages report metric changes by exception. Only include metrics
-   * that have changed since the last NDATA message. Uses aliases for bandwidth
-   * efficiency (60-80% reduction vs. full names).
+   * NDATA messages are used for Report by Exception updates. Your application
+   * is responsible for determining WHEN to call this method based on whether
+   * metrics have changed according to your domain-specific criteria (e.g.,
+   * deadband thresholds, exact equality, percentage change). The payload should
+   * use aliases for bandwidth efficiency (60-80% reduction vs. full names).
    *
    * @param payload PayloadBuilder containing changed metrics (by alias only)
    *
@@ -235,6 +237,7 @@ public:
    *
    * @note Sequence number is automatically incremented (0-255, wraps at 256).
    * @note Timestamp is automatically added if not explicitly set.
+   * @note The library provides the transport mechanism; you provide the RBE logic.
    *
    * @warning Must call publish_birth() before the first publish_data().
    *
@@ -319,9 +322,10 @@ public:
   /**
    * @brief Publishes a DDATA (Device Data) message.
    *
-   * DDATA messages report device metric changes by exception. Only include metrics
-   * that have changed since the last DDATA message. Uses aliases for bandwidth
-   * efficiency.
+   * DDATA messages are used for Report by Exception updates. Your application
+   * is responsible for determining WHEN to call this method based on whether
+   * device metrics have changed according to your domain-specific criteria.
+   * The payload should use aliases for bandwidth efficiency.
    *
    * @param device_id The device identifier
    * @param payload PayloadBuilder containing changed metrics (by alias only)
@@ -330,6 +334,7 @@ public:
    *
    * @note Sequence number is automatically incremented per device (0-255, wraps at 256).
    * @note Must call publish_device_birth() before the first publish_device_data().
+   * @note The library provides the transport mechanism; you provide the RBE logic.
    *
    * @see publish_device_birth() for establishing aliases
    */
