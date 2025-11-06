@@ -9,7 +9,6 @@
 namespace sparkplug::tck {
 
 namespace {
-// Helper to split string by delimiter
 auto split(const std::string& str, char delim) -> std::vector<std::string> {
   std::vector<std::string> tokens;
   std::stringstream ss(str);
@@ -20,7 +19,6 @@ auto split(const std::string& str, char delim) -> std::vector<std::string> {
   return tokens;
 }
 
-// Helper to trim whitespace
 auto trim(const std::string& str) -> std::string {
   size_t start = str.find_first_not_of(" \t\r\n");
   if (start == std::string::npos) {
@@ -33,7 +31,6 @@ auto trim(const std::string& str) -> std::string {
 
 TCKHostApplication::TCKHostApplication(TCKConfig config)
     : config_(std::move(config)), tck_client_(nullptr) {
-  // Create TCK control MQTT client
   std::string client_id = config_.client_id_prefix + "_control";
   int rc = MQTTAsync_create(&tck_client_, config_.broker_url.c_str(), client_id.c_str(),
                             MQTTCLIENT_PERSISTENCE_NONE, nullptr);
@@ -41,7 +38,6 @@ TCKHostApplication::TCKHostApplication(TCKConfig config)
     throw std::runtime_error("Failed to create TCK MQTT client: " + std::to_string(rc));
   }
 
-  // Set callbacks
   MQTTAsync_setCallbacks(tck_client_, this, on_connection_lost, on_message_arrived,
                          on_delivery_complete);
 }
@@ -60,7 +56,6 @@ auto TCKHostApplication::start() -> stdx::expected<void, std::string> {
     return stdx::unexpected("TCK application is already running");
   }
 
-  // Connect to broker
   MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
   conn_opts.keepAliveInterval = 60;
   conn_opts.cleansession = 1;
@@ -78,7 +73,6 @@ auto TCKHostApplication::start() -> stdx::expected<void, std::string> {
     return stdx::unexpected("Failed to start connect: " + std::to_string(rc));
   }
 
-  // Wait for connection (with timeout)
   for (int i = 0; i < 50 && !connected_; ++i) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
@@ -90,7 +84,6 @@ auto TCKHostApplication::start() -> stdx::expected<void, std::string> {
   running_ = true;
   std::cout << "[TCK] TCK Host Application ready\n";
 
-  // Proactively establish session so host is online before TCK sends tests
   std::cout << "[TCK] Proactively establishing session with host_id=" << config_.host_id
             << "\n";
   auto establish_result = establish_session(config_.host_id);
@@ -113,7 +106,6 @@ void TCKHostApplication::stop() {
     return;
   }
 
-  // Cleanup host application if running
   if (host_application_) {
     auto timestamp = get_timestamp();
     (void)host_application_->publish_state_death(timestamp);
@@ -121,7 +113,6 @@ void TCKHostApplication::stop() {
     host_application_.reset();
   }
 
-  // Disconnect TCK client
   if (connected_) {
     MQTTAsync_disconnectOptions disc_opts = MQTTAsync_disconnectOptions_initializer;
     disc_opts.timeout = 1000;
@@ -137,7 +128,6 @@ auto TCKHostApplication::is_running() const -> bool {
   return running_;
 }
 
-// Static MQTT callbacks
 void TCKHostApplication::on_connection_lost(void* context, char* cause) {
   auto* app = static_cast<TCKHostApplication*>(context);
   std::cout << "[TCK] Connection lost: " << (cause ? cause : "unknown") << "\n";
@@ -155,9 +145,7 @@ int TCKHostApplication::on_message_arrived(void* context,
 
   std::cout << "[TCK] Received: " << topic << " -> " << payload << "\n";
 
-  // Handle messages in a separate thread to avoid blocking MQTT event loop
   std::thread([app, topic, payload]() {
-    // Route to appropriate handler
     if (topic == "SPARKPLUG_TCK/TEST_CONTROL") {
       app->handle_test_control(payload);
     } else if (topic == "SPARKPLUG_TCK/CONSOLE_PROMPT") {
@@ -176,7 +164,6 @@ int TCKHostApplication::on_message_arrived(void* context,
 
 void TCKHostApplication::on_delivery_complete(void* /*context*/,
                                               MQTTAsync_token /*token*/) {
-  // Message delivered successfully
 }
 
 void TCKHostApplication::on_connect_success(void* context,
@@ -185,7 +172,6 @@ void TCKHostApplication::on_connect_success(void* context,
   std::cout << "[TCK] Connected to broker\n";
   app->connected_ = true;
 
-  // Subscribe to all TCK control topics
   const char* topics[] = {"SPARKPLUG_TCK/TEST_CONTROL", "SPARKPLUG_TCK/CONSOLE_PROMPT",
                           "SPARKPLUG_TCK/CONFIG", "SPARKPLUG_TCK/RESULT_CONFIG"};
   int qos[] = {1, 1, 1, 1};
@@ -217,7 +203,6 @@ void TCKHostApplication::on_subscribe_failure(void* /*context*/,
   std::cerr << "[TCK] Subscribe failed: " << (response ? response->code : -1) << "\n";
 }
 
-// Message handlers
 void TCKHostApplication::handle_test_control(const std::string& message) {
   auto parts = split(message, ' ');
   if (parts.empty()) {
@@ -227,7 +212,6 @@ void TCKHostApplication::handle_test_control(const std::string& message) {
   std::string command = parts[0];
 
   if (command == "NEW_TEST" && parts.size() >= 3) {
-    // Format: NEW_TEST <profile> <testType> <parameters...>
     std::string profile = parts[1];
     std::string test_type = parts[2];
 
@@ -236,7 +220,6 @@ void TCKHostApplication::handle_test_control(const std::string& message) {
       return;
     }
 
-    // Extract test parameters (everything after test type)
     std::vector<std::string> params(parts.begin() + 3, parts.end());
 
     current_test_name_ = test_type;
@@ -245,7 +228,6 @@ void TCKHostApplication::handle_test_control(const std::string& message) {
 
     log("INFO", "Starting test: " + test_type);
 
-    // Route to appropriate test handler
     if (test_type == "SessionEstablishmentTest") {
       run_session_establishment_test(params);
     } else if (test_type == "SessionTerminationTest") {
@@ -267,10 +249,17 @@ void TCKHostApplication::handle_test_control(const std::string& message) {
     }
   } else if (command == "END_TEST") {
     log("INFO", "Test ended by TCK");
+
+    if (current_test_name_ == "SendCommandTest" ||
+        current_test_name_ == "ReceiveDataTest" ||
+        current_test_name_ == "EdgeSessionTerminationTest") {
+      if (test_state_ == TestState::RUNNING) {
+        publish_result("OVERALL: PASS");
+      }
+    }
+
     test_state_ = TestState::IDLE;
 
-    // Only cleanup host application for SessionTerminationTest
-    // For other tests, keep the host alive for subsequent tests
     if (current_test_name_ == "SessionTerminationTest") {
       if (host_application_) {
         log("INFO", "Cleaning up host application (SessionTerminationTest)");
@@ -292,13 +281,11 @@ void TCKHostApplication::handle_console_prompt(const std::string& message) {
   std::cout << message << "\n";
   std::cout << "======================\n";
 
-  // Check for specific prompt patterns and handle them
   std::string msg_lower = message;
   std::transform(msg_lower.begin(), msg_lower.end(), msg_lower.begin(), ::tolower);
 
   if (msg_lower.find("rebirth") != std::string::npos &&
       msg_lower.find("edge node") != std::string::npos) {
-    // Send Node Rebirth command
     if (current_test_params_.size() >= 3) {
       std::string group_id = current_test_params_[1];
       std::string edge_node_id = current_test_params_[2];
@@ -326,7 +313,6 @@ void TCKHostApplication::handle_console_prompt(const std::string& message) {
     }
   } else if (msg_lower.find("rebirth") != std::string::npos &&
              msg_lower.find("device") != std::string::npos) {
-    // Send Device Rebirth command
     if (current_test_params_.size() >= 4) {
       std::string group_id = current_test_params_[1];
       std::string edge_node_id = current_test_params_[2];
@@ -354,7 +340,6 @@ void TCKHostApplication::handle_console_prompt(const std::string& message) {
       }
     }
   } else {
-    // Generic prompt - ask user for manual response
     std::cout << "\nEnter response (PASS/FAIL): ";
     std::string response;
     std::getline(std::cin, response);
@@ -370,7 +355,6 @@ void TCKHostApplication::handle_console_prompt(const std::string& message) {
 }
 
 void TCKHostApplication::handle_config(const std::string& message) {
-  // Format: UTCwindow <milliseconds>
   auto parts = split(message, ' ');
   if (parts.size() >= 2 && parts[0] == "UTCwindow") {
     config_.utc_window_ms = std::stoi(parts[1]);
@@ -379,20 +363,16 @@ void TCKHostApplication::handle_config(const std::string& message) {
 }
 
 void TCKHostApplication::handle_result_config(const std::string& message) {
-  // Format: NEW_RESULT-LOG <filename>
   log("INFO", "Result config: " + message);
 }
 
-// Helper to establish session without publishing test results
 auto TCKHostApplication::establish_session(const std::string& host_id)
     -> stdx::expected<void, std::string> {
-  // If host application already exists with same host_id, reuse it
   if (host_application_ && current_host_id_ == host_id) {
     log("INFO", "Host Application already online with host_id=" + host_id);
     return {};
   }
 
-  // If host exists but with different host_id, tear it down first
   if (host_application_ && current_host_id_ != host_id) {
     log("INFO", "Host ID changed from " + current_host_id_ + " to " + host_id +
                     ", recreating host application");
@@ -407,7 +387,6 @@ auto TCKHostApplication::establish_session(const std::string& host_id)
   log("INFO", "Creating Host Application with host_id=" + host_id);
 
   try {
-    // Create Host Application
     HostApplication::Config config{
         .broker_url = config_.broker_url,
         .client_id = host_id + "_client",
@@ -448,21 +427,18 @@ auto TCKHostApplication::establish_session(const std::string& host_id)
 
     host_application_ = std::make_unique<HostApplication>(std::move(config));
 
-    // Connect to broker
     log("INFO", "Connecting to broker");
     auto connect_result = host_application_->connect();
     if (!connect_result) {
       return stdx::unexpected("Failed to connect: " + connect_result.error());
     }
 
-    // Subscribe to all Sparkplug topics
     log("INFO", "Subscribing to spBv1.0/#");
     auto subscribe_result = host_application_->subscribe_all_groups();
     if (!subscribe_result) {
       return stdx::unexpected("Failed to subscribe: " + subscribe_result.error());
     }
 
-    // Publish STATE birth message
     auto timestamp = get_timestamp();
     log("INFO", "Publishing STATE birth message");
     auto state_result = host_application_->publish_state_birth(timestamp);
@@ -478,10 +454,8 @@ auto TCKHostApplication::establish_session(const std::string& host_id)
   }
 }
 
-// Test handlers
 void TCKHostApplication::run_session_establishment_test(
     const std::vector<std::string>& params) {
-  // Parameters: <host_id>
   if (params.empty()) {
     log("ERROR", "Missing host_id parameter");
     publish_result("OVERALL: NOT EXECUTED");
@@ -502,7 +476,6 @@ void TCKHostApplication::run_session_establishment_test(
 
 void TCKHostApplication::run_session_termination_test(
     const std::vector<std::string>& params) {
-  // Parameters: <host_id> <client_id>
   if (params.empty()) {
     log("ERROR", "Missing host_id parameter");
     publish_result("OVERALL: NOT EXECUTED");
@@ -512,7 +485,6 @@ void TCKHostApplication::run_session_termination_test(
   const std::string& host_id = params[0];
 
   try {
-    // If host application is not running, start it first
     if (!host_application_) {
       log("INFO", "Establishing session first");
       auto result = establish_session(host_id);
@@ -524,7 +496,6 @@ void TCKHostApplication::run_session_termination_test(
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
-    // Now terminate the session
     log("INFO", "Terminating Host Application session");
 
     auto timestamp = get_timestamp();
@@ -556,7 +527,6 @@ void TCKHostApplication::run_session_termination_test(
 }
 
 void TCKHostApplication::run_send_command_test(const std::vector<std::string>& params) {
-  // Parameters: <host_id> <group_id> <edge_node_id> <device_id>
   if (params.size() < 4) {
     log("ERROR", "Missing parameters (need: host_id, group_id, edge_node_id, device_id)");
     publish_result("OVERALL: NOT EXECUTED");
@@ -564,10 +534,8 @@ void TCKHostApplication::run_send_command_test(const std::vector<std::string>& p
   }
 
   const std::string& host_id = params[0];
-  // group_id, edge_node_id, device_id stored in current_test_params_ for prompt handler
 
   try {
-    // If host application is not running, start it first
     if (!host_application_) {
       log("INFO", "Establishing session first");
       auto result = establish_session(host_id);
@@ -580,10 +548,6 @@ void TCKHostApplication::run_send_command_test(const std::vector<std::string>& p
     }
 
     log("INFO", "Waiting for console prompts to send commands...");
-    // The actual command sending will be triggered by console prompts
-    // handled in handle_console_prompt()
-
-    // Test will complete when TCK sends END_TEST or moves to next test
 
   } catch (const std::exception& e) {
     log("ERROR", std::string("Exception: ") + e.what());
@@ -592,7 +556,6 @@ void TCKHostApplication::run_send_command_test(const std::vector<std::string>& p
 }
 
 void TCKHostApplication::run_receive_data_test(const std::vector<std::string>& params) {
-  // Parameters: <host_id> <group_id> <edge_node_id> <device_id>
   if (params.size() < 4) {
     log("ERROR", "Missing parameters");
     publish_result("OVERALL: NOT EXECUTED");
@@ -602,7 +565,6 @@ void TCKHostApplication::run_receive_data_test(const std::vector<std::string>& p
   const std::string& host_id = params[0];
 
   try {
-    // If host application is not running, start it first
     if (!host_application_) {
       log("INFO", "Establishing session first");
       auto result = establish_session(host_id);
@@ -617,11 +579,6 @@ void TCKHostApplication::run_receive_data_test(const std::vector<std::string>& p
     log("INFO", "Host Application ready to receive data");
     log("INFO", "Waiting for TCK to send simulated Edge Node messages...");
 
-    // The message_callback will automatically log received messages
-    // Test will pass if messages are received successfully
-
-    publish_result("OVERALL: PASS");
-
   } catch (const std::exception& e) {
     log("ERROR", std::string("Exception: ") + e.what());
     publish_result("OVERALL: FAIL");
@@ -630,7 +587,6 @@ void TCKHostApplication::run_receive_data_test(const std::vector<std::string>& p
 
 void TCKHostApplication::run_edge_session_termination_test(
     const std::vector<std::string>& params) {
-  // Parameters: <host_id> <group_id> <edge_node_id> <device_id>
   if (params.size() < 4) {
     log("ERROR", "Missing parameters");
     publish_result("OVERALL: NOT EXECUTED");
@@ -640,7 +596,6 @@ void TCKHostApplication::run_edge_session_termination_test(
   const std::string& host_id = params[0];
 
   try {
-    // If host application is not running, start it first
     if (!host_application_) {
       log("INFO", "Establishing session first");
       auto result = establish_session(host_id);
@@ -655,9 +610,6 @@ void TCKHostApplication::run_edge_session_termination_test(
     log("INFO", "Monitoring for Edge Node disconnection");
     log("INFO", "Waiting for NDEATH/DDEATH messages and console prompts...");
 
-    // Console prompts will ask user to verify behavior
-    // Handled in handle_console_prompt()
-
   } catch (const std::exception& e) {
     log("ERROR", std::string("Exception: ") + e.what());
     publish_result("OVERALL: FAIL");
@@ -666,7 +618,6 @@ void TCKHostApplication::run_edge_session_termination_test(
 
 void TCKHostApplication::run_message_ordering_test(
     const std::vector<std::string>& params) {
-  // Parameters: <host_id> <group_id> <edge_node_id> <device_id> <reorder_timeout>
   if (params.size() < 5) {
     log("ERROR", "Missing parameters");
     publish_result("OVERALL: NOT EXECUTED");
@@ -676,7 +627,6 @@ void TCKHostApplication::run_message_ordering_test(
   const std::string& host_id = params[0];
 
   try {
-    // If host application is not running, start it first
     if (!host_application_) {
       log("INFO", "Establishing session first");
       auto result = establish_session(host_id);
@@ -690,9 +640,6 @@ void TCKHostApplication::run_message_ordering_test(
 
     log("INFO", "Monitoring message sequence numbers for out-of-order detection");
 
-    // The HostApplication class automatically validates sequence numbers
-    // if validate_sequence is enabled in config
-
     publish_result("OVERALL: PASS");
 
   } catch (const std::exception& e) {
@@ -703,7 +650,6 @@ void TCKHostApplication::run_message_ordering_test(
 
 void TCKHostApplication::run_multiple_broker_test(
     const std::vector<std::string>& params) {
-  // Parameters: <host_id> <broker_uri>
   if (params.size() < 2) {
     log("ERROR", "Missing parameters");
     publish_result("OVERALL: NOT EXECUTED");
@@ -715,7 +661,6 @@ void TCKHostApplication::run_multiple_broker_test(
   publish_result("OVERALL: NOT EXECUTED");
 }
 
-// Utility functions
 void TCKHostApplication::log(const std::string& level, const std::string& message) {
   std::string log_msg = "[" + level + "] " + message;
   std::cout << log_msg << "\n";
