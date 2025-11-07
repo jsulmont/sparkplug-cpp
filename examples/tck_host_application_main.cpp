@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
   std::cout << "Sparkplug TCK Host Application\n";
   std::cout << "========================================\n\n";
 
-  sparkplug::tck::TCKConfig config;
+  sparkplug::tck::TCKHostConfig config;
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
@@ -67,7 +67,7 @@ int main(int argc, char* argv[]) {
   try {
     g_app = std::make_unique<sparkplug::tck::TCKHostApplication>(config);
 
-    auto result = g_app->start();
+    auto result = g_app->start_with_session();
     if (!result) {
       std::cerr << "Failed to start TCK application: " << result.error() << "\n";
       return 1;

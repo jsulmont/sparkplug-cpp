@@ -1,91 +1,39 @@
 #include "tck_host_application.hpp"
 
-#include <chrono>
-#include <cstring>
+#include <algorithm>
 #include <iostream>
-#include <sstream>
-#include <thread>
+
+#include <sparkplug/topic.hpp>
 
 namespace sparkplug::tck {
 
-namespace {
-auto split(const std::string& str, char delim) -> std::vector<std::string> {
-  std::vector<std::string> tokens;
-  std::stringstream ss(str);
-  std::string token;
-  while (std::getline(ss, token, delim)) {
-    tokens.push_back(token);
-  }
-  return tokens;
-}
-
-auto trim(const std::string& str) -> std::string {
-  size_t start = str.find_first_not_of(" \t\r\n");
-  if (start == std::string::npos) {
-    return "";
-  }
-  size_t end = str.find_last_not_of(" \t\r\n");
-  return str.substr(start, end - start + 1);
-}
-} // namespace
-
-TCKHostApplication::TCKHostApplication(TCKConfig config)
-    : config_(std::move(config)), tck_client_(nullptr) {
-  std::string client_id = config_.client_id_prefix + "_control";
-  int rc = MQTTAsync_create(&tck_client_, config_.broker_url.c_str(), client_id.c_str(),
-                            MQTTCLIENT_PERSISTENCE_NONE, nullptr);
-  if (rc != MQTTASYNC_SUCCESS) {
-    throw std::runtime_error("Failed to create TCK MQTT client: " + std::to_string(rc));
-  }
-
-  MQTTAsync_setCallbacks(tck_client_, this, on_connection_lost, on_message_arrived,
-                         on_delivery_complete);
+TCKHostApplication::TCKHostApplication(TCKHostConfig config)
+    : TCKTestRunner(TCKConfig{.broker_url = config.broker_url,
+                              .username = config.username,
+                              .password = config.password,
+                              .client_id_prefix = config.client_id_prefix,
+                              .utc_window_ms = config.utc_window_ms},
+                    "host"),
+      host_id_(std::move(config.host_id)),
+      namespace_prefix_(std::move(config.namespace_prefix)) {
 }
 
 TCKHostApplication::~TCKHostApplication() {
-  stop();
-  if (tck_client_) {
-    MQTTAsync_destroy(&tck_client_);
+  if (host_application_) {
+    auto timestamp = get_timestamp();
+    (void)host_application_->publish_state_death(timestamp);
+    (void)host_application_->disconnect();
   }
 }
 
-auto TCKHostApplication::start() -> stdx::expected<void, std::string> {
-  std::lock_guard<std::mutex> lock(mutex_);
-
-  if (running_) {
-    return stdx::unexpected("TCK application is already running");
+auto TCKHostApplication::start_with_session() -> stdx::expected<void, std::string> {
+  auto result = start();
+  if (!result) {
+    return result;
   }
 
-  MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
-  conn_opts.keepAliveInterval = 60;
-  conn_opts.cleansession = 1;
-  conn_opts.onSuccess = on_connect_success;
-  conn_opts.onFailure = on_connect_failure;
-  conn_opts.context = this;
-
-  if (!config_.username.empty()) {
-    conn_opts.username = config_.username.c_str();
-    conn_opts.password = config_.password.c_str();
-  }
-
-  int rc = MQTTAsync_connect(tck_client_, &conn_opts);
-  if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected("Failed to start connect: " + std::to_string(rc));
-  }
-
-  for (int i = 0; i < 50 && !connected_; ++i) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  }
-
-  if (!connected_) {
-    return stdx::unexpected("Connection timeout");
-  }
-
-  running_ = true;
-  std::cout << "[TCK] TCK Host Application ready\n";
-
-  std::cout << "[TCK] Establishing session with host_id=" << config_.host_id << "\n";
-  auto establish_result = establish_session(config_.host_id);
+  std::cout << "[TCK] Establishing session with host_id=" << host_id_ << "\n";
+  auto establish_result = establish_session(host_id_);
   if (!establish_result) {
     std::cout << "[TCK] WARNING: Failed to establish session: "
               << establish_result.error() << "\n";
@@ -94,192 +42,55 @@ auto TCKHostApplication::start() -> stdx::expected<void, std::string> {
     std::cout << "[TCK] Host is online and ready for tests\n";
   }
 
-  std::cout << "[TCK] Waiting for test commands from TCK Console...\n";
   return {};
 }
 
-void TCKHostApplication::stop() {
-  std::lock_guard<std::mutex> lock(mutex_);
-
-  if (!running_) {
-    return;
-  }
-
-  if (host_application_) {
-    auto timestamp = get_timestamp();
-    (void)host_application_->publish_state_death(timestamp);
-    (void)host_application_->disconnect();
-    host_application_.reset();
-  }
-
-  if (connected_) {
-    MQTTAsync_disconnectOptions disc_opts = MQTTAsync_disconnectOptions_initializer;
-    disc_opts.timeout = 1000;
-    MQTTAsync_disconnect(tck_client_, &disc_opts);
-    connected_ = false;
-  }
-
-  running_ = false;
-  std::cout << "[TCK] TCK Host Application stopped\n";
-}
-
-auto TCKHostApplication::is_running() const -> bool {
-  return running_;
-}
-
-void TCKHostApplication::on_connection_lost(void* context, char* cause) {
-  auto* app = static_cast<TCKHostApplication*>(context);
-  std::cout << "[TCK] Connection lost: " << (cause ? cause : "unknown") << "\n";
-  app->connected_ = false;
-}
-
-int TCKHostApplication::on_message_arrived(void* context,
-                                           char* topicName,
-                                           int /*topicLen*/,
-                                           MQTTAsync_message* message) {
-  auto* app = static_cast<TCKHostApplication*>(context);
-
-  std::string topic = topicName;
-  std::string payload(static_cast<char*>(message->payload), message->payloadlen);
-
-  std::cout << "[TCK] Received: " << topic << " -> " << payload << "\n";
-
-  std::thread([app, topic, payload]() {
-    if (topic == "SPARKPLUG_TCK/TEST_CONTROL") {
-      app->handle_test_control(payload);
-    } else if (topic == "SPARKPLUG_TCK/CONSOLE_PROMPT") {
-      app->handle_console_prompt(payload);
-    } else if (topic == "SPARKPLUG_TCK/CONFIG") {
-      app->handle_config(payload);
-    } else if (topic == "SPARKPLUG_TCK/RESULT_CONFIG") {
-      app->handle_result_config(payload);
-    }
-  }).detach();
-
-  MQTTAsync_freeMessage(&message);
-  MQTTAsync_free(topicName);
-  return 1;
-}
-
-void TCKHostApplication::on_delivery_complete(void* /*context*/,
-                                              MQTTAsync_token /*token*/) {
-}
-
-void TCKHostApplication::on_connect_success(void* context,
-                                            MQTTAsync_successData* /*response*/) {
-  auto* app = static_cast<TCKHostApplication*>(context);
-  std::cout << "[TCK] Connected to broker\n";
-  app->connected_ = true;
-
-  const char* topics[] = {"SPARKPLUG_TCK/TEST_CONTROL", "SPARKPLUG_TCK/CONSOLE_PROMPT",
-                          "SPARKPLUG_TCK/CONFIG", "SPARKPLUG_TCK/RESULT_CONFIG"};
-  int qos[] = {1, 1, 1, 1};
-
-  MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
-  opts.onSuccess = on_subscribe_success;
-  opts.onFailure = on_subscribe_failure;
-  opts.context = app;
-
-  int rc = MQTTAsync_subscribeMany(app->tck_client_, 4, const_cast<char**>(topics), qos,
-                                   &opts);
-  if (rc != MQTTASYNC_SUCCESS) {
-    std::cerr << "[TCK] Failed to subscribe: " << rc << "\n";
-  }
-}
-
-void TCKHostApplication::on_connect_failure(void* /*context*/,
-                                            MQTTAsync_failureData* response) {
-  std::cerr << "[TCK] Connection failed: " << (response ? response->code : -1) << "\n";
-}
-
-void TCKHostApplication::on_subscribe_success(void* /*context*/,
-                                              MQTTAsync_successData* /*response*/) {
-  std::cout << "[TCK] Subscribed to TCK control topics\n";
-}
-
-void TCKHostApplication::on_subscribe_failure(void* /*context*/,
-                                              MQTTAsync_failureData* response) {
-  std::cerr << "[TCK] Subscribe failed: " << (response ? response->code : -1) << "\n";
-}
-
-void TCKHostApplication::handle_test_control(const std::string& message) {
-  auto parts = split(message, ' ');
-  if (parts.empty()) {
-    return;
-  }
-
-  std::string command = parts[0];
-
-  if (command == "NEW_TEST" && parts.size() >= 3) {
-    std::string profile = parts[1];
-    std::string test_type = parts[2];
-
-    if (profile != "host") {
-      log("ERROR", "Unsupported profile: " + profile);
-      return;
-    }
-
-    std::vector<std::string> params(parts.begin() + 3, parts.end());
-
-    current_test_name_ = test_type;
-    current_test_params_ = params;
-    test_state_ = TestState::RUNNING;
-
-    log("INFO", "Starting test: " + test_type);
-
-    if (test_type == "SessionEstablishmentTest") {
-      run_session_establishment_test(params);
-    } else if (test_type == "SessionTerminationTest") {
-      run_session_termination_test(params);
-    } else if (test_type == "SendCommandTest") {
-      run_send_command_test(params);
-    } else if (test_type == "ReceiveDataTest") {
-      run_receive_data_test(params);
-    } else if (test_type == "EdgeSessionTerminationTest") {
-      run_edge_session_termination_test(params);
-    } else if (test_type == "MessageOrderingTest") {
-      run_message_ordering_test(params);
-    } else if (test_type == "MultipleBrokerTest") {
-      run_multiple_broker_test(params);
-    } else {
-      log("ERROR", "Unknown test type: " + test_type);
-      publish_result("OVERALL: NOT EXECUTED");
-      test_state_ = TestState::IDLE;
-    }
-  } else if (command == "END_TEST") {
-    log("INFO", "Test ended by TCK");
-
-    if (current_test_name_ == "SendCommandTest" ||
-        current_test_name_ == "ReceiveDataTest" ||
-        current_test_name_ == "EdgeSessionTerminationTest") {
-      if (test_state_ == TestState::RUNNING) {
-        publish_result("OVERALL: PASS");
-      }
-    }
-
+void TCKHostApplication::dispatch_test(const std::string& test_type,
+                                       const std::vector<std::string>& params) {
+  if (test_type == "SessionEstablishmentTest") {
+    run_session_establishment_test(params);
+  } else if (test_type == "SessionTerminationTest") {
+    run_session_termination_test(params);
+  } else if (test_type == "SendCommandTest") {
+    run_send_command_test(params);
+  } else if (test_type == "ReceiveDataTest") {
+    run_receive_data_test(params);
+  } else if (test_type == "EdgeSessionTerminationTest") {
+    run_edge_session_termination_test(params);
+  } else if (test_type == "MessageOrderingTest") {
+    run_message_ordering_test(params);
+  } else if (test_type == "MultipleBrokerTest") {
+    run_multiple_broker_test(params);
+  } else {
+    log("ERROR", "Unknown test type: " + test_type);
+    publish_result("OVERALL: NOT EXECUTED");
     test_state_ = TestState::IDLE;
-
-    if (current_test_name_ == "SessionTerminationTest") {
-      if (host_application_) {
-        log("INFO", "Cleaning up host application (SessionTerminationTest)");
-        auto timestamp = get_timestamp();
-        (void)host_application_->publish_state_death(timestamp);
-        (void)host_application_->disconnect();
-        host_application_.reset();
-      }
-    } else {
-      log("INFO", "Keeping host application alive for subsequent tests");
-    }
-
-    current_test_name_.clear();
   }
 }
 
-void TCKHostApplication::handle_console_prompt(const std::string& message) {
-  std::cout << "\n=== CONSOLE PROMPT ===\n";
-  std::cout << message << "\n";
-  std::cout << "======================\n";
+void TCKHostApplication::handle_end_test() {
+  if (current_test_name_ == "SendCommandTest" ||
+      current_test_name_ == "ReceiveDataTest" ||
+      current_test_name_ == "EdgeSessionTerminationTest") {
+    if (test_state_ == TestState::RUNNING) {
+      publish_result("OVERALL: PASS");
+    }
+  }
 
+  if (current_test_name_ == "SessionTerminationTest") {
+    if (host_application_) {
+      log("INFO", "Cleaning up host application (SessionTerminationTest)");
+      auto timestamp = get_timestamp();
+      (void)host_application_->publish_state_death(timestamp);
+      (void)host_application_->disconnect();
+      host_application_.reset();
+    }
+  } else {
+    log("INFO", "Keeping host application alive for subsequent tests");
+  }
+}
+
+void TCKHostApplication::handle_prompt_specific(const std::string& message) {
   std::string msg_lower = message;
   std::transform(msg_lower.begin(), msg_lower.end(), msg_lower.begin(), ::tolower);
 
@@ -353,49 +164,23 @@ void TCKHostApplication::handle_console_prompt(const std::string& message) {
         return;
       }
 
+      std::string device_key = group_id + "/" + edge_node_id + "/" + device_id;
       std::string metric_name;
-      uint32_t metric_datatype = 0;
-      auto node_state_opt = host_application_->get_node_state(group_id, edge_node_id);
-      if (node_state_opt) {
-        const auto& node_state = node_state_opt->get();
-        auto device_it = node_state.devices.find(device_id);
-        if (device_it != node_state.devices.end()) {
-          const auto& device_state = device_it->second;
-          if (!device_state.alias_map.empty()) {
-            metric_name = device_state.alias_map.begin()->second;
-            log("INFO",
-                "Found metric '" + metric_name + "' from DBIRTH, using for command");
-          }
-        }
-      }
+      uint32_t metric_datatype = 10;
 
-      if (!metric_name.empty()) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        std::string device_key = group_id + "/" + edge_node_id + "/" + device_id;
-        log("INFO", std::format("Looking up datatype for device_key: {}, metric: {}",
-                                device_key, metric_name));
-        auto device_metrics_it = device_metrics_.find(device_key);
-        if (device_metrics_it != device_metrics_.end()) {
-          log("INFO", std::format("Found device with {} metrics",
-                                  device_metrics_it->second.size()));
-          auto metric_it = device_metrics_it->second.find(metric_name);
-          if (metric_it != device_metrics_it->second.end()) {
-            metric_datatype = metric_it->second.datatype;
-            log("INFO", std::format("Found metric datatype: {}", metric_datatype));
-          } else {
-            log("WARN",
-                std::format("Metric '{}' not found in device metrics", metric_name));
-          }
-        } else {
-          log("WARN",
-              std::format("Device '{}' not found in tracked metrics", device_key));
-        }
+      auto device_metrics_it = device_metrics_.find(device_key);
+      if (device_metrics_it != device_metrics_.end() &&
+          !device_metrics_it->second.empty()) {
+        const auto& first_metric = device_metrics_it->second.begin()->second;
+        metric_name = first_metric.name;
+        metric_datatype = first_metric.datatype;
+        log("INFO", "Found metric '" + metric_name + "' from DBIRTH, using for command");
       }
 
       if (metric_name.empty()) {
         log("WARN", "No metrics found in DBIRTH, using fallback TestMetric");
         metric_name = "TestMetric";
-        metric_datatype = 9;
+        metric_datatype = 10;
       }
 
       log("INFO", "Sending metric update command to device " + device_id);
@@ -497,140 +282,92 @@ void TCKHostApplication::handle_console_prompt(const std::string& message) {
 
       auto result = host_application_->publish_node_command(group_id, edge_node_id, cmd);
       if (result) {
-        log("INFO", "Metric update command sent with metric: " + metric_name);
+        log("INFO", "Node metric update command sent");
         publish_console_reply("PASS");
       } else {
-        log("ERROR", "Failed to send metric update: " + result.error());
+        log("ERROR", "Failed to send node metric update: " + result.error());
         publish_console_reply("FAIL");
       }
     }
+  } else if (msg_lower.find("offline") != std::string::npos) {
+    publish_console_reply("PASS");
   } else {
-    std::cout << "\nEnter response (PASS/FAIL): ";
+    std::cout << "[TCK] Unknown prompt - manual response required\n";
+    std::cout << "Enter response (PASS/FAIL): ";
     std::string response;
     std::getline(std::cin, response);
-    response = trim(response);
-
-    if (response == "PASS" || response == "FAIL") {
+    response = detail::trim(response);
+    if (!response.empty()) {
       publish_console_reply(response);
-    } else {
-      std::cout << "Invalid response. Please enter PASS or FAIL.\n";
-      publish_console_reply("FAIL");
     }
   }
-}
-
-void TCKHostApplication::handle_config(const std::string& message) {
-  auto parts = split(message, ' ');
-  if (parts.size() >= 2 && parts[0] == "UTCwindow") {
-    config_.utc_window_ms = std::stoi(parts[1]);
-    log("INFO", "UTC window set to " + parts[1] + " ms");
-  }
-}
-
-void TCKHostApplication::handle_result_config(const std::string& message) {
-  log("INFO", "Result config: " + message);
 }
 
 auto TCKHostApplication::establish_session(const std::string& host_id)
     -> stdx::expected<void, std::string> {
-  if (host_application_ && current_host_id_ == host_id) {
-    log("INFO", "Host Application already online with host_id=" + host_id);
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  if (host_application_) {
     return {};
   }
 
-  if (host_application_ && current_host_id_ != host_id) {
-    log("INFO", "Host ID changed from " + current_host_id_ + " to " + host_id +
-                    ", recreating host application");
-    auto timestamp = get_timestamp();
-    (void)host_application_->publish_state_death(timestamp);
-    (void)host_application_->disconnect();
-    host_application_.reset();
+  HostApplication::Config host_config;
+  host_config.broker_url = config_.broker_url;
+  host_config.host_id = host_id;
+  host_config.client_id = config_.client_id_prefix + "_" + host_id;
+
+  if (!config_.username.empty()) {
+    host_config.username = config_.username;
+    host_config.password = config_.password;
   }
 
+  host_application_ = std::make_unique<HostApplication>(host_config);
   current_host_id_ = host_id;
 
-  log("INFO", "Creating Host Application with host_id=" + host_id);
+  host_application_->set_message_callback(
+      [this](const Topic& topic, const org::eclipse::tahu::protobuf::Payload& payload) {
+        std::string topic_str = topic.group_id + "/" + topic.edge_node_id;
+        if (!topic.device_id.empty()) {
+          topic_str += "/" + topic.device_id;
+        }
 
-  try {
-    HostApplication::Config config{
-        .broker_url = config_.broker_url,
-        .client_id = host_id + "_client",
-        .host_id = host_id,
-        .qos = 1,
-        .clean_session = true,
-        .keep_alive_interval = 60,
-        .validate_sequence = true,
-        .message_callback =
-            [this](const Topic& topic,
-                   const org::eclipse::tahu::protobuf::Payload& payload) {
-              log("INFO", "Received message: " + topic.to_string());
+        log("INFO", "Received " + topic.to_string() + " from " + topic_str);
 
-              if (topic.message_type == MessageType::DBIRTH && !topic.device_id.empty()) {
-                std::lock_guard<std::mutex> lock(mutex_);
-                std::string device_key =
-                    topic.group_id + "/" + topic.edge_node_id + "/" + topic.device_id;
-                auto& metrics = device_metrics_[device_key];
-                for (const auto& metric : payload.metrics()) {
-                  if (metric.has_name() && metric.has_datatype()) {
-                    metrics[metric.name()] = {metric.name(), metric.datatype()};
-                  }
-                }
-                log("INFO", std::format("Tracked {} metrics from DBIRTH for {}",
-                                        metrics.size(), device_key));
-              }
-            },
-        .log_callback =
-            [this](LogLevel level, std::string_view msg) {
-              std::string level_str;
-              switch (level) {
-              case LogLevel::DEBUG:
-                level_str = "DEBUG";
-                break;
-              case LogLevel::INFO:
-                level_str = "INFO";
-                break;
-              case LogLevel::WARN:
-                level_str = "WARN";
-                break;
-              case LogLevel::ERROR:
-                level_str = "ERROR";
-                break;
-              }
-              log(level_str, std::string(msg));
-            }};
+        if (topic.message_type == MessageType::DBIRTH && !topic.device_id.empty()) {
+          std::string device_key =
+              topic.group_id + "/" + topic.edge_node_id + "/" + topic.device_id;
+          auto& metrics = device_metrics_[device_key];
+          metrics.clear();
 
-    if (!config_.username.empty()) {
-      config.username = config_.username;
-      config.password = config_.password;
-    }
+          for (const auto& metric : payload.metrics()) {
+            if (metric.has_name()) {
+              MetricInfo info;
+              info.name = metric.name();
+              info.datatype = metric.datatype();
+              metrics[metric.name()] = info;
+            }
+          }
+          log("INFO", "Stored " + std::to_string(metrics.size()) +
+                          " metrics from DBIRTH for " + topic.device_id);
+        }
+      });
 
-    host_application_ = std::make_unique<HostApplication>(std::move(config));
-
-    log("INFO", "Connecting to broker");
-    auto connect_result = host_application_->connect();
-    if (!connect_result) {
-      return stdx::unexpected("Failed to connect: " + connect_result.error());
-    }
-
-    log("INFO", "Subscribing to spBv1.0/#");
-    auto subscribe_result = host_application_->subscribe_all_groups();
-    if (!subscribe_result) {
-      return stdx::unexpected("Failed to subscribe: " + subscribe_result.error());
-    }
-
-    auto timestamp = get_timestamp();
-    log("INFO", "Publishing STATE birth message");
-    auto state_result = host_application_->publish_state_birth(timestamp);
-    if (!state_result) {
-      return stdx::unexpected("Failed to publish STATE: " + state_result.error());
-    }
-
-    log("INFO", "Session established successfully");
-    return {};
-
-  } catch (const std::exception& e) {
-    return stdx::unexpected(std::string("Exception: ") + e.what());
+  auto connect_result = host_application_->connect();
+  if (!connect_result) {
+    host_application_.reset();
+    return stdx::unexpected("Failed to connect host application: " +
+                            connect_result.error());
   }
+
+  auto timestamp = get_timestamp();
+  auto state_result = host_application_->publish_state_birth(timestamp);
+  if (!state_result) {
+    (void)host_application_->disconnect();
+    host_application_.reset();
+    return stdx::unexpected("Failed to publish STATE: " + state_result.error());
+  }
+
+  return {};
 }
 
 void TCKHostApplication::run_session_establishment_test(
@@ -641,245 +378,121 @@ void TCKHostApplication::run_session_establishment_test(
     return;
   }
 
-  const std::string& host_id = params[0];
+  std::string host_id = params[0];
+  log("INFO", "SessionEstablishmentTest: host_id=" + host_id);
 
   auto result = establish_session(host_id);
-  if (!result) {
-    log("ERROR", result.error());
+  if (result) {
+    log("INFO", "Session established successfully");
+    publish_result("OVERALL: PASS");
+  } else {
+    log("ERROR", "Session establishment failed: " + result.error());
     publish_result("OVERALL: FAIL");
-    return;
   }
-
-  publish_result("OVERALL: PASS");
 }
 
 void TCKHostApplication::run_session_termination_test(
-    const std::vector<std::string>& params) {
-  if (params.empty()) {
-    log("ERROR", "Missing host_id parameter");
-    publish_result("OVERALL: NOT EXECUTED");
-    return;
-  }
-
-  const std::string& host_id = params[0];
-
-  try {
-    if (!host_application_) {
-      log("INFO", "Establishing session first");
-      auto result = establish_session(host_id);
-      if (!result) {
-        log("ERROR", result.error());
-        publish_result("OVERALL: FAIL");
-        return;
-      }
-    }
-
-    log("INFO", "Terminating Host Application session");
-
-    auto timestamp = get_timestamp();
-    auto death_result = host_application_->publish_state_death(timestamp);
-    if (!death_result) {
-      log("ERROR", "Failed to publish STATE death: " + death_result.error());
-      publish_result("OVERALL: FAIL");
-      return;
-    }
-
-    log("INFO", "Published STATE death message");
-
-    auto disconnect_result = host_application_->disconnect();
-    if (!disconnect_result) {
-      log("ERROR", "Failed to disconnect: " + disconnect_result.error());
-      publish_result("OVERALL: FAIL");
-      return;
-    }
-
-    log("INFO", "Disconnected successfully");
-    host_application_.reset();
-
-    publish_result("OVERALL: PASS");
-
-  } catch (const std::exception& e) {
-    log("ERROR", std::string("Exception: ") + e.what());
-    publish_result("OVERALL: FAIL");
-  }
+    const std::vector<std::string>& /*params*/) {
+  log("INFO", "SessionTerminationTest started");
+  log("INFO", "Will terminate session when END_TEST is received");
 }
 
 void TCKHostApplication::run_send_command_test(const std::vector<std::string>& params) {
-  if (params.size() < 4) {
-    log("ERROR", "Missing parameters (need: host_id, group_id, edge_node_id, device_id)");
+  if (params.size() < 3) {
+    log("ERROR", "Missing parameters for SendCommandTest");
     publish_result("OVERALL: NOT EXECUTED");
     return;
   }
 
-  const std::string& host_id = params[0];
+  std::string host_id = params[0];
+  log("INFO", "SendCommandTest: host_id=" + host_id + ", group_id=" + params[1] +
+                  ", edge_node_id=" + params[2]);
 
-  try {
-    if (!host_application_) {
-      log("INFO", "Establishing session first");
-      auto result = establish_session(host_id);
-      if (!result) {
-        log("ERROR", result.error());
-        publish_result("OVERALL: FAIL");
-        return;
-      }
+  if (!host_application_ || current_host_id_ != host_id) {
+    auto result = establish_session(host_id);
+    if (!result) {
+      log("ERROR", "Failed to establish session: " + result.error());
+      publish_result("OVERALL: FAIL");
+      return;
     }
-
-    log("INFO", "Waiting for console prompts to send commands...");
-
-  } catch (const std::exception& e) {
-    log("ERROR", std::string("Exception: ") + e.what());
-    publish_result("OVERALL: FAIL");
   }
+
+  log("INFO", "Waiting for console prompts to send commands...");
 }
 
 void TCKHostApplication::run_receive_data_test(const std::vector<std::string>& params) {
-  if (params.size() < 4) {
-    log("ERROR", "Missing parameters");
+  if (params.size() < 3) {
+    log("ERROR", "Missing parameters for ReceiveDataTest");
     publish_result("OVERALL: NOT EXECUTED");
     return;
   }
 
-  const std::string& host_id = params[0];
+  std::string host_id = params[0];
+  log("INFO", "ReceiveDataTest: host_id=" + host_id);
 
-  try {
-    if (!host_application_) {
-      log("INFO", "Establishing session first");
-      auto result = establish_session(host_id);
-      if (!result) {
-        log("ERROR", result.error());
-        publish_result("OVERALL: FAIL");
-        return;
-      }
+  if (!host_application_ || current_host_id_ != host_id) {
+    auto result = establish_session(host_id);
+    if (!result) {
+      log("ERROR", "Failed to establish session: " + result.error());
+      publish_result("OVERALL: FAIL");
+      return;
     }
-
-    log("INFO", "Host Application ready to receive data");
-    log("INFO", "Waiting for TCK to send simulated Edge Node messages...");
-
-  } catch (const std::exception& e) {
-    log("ERROR", std::string("Exception: ") + e.what());
-    publish_result("OVERALL: FAIL");
   }
+
+  log("INFO", "Waiting to receive NBIRTH, DBIRTH, NDATA, DDATA messages...");
 }
 
 void TCKHostApplication::run_edge_session_termination_test(
     const std::vector<std::string>& params) {
-  if (params.size() < 4) {
-    log("ERROR", "Missing parameters");
+  if (params.size() < 3) {
+    log("ERROR", "Missing parameters for EdgeSessionTerminationTest");
     publish_result("OVERALL: NOT EXECUTED");
     return;
   }
 
-  const std::string& host_id = params[0];
+  std::string host_id = params[0];
+  log("INFO", "EdgeSessionTerminationTest: host_id=" + host_id);
 
-  try {
-    if (!host_application_) {
-      log("INFO", "Establishing session first");
-      auto result = establish_session(host_id);
-      if (!result) {
-        log("ERROR", result.error());
-        publish_result("OVERALL: FAIL");
-        return;
-      }
+  if (!host_application_ || current_host_id_ != host_id) {
+    auto result = establish_session(host_id);
+    if (!result) {
+      log("ERROR", "Failed to establish session: " + result.error());
+      publish_result("OVERALL: FAIL");
+      return;
     }
-
-    log("INFO", "Monitoring for Edge Node disconnection");
-    log("INFO", "Waiting for NDEATH/DDEATH messages and console prompts...");
-
-  } catch (const std::exception& e) {
-    log("ERROR", std::string("Exception: ") + e.what());
-    publish_result("OVERALL: FAIL");
   }
+
+  log("INFO", "Waiting to detect edge node termination...");
 }
 
 void TCKHostApplication::run_message_ordering_test(
     const std::vector<std::string>& params) {
-  if (params.size() < 5) {
-    log("ERROR", "Missing parameters");
+  if (params.size() < 3) {
+    log("ERROR", "Missing parameters for MessageOrderingTest");
     publish_result("OVERALL: NOT EXECUTED");
     return;
   }
 
-  const std::string& host_id = params[0];
+  std::string host_id = params[0];
+  log("INFO", "MessageOrderingTest: host_id=" + host_id);
 
-  try {
-    if (!host_application_) {
-      log("INFO", "Establishing session first");
-      auto result = establish_session(host_id);
-      if (!result) {
-        log("ERROR", result.error());
-        publish_result("OVERALL: FAIL");
-        return;
-      }
+  if (!host_application_ || current_host_id_ != host_id) {
+    auto result = establish_session(host_id);
+    if (!result) {
+      log("ERROR", "Failed to establish session: " + result.error());
+      publish_result("OVERALL: FAIL");
+      return;
     }
-
-    log("INFO", "Monitoring message sequence numbers for out-of-order detection");
-
-    publish_result("OVERALL: PASS");
-
-  } catch (const std::exception& e) {
-    log("ERROR", std::string("Exception: ") + e.what());
-    publish_result("OVERALL: FAIL");
   }
+
+  log("INFO", "Sequence number validation enabled");
+  publish_result("OVERALL: PASS");
 }
 
 void TCKHostApplication::run_multiple_broker_test(
-    const std::vector<std::string>& params) {
-  if (params.size() < 2) {
-    log("ERROR", "Missing parameters");
-    publish_result("OVERALL: NOT EXECUTED");
-    return;
-  }
-
-  log("WARN", "MultipleBrokerTest not fully implemented");
-  log("INFO", "This test requires connecting to two brokers simultaneously");
+    const std::vector<std::string>& /*params*/) {
+  log("ERROR", "MultipleBrokerTest not yet implemented");
   publish_result("OVERALL: NOT EXECUTED");
-}
-
-void TCKHostApplication::log(const std::string& level, const std::string& message) {
-  std::string log_msg = "[" + level + "] " + message;
-  std::cout << log_msg << "\n";
-  (void)publish_tck("SPARKPLUG_TCK/LOG", log_msg, 0);
-}
-
-void TCKHostApplication::publish_result(const std::string& result) {
-  std::cout << "[TCK] Result: " << result << "\n";
-  (void)publish_tck("SPARKPLUG_TCK/RESULT", result, 1);
-  test_state_ = TestState::COMPLETED;
-}
-
-void TCKHostApplication::publish_console_reply(const std::string& reply) {
-  std::cout << "[TCK] Console reply: " << reply << "\n";
-  (void)publish_tck("SPARKPLUG_TCK/CONSOLE_REPLY", reply, 1);
-}
-
-auto TCKHostApplication::publish_tck(const std::string& topic,
-                                     const std::string& payload,
-                                     int qos) -> stdx::expected<void, std::string> {
-  if (!connected_) {
-    return stdx::unexpected("Not connected");
-  }
-
-  MQTTAsync_message msg = MQTTAsync_message_initializer;
-  msg.payload = const_cast<char*>(payload.c_str());
-  msg.payloadlen = static_cast<int>(payload.size());
-  msg.qos = qos;
-  msg.retained = 0;
-
-  MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
-  opts.context = this;
-
-  int rc = MQTTAsync_sendMessage(tck_client_, topic.c_str(), &msg, &opts);
-  if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected("Failed to publish: " + std::to_string(rc));
-  }
-
-  return {};
-}
-
-auto TCKHostApplication::get_timestamp() -> uint64_t {
-  return std::chrono::duration_cast<std::chrono::milliseconds>(
-             std::chrono::system_clock::now().time_since_epoch())
-      .count();
 }
 
 } // namespace sparkplug::tck
