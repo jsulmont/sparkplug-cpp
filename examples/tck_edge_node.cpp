@@ -74,24 +74,26 @@ void TCKEdgeNode::handle_prompt_specific(const std::string& /*message*/) {
 }
 
 void TCKEdgeNode::run_session_establishment_test(const std::vector<std::string>& params) {
-  if (params.size() < 2) {
+  if (params.size() < 3) {
     log("ERROR", "Missing parameters for SessionEstablishmentTest");
     publish_result("OVERALL: NOT EXECUTED");
     return;
   }
 
-  const std::string& group_id = params[0];
-  const std::string& edge_node_id = params[1];
+  const std::string& host_id = params[0];
+  const std::string& group_id = params[1];
+  const std::string& edge_node_id = params[2];
 
   std::vector<std::string> device_ids;
-  if (params.size() > 2 && !params[2].empty()) {
-    device_ids = detail::split(params[2], ' ');
+  if (params.size() > 3 && !params[3].empty()) {
+    device_ids = detail::split(params[3], ' ');
   }
 
   try {
     log("INFO",
-        std::format("Starting SessionEstablishmentTest: group={}, node={}, devices={}",
-                    group_id, edge_node_id, params.size() > 2 ? params[2] : "none"));
+        std::format(
+            "Starting SessionEstablishmentTest: host={}, group={}, node={}, devices={}",
+            host_id, group_id, edge_node_id, params.size() > 3 ? params[3] : "none"));
 
     auto result = create_edge_node(group_id, edge_node_id, device_ids);
     if (!result) {
@@ -172,6 +174,11 @@ auto TCKEdgeNode::create_edge_node(const std::string& group_id,
       edge_config.password = config_.password;
     }
 
+    // Set command callback to ensure NCMD/DCMD subscriptions
+    edge_config.command_callback = [this](const Topic& topic, const auto& /*payload*/) {
+      log("INFO", std::format("Received command on topic: {}", topic.to_string()));
+    };
+
     edge_node_ = std::make_unique<EdgeNode>(std::move(edge_config));
 
     log("INFO", "Connecting Edge Node to broker");
@@ -182,10 +189,12 @@ auto TCKEdgeNode::create_edge_node(const std::string& group_id,
 
     log("INFO", "Publishing NBIRTH with test metrics");
     PayloadBuilder nbirth;
-    nbirth.add_metric_with_alias("Temperature", 1, 25.5);
-    nbirth.add_metric_with_alias("Pressure", 2, 101.3);
-    nbirth.add_metric_with_alias("Status", 3, std::string("online"));
-    nbirth.add_metric_with_alias("Counter", 4, static_cast<int64_t>(0));
+    auto timestamp = get_timestamp();
+
+    nbirth.add_metric_with_alias("Temperature", 1, 25.5, timestamp);
+    nbirth.add_metric_with_alias("Pressure", 2, 101.3, timestamp);
+    nbirth.add_metric_with_alias("Status", 3, std::string("online"), timestamp);
+    nbirth.add_metric_with_alias("Counter", 4, static_cast<int64_t>(0), timestamp);
 
     auto birth_result = edge_node_->publish_birth(nbirth);
     if (!birth_result) {
@@ -198,9 +207,13 @@ auto TCKEdgeNode::create_edge_node(const std::string& group_id,
       log("INFO", std::format("Publishing DBIRTH for device: {}", device_id));
 
       PayloadBuilder dbirth;
-      dbirth.add_metric_with_alias("DeviceTemp", 10, 22.0);
-      dbirth.add_metric_with_alias("DeviceStatus", 11, std::string("ready"));
-      dbirth.add_metric_with_alias("DeviceValue", 12, static_cast<int32_t>(100));
+      auto device_timestamp = get_timestamp();
+
+      dbirth.add_metric_with_alias("DeviceTemp", 10, 22.0, device_timestamp);
+      dbirth.add_metric_with_alias("DeviceStatus", 11, std::string("ready"),
+                                   device_timestamp);
+      dbirth.add_metric_with_alias("DeviceValue", 12, static_cast<int32_t>(100),
+                                   device_timestamp);
 
       auto device_result = edge_node_->publish_device_birth(device_id, dbirth);
       if (!device_result) {
