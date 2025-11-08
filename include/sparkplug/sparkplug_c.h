@@ -781,6 +781,61 @@ void sparkplug_payload_add_bool_with_alias(sparkplug_payload_t* payload,
                                            uint64_t alias,
                                            bool value);
 
+/* Metric functions with name, alias, and timestamp */
+
+/** @brief Adds an int32_t metric with name, alias, and timestamp (for NBIRTH with
+ * historical data). */
+void sparkplug_payload_add_int32_with_alias_timestamp(sparkplug_payload_t* payload,
+                                                      const char* name,
+                                                      uint64_t alias,
+                                                      int32_t value,
+                                                      uint64_t timestamp_ms);
+/** @brief Adds an int64_t metric with name, alias, and timestamp (for NBIRTH with
+ * historical data). */
+void sparkplug_payload_add_int64_with_alias_timestamp(sparkplug_payload_t* payload,
+                                                      const char* name,
+                                                      uint64_t alias,
+                                                      int64_t value,
+                                                      uint64_t timestamp_ms);
+/** @brief Adds a uint32_t metric with name, alias, and timestamp (for NBIRTH with
+ * historical data). */
+void sparkplug_payload_add_uint32_with_alias_timestamp(sparkplug_payload_t* payload,
+                                                       const char* name,
+                                                       uint64_t alias,
+                                                       uint32_t value,
+                                                       uint64_t timestamp_ms);
+/** @brief Adds a uint64_t metric with name, alias, and timestamp (for NBIRTH with
+ * historical data). */
+void sparkplug_payload_add_uint64_with_alias_timestamp(sparkplug_payload_t* payload,
+                                                       const char* name,
+                                                       uint64_t alias,
+                                                       uint64_t value,
+                                                       uint64_t timestamp_ms);
+/** @brief Adds a float metric with name, alias, and timestamp (for NBIRTH with historical
+ * data).
+ */
+void sparkplug_payload_add_float_with_alias_timestamp(sparkplug_payload_t* payload,
+                                                      const char* name,
+                                                      uint64_t alias,
+                                                      float value,
+                                                      uint64_t timestamp_ms);
+/** @brief Adds a double metric with name, alias, and timestamp (for NBIRTH with
+ * historical data).
+ */
+void sparkplug_payload_add_double_with_alias_timestamp(sparkplug_payload_t* payload,
+                                                       const char* name,
+                                                       uint64_t alias,
+                                                       double value,
+                                                       uint64_t timestamp_ms);
+/** @brief Adds a boolean metric with name, alias, and timestamp (for NBIRTH with
+ * historical data).
+ */
+void sparkplug_payload_add_bool_with_alias_timestamp(sparkplug_payload_t* payload,
+                                                     const char* name,
+                                                     uint64_t alias,
+                                                     bool value,
+                                                     uint64_t timestamp_ms);
+
 /* Metric functions by alias only */
 
 /** @brief Adds an int32_t metric by alias only (for NDATA). */

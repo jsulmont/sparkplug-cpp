@@ -106,7 +106,9 @@ int EdgeNode::on_message_arrived(void* context,
 
   const auto& topic = topic_result.value();
 
-  if (topic.message_type == MessageType::NCMD && edge_node->config_.command_callback) {
+  if ((topic.message_type == MessageType::NCMD ||
+       topic.message_type == MessageType::DCMD) &&
+      edge_node->config_.command_callback) {
     org::eclipse::tahu::protobuf::Payload payload;
     if (payload.ParseFromArray(message->payload, message->payloadlen)) {
       edge_node->config_.command_callback.value()(topic, payload);
@@ -269,38 +271,37 @@ stdx::expected<void, std::string> EdgeNode::connect() {
 
   is_connected_ = true;
 
-  if (config_.command_callback.has_value()) {
-    Topic ncmd_topic{.group_id = config_.group_id,
-                     .message_type = MessageType::NCMD,
-                     .edge_node_id = config_.edge_node_id,
-                     .device_id = ""};
+  // Subscribe to NCMD (required by Sparkplug spec)
+  Topic ncmd_topic{.group_id = config_.group_id,
+                   .message_type = MessageType::NCMD,
+                   .edge_node_id = config_.edge_node_id,
+                   .device_id = ""};
 
-    auto ncmd_topic_str = ncmd_topic.to_string();
+  auto ncmd_topic_str = ncmd_topic.to_string();
 
-    std::promise<void> subscribe_promise;
-    auto subscribe_future = subscribe_promise.get_future();
+  std::promise<void> subscribe_promise;
+  auto subscribe_future = subscribe_promise.get_future();
 
-    MQTTAsync_responseOptions sub_opts = MQTTAsync_responseOptions_initializer;
-    sub_opts.context = &subscribe_promise;
-    sub_opts.onSuccess = on_subscribe_success;
-    sub_opts.onFailure = on_subscribe_failure;
+  MQTTAsync_responseOptions sub_opts = MQTTAsync_responseOptions_initializer;
+  sub_opts.context = &subscribe_promise;
+  sub_opts.onSuccess = on_subscribe_success;
+  sub_opts.onFailure = on_subscribe_failure;
 
-    rc = MQTTAsync_subscribe(client_.get(), ncmd_topic_str.c_str(), 1, &sub_opts);
-    if (rc != MQTTASYNC_SUCCESS) {
-      return stdx::unexpected(std::format("Failed to subscribe to NCMD: {}", rc));
-    }
+  rc = MQTTAsync_subscribe(client_.get(), ncmd_topic_str.c_str(), 1, &sub_opts);
+  if (rc != MQTTASYNC_SUCCESS) {
+    return stdx::unexpected(std::format("Failed to subscribe to NCMD: {}", rc));
+  }
 
-    auto sub_status =
-        subscribe_future.wait_for(std::chrono::milliseconds(SUBSCRIBE_TIMEOUT_MS));
-    if (sub_status == std::future_status::timeout) {
-      return stdx::unexpected("NCMD subscription timeout");
-    }
+  auto sub_status =
+      subscribe_future.wait_for(std::chrono::milliseconds(SUBSCRIBE_TIMEOUT_MS));
+  if (sub_status == std::future_status::timeout) {
+    return stdx::unexpected("NCMD subscription timeout");
+  }
 
-    try {
-      subscribe_future.get();
-    } catch (const std::exception& e) {
-      return stdx::unexpected(std::format("NCMD subscription failed: {}", e.what()));
-    }
+  try {
+    subscribe_future.get();
+  } catch (const std::exception& e) {
+    return stdx::unexpected(std::format("NCMD subscription failed: {}", e.what()));
   }
 
   return {};
@@ -399,6 +400,9 @@ stdx::expected<void, std::string> EdgeNode::publish_birth(PayloadBuilder& payloa
       metric->set_name("bdSeq");
       metric->set_datatype(std::to_underlying(DataType::UInt64));
       metric->set_long_value(bd_seq_num_);
+      if (proto_payload.has_timestamp()) {
+        metric->set_timestamp(proto_payload.timestamp());
+      }
     }
 
     Topic topic{.group_id = config_.group_id,
@@ -597,6 +601,40 @@ EdgeNode::publish_device_birth(std::string_view device_id, PayloadBuilder& paylo
     payload_data = payload.build();
     client = client_.get();
     qos = config_.data_qos;
+  }
+
+  // Subscribe to DCMD for this device BEFORE publishing DBIRTH (required by Sparkplug
+  // spec)
+  Topic dcmd_topic{.group_id = config_.group_id,
+                   .message_type = MessageType::DCMD,
+                   .edge_node_id = config_.edge_node_id,
+                   .device_id = std::string(device_id)};
+
+  auto dcmd_topic_str = dcmd_topic.to_string();
+
+  std::promise<void> subscribe_promise;
+  auto subscribe_future = subscribe_promise.get_future();
+
+  MQTTAsync_responseOptions sub_opts = MQTTAsync_responseOptions_initializer;
+  sub_opts.context = &subscribe_promise;
+  sub_opts.onSuccess = on_subscribe_success;
+  sub_opts.onFailure = on_subscribe_failure;
+
+  int rc = MQTTAsync_subscribe(client, dcmd_topic_str.c_str(), 1, &sub_opts);
+  if (rc != MQTTASYNC_SUCCESS) {
+    return stdx::unexpected(std::format("Failed to subscribe to DCMD: {}", rc));
+  }
+
+  auto sub_status =
+      subscribe_future.wait_for(std::chrono::milliseconds(SUBSCRIBE_TIMEOUT_MS));
+  if (sub_status == std::future_status::timeout) {
+    return stdx::unexpected("DCMD subscription timeout");
+  }
+
+  try {
+    subscribe_future.get();
+  } catch (const std::exception& e) {
+    return stdx::unexpected(std::format("DCMD subscription failed: {}", e.what()));
   }
 
   auto result = publish_message(client, topic_str, payload_data, qos, false);
