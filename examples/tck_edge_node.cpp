@@ -1,7 +1,9 @@
 #include "tck_edge_node.hpp"
 
+#include <chrono>
 #include <format>
 #include <iostream>
+#include <thread>
 
 namespace sparkplug::tck {
 
@@ -95,7 +97,7 @@ void TCKEdgeNode::run_session_establishment_test(const std::vector<std::string>&
             "Starting SessionEstablishmentTest: host={}, group={}, node={}, devices={}",
             host_id, group_id, edge_node_id, params.size() > 3 ? params[3] : "none"));
 
-    auto result = create_edge_node(group_id, edge_node_id, device_ids);
+    auto result = create_edge_node(host_id, group_id, edge_node_id, device_ids);
     if (!result) {
       log("ERROR", result.error());
       publish_result("OVERALL: FAIL");
@@ -116,10 +118,71 @@ void TCKEdgeNode::run_session_establishment_test(const std::vector<std::string>&
   }
 }
 
-void TCKEdgeNode::run_session_termination_test(
-    const std::vector<std::string>& /*params*/) {
-  log("WARN", "SessionTerminationTest not yet implemented");
-  publish_result("OVERALL: NOT EXECUTED");
+void TCKEdgeNode::run_session_termination_test(const std::vector<std::string>& params) {
+  if (params.size() < 3) {
+    log("ERROR", "Missing parameters for SessionTerminationTest");
+    publish_result("OVERALL: NOT EXECUTED");
+    return;
+  }
+
+  const std::string& host_id = params[0];
+  const std::string& group_id = params[1];
+  const std::string& edge_node_id = params[2];
+
+  std::vector<std::string> device_ids;
+  if (params.size() > 3 && !params[3].empty()) {
+    device_ids = detail::split(params[3], ' ');
+  }
+
+  try {
+    log("INFO",
+        std::format(
+            "Starting SessionTerminationTest: host={}, group={}, node={}, devices={}",
+            host_id, group_id, edge_node_id, params.size() > 3 ? params[3] : "none"));
+
+    if (!edge_node_) {
+      auto result = create_edge_node(host_id, group_id, edge_node_id, device_ids);
+      if (!result) {
+        log("ERROR", result.error());
+        publish_result("OVERALL: FAIL");
+        return;
+      }
+      device_ids_ = device_ids;
+      log("INFO", "Edge Node session established");
+    }
+
+    log("INFO", "Publishing device deaths before node termination");
+    for (const auto& device_id : device_ids_) {
+      auto result = edge_node_->publish_device_death(device_id);
+      if (!result) {
+        log("WARN", std::format("Failed to publish DDEATH for {}: {}", device_id,
+                                result.error()));
+      } else {
+        log("INFO", std::format("DDEATH published for device: {}", device_id));
+      }
+    }
+
+    log("INFO", "Disconnecting Edge Node (will trigger NDEATH via MQTT Will)");
+    auto disconnect_result = edge_node_->disconnect();
+    if (!disconnect_result) {
+      log("ERROR", "Failed to disconnect: " + disconnect_result.error());
+      publish_result("OVERALL: FAIL");
+      return;
+    }
+
+    edge_node_.reset();
+    current_group_id_.clear();
+    current_edge_node_id_.clear();
+    device_ids_.clear();
+
+    log("INFO", "Edge Node session terminated successfully");
+    log("INFO", "NDEATH message should have been delivered via MQTT Will");
+    publish_result("OVERALL: PASS");
+
+  } catch (const std::exception& e) {
+    log("ERROR", std::string("Exception: ") + e.what());
+    publish_result("OVERALL: FAIL");
+  }
 }
 
 void TCKEdgeNode::run_send_data_test(const std::vector<std::string>& /*params*/) {
@@ -147,7 +210,8 @@ void TCKEdgeNode::run_multiple_broker_test(const std::vector<std::string>& /*par
   publish_result("OVERALL: NOT EXECUTED");
 }
 
-auto TCKEdgeNode::create_edge_node(const std::string& group_id,
+auto TCKEdgeNode::create_edge_node(const std::string& host_id,
+                                   const std::string& group_id,
                                    const std::string& edge_node_id,
                                    const std::vector<std::string>& device_ids)
     -> stdx::expected<void, std::string> {
@@ -174,10 +238,11 @@ auto TCKEdgeNode::create_edge_node(const std::string& group_id,
       edge_config.password = config_.password;
     }
 
-    // Set command callback to ensure NCMD/DCMD subscriptions
     edge_config.command_callback = [this](const Topic& topic, const auto& /*payload*/) {
       log("INFO", std::format("Received command on topic: {}", topic.to_string()));
     };
+
+    edge_config.primary_host_id = host_id;
 
     edge_node_ = std::make_unique<EdgeNode>(std::move(edge_config));
 
@@ -185,6 +250,28 @@ auto TCKEdgeNode::create_edge_node(const std::string& group_id,
     auto connect_result = edge_node_->connect();
     if (!connect_result) {
       return stdx::unexpected("Failed to connect: " + connect_result.error());
+    }
+
+    if (!host_id.empty()) {
+      log("INFO", std::format("Waiting for primary host '{}' to be online", host_id));
+      constexpr int max_wait_ms = 10000;
+      constexpr int poll_interval_ms = 100;
+      int waited_ms = 0;
+
+      while (waited_ms < max_wait_ms) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(poll_interval_ms));
+        waited_ms += poll_interval_ms;
+
+        if (edge_node_->is_primary_host_online()) {
+          log("INFO", "Primary host is now online");
+          break;
+        }
+      }
+
+      if (!edge_node_->is_primary_host_online()) {
+        return stdx::unexpected(
+            std::format("Timeout waiting for primary host '{}' to be online", host_id));
+      }
     }
 
     log("INFO", "Publishing NBIRTH with test metrics");

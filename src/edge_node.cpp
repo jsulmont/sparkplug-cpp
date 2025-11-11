@@ -97,6 +97,22 @@ int EdgeNode::on_message_arrived(void* context,
     topic_str = std::string(topicName);
   }
 
+  if (topic_str.starts_with("spBv1.0/STATE/")) {
+    std::string payload_str(static_cast<const char*>(message->payload),
+                            message->payloadlen);
+
+    std::lock_guard<std::mutex> lock(edge_node->mutex_);
+    if (payload_str.find("\"online\":true") != std::string::npos) {
+      edge_node->primary_host_online_ = true;
+    } else if (payload_str.find("\"online\":false") != std::string::npos) {
+      edge_node->primary_host_online_ = false;
+    }
+
+    MQTTAsync_freeMessage(&message);
+    MQTTAsync_free(topicName);
+    return 1;
+  }
+
   auto topic_result = Topic::parse(topic_str);
   if (!topic_result) {
     MQTTAsync_freeMessage(&message);
@@ -271,7 +287,10 @@ stdx::expected<void, std::string> EdgeNode::connect() {
 
   is_connected_ = true;
 
-  // Subscribe to NCMD (required by Sparkplug spec)
+  if (!config_.primary_host_id.has_value()) {
+    primary_host_online_ = true;
+  }
+
   Topic ncmd_topic{.group_id = config_.group_id,
                    .message_type = MessageType::NCMD,
                    .edge_node_id = config_.edge_node_id,
@@ -302,6 +321,35 @@ stdx::expected<void, std::string> EdgeNode::connect() {
     subscribe_future.get();
   } catch (const std::exception& e) {
     return stdx::unexpected(std::format("NCMD subscription failed: {}", e.what()));
+  }
+
+  if (config_.primary_host_id.has_value()) {
+    std::string state_topic = "spBv1.0/STATE/" + config_.primary_host_id.value();
+
+    std::promise<void> state_subscribe_promise;
+    auto state_subscribe_future = state_subscribe_promise.get_future();
+
+    MQTTAsync_responseOptions state_sub_opts = MQTTAsync_responseOptions_initializer;
+    state_sub_opts.context = &state_subscribe_promise;
+    state_sub_opts.onSuccess = on_subscribe_success;
+    state_sub_opts.onFailure = on_subscribe_failure;
+
+    rc = MQTTAsync_subscribe(client_.get(), state_topic.c_str(), 1, &state_sub_opts);
+    if (rc != MQTTASYNC_SUCCESS) {
+      return stdx::unexpected(std::format("Failed to subscribe to STATE: {}", rc));
+    }
+
+    auto state_sub_status =
+        state_subscribe_future.wait_for(std::chrono::milliseconds(SUBSCRIBE_TIMEOUT_MS));
+    if (state_sub_status == std::future_status::timeout) {
+      return stdx::unexpected("STATE subscription timeout");
+    }
+
+    try {
+      state_subscribe_future.get();
+    } catch (const std::exception& e) {
+      return stdx::unexpected(std::format("STATE subscription failed: {}", e.what()));
+    }
   }
 
   return {};
@@ -381,6 +429,10 @@ stdx::expected<void, std::string> EdgeNode::publish_birth(PayloadBuilder& payloa
 
     if (!is_connected_) {
       return stdx::unexpected("Not connected");
+    }
+
+    if (!primary_host_online_) {
+      return stdx::unexpected("Primary host is not online");
     }
 
     payload.set_seq(0);
@@ -583,6 +635,10 @@ EdgeNode::publish_device_birth(std::string_view device_id, PayloadBuilder& paylo
 
     if (!is_connected_) {
       return stdx::unexpected("Not connected");
+    }
+
+    if (!primary_host_online_) {
+      return stdx::unexpected("Primary host is not online");
     }
 
     if (last_birth_payload_.empty()) {

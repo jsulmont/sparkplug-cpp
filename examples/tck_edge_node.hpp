@@ -44,7 +44,8 @@ private:
   void run_primary_host_test(const std::vector<std::string>& params);
   void run_multiple_broker_test(const std::vector<std::string>& params);
 
-  [[nodiscard]] auto create_edge_node(const std::string& group_id,
+  [[nodiscard]] auto create_edge_node(const std::string& host_id,
+                                      const std::string& group_id,
                                       const std::string& edge_node_id,
                                       const std::vector<std::string>& device_ids = {})
       -> stdx::expected<void, std::string>;

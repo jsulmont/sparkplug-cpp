@@ -132,6 +132,10 @@ public:
     std::optional<CommandCallback>
         command_callback{}; ///< Optional callback for NCMD messages (subscribed before
                             ///< NBIRTH)
+    std::optional<std::string>
+        primary_host_id{}; ///< Optional Primary Host Application ID. If set, EdgeNode
+                           ///< will subscribe to STATE/{primary_host_id} and wait for
+                           ///< {"online":true} before publishing NBIRTH/DBIRTH
   };
 
   /**
@@ -299,6 +303,20 @@ public:
   }
 
   /**
+   * @brief Checks if the primary host application is online.
+   *
+   * @return true if primary host is online (or no primary host configured), false
+   * otherwise
+   *
+   * @note Returns true immediately if no primary_host_id was configured.
+   * @note Used to determine if NBIRTH/DBIRTH can be published.
+   */
+  [[nodiscard]] bool is_primary_host_online() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return primary_host_online_;
+  }
+
+  /**
    * @brief Publishes a DBIRTH (Device Birth) message.
    *
    * The DBIRTH message declares a device attached to this edge node.
@@ -449,6 +467,8 @@ private:
   std::unordered_map<std::string, DeviceState, StringHash, StringEqual> device_states_;
 
   bool is_connected_{false};
+  bool primary_host_online_{
+      false}; // True if primary host is online (or no primary host configured)
 
   // Mutex for thread-safe access to all mutable state
   mutable std::mutex mutex_;
