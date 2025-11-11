@@ -53,14 +53,13 @@ void TCKEdgeNode::handle_end_test() {
     }
   }
 
-  if (edge_node_) {
-    (void)edge_node_->disconnect();
-    edge_node_.reset();
-  }
-
-  current_group_id_.clear();
-  current_edge_node_id_.clear();
-  device_ids_.clear();
+  // Only destroy edge node for tests that explicitly handle termination
+  // For SessionEstablishmentTest, keep the edge node alive for subsequent tests
+  if (current_edge_node_id_ != "SessionEstablishmentTest")
+    if (edge_node_) {
+      (void)edge_node_->disconnect();
+      edge_node_.reset();
+    }
 }
 
 void TCKEdgeNode::handle_prompt_specific(const std::string& /*message*/) {
