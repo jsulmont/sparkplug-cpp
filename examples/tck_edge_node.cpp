@@ -162,7 +162,16 @@ void TCKEdgeNode::run_session_termination_test(const std::vector<std::string>& p
       }
     }
 
-    log("INFO", "Disconnecting Edge Node (will trigger NDEATH via MQTT Will)");
+    log("INFO", "Publishing NDEATH for deliberate node termination");
+    auto death_result = edge_node_->publish_death();
+    if (!death_result) {
+      log("ERROR", "Failed to publish NDEATH: " + death_result.error());
+      publish_result("OVERALL: FAIL");
+      return;
+    }
+    log("INFO", "NDEATH published successfully");
+
+    log("INFO", "Disconnecting Edge Node from broker");
     auto disconnect_result = edge_node_->disconnect();
     if (!disconnect_result) {
       log("ERROR", "Failed to disconnect: " + disconnect_result.error());
@@ -176,7 +185,6 @@ void TCKEdgeNode::run_session_termination_test(const std::vector<std::string>& p
     device_ids_.clear();
 
     log("INFO", "Edge Node session terminated successfully");
-    log("INFO", "NDEATH message should have been delivered via MQTT Will");
     publish_result("OVERALL: PASS");
 
   } catch (const std::exception& e) {
