@@ -528,15 +528,24 @@ stdx::expected<void, std::string> EdgeNode::publish_death() {
       return stdx::unexpected("Not connected");
     }
 
+    PayloadBuilder death_payload;
+    death_payload.add_metric("bdSeq", bd_seq_num_);
+    death_payload.set_seq(seq_num_);
+    death_payload.set_timestamp(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                    std::chrono::system_clock::now().time_since_epoch())
+                                    .count());
+
     Topic topic{.group_id = config_.group_id,
                 .message_type = MessageType::NDEATH,
                 .edge_node_id = config_.edge_node_id,
                 .device_id = ""};
 
     topic_str = topic.to_string();
-    payload_data = death_payload_data_;
+    payload_data = death_payload.build();
     client = client_.get();
     qos = config_.death_qos;
+
+    seq_num_ = (seq_num_ + 1) % 256;
   }
 
   auto result = publish_message(client, topic_str, payload_data, qos, false);
@@ -768,6 +777,10 @@ EdgeNode::publish_device_death(std::string_view device_id) {
     }
 
     PayloadBuilder death_payload;
+    death_payload.set_seq(seq_num_);
+    death_payload.set_timestamp(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                    std::chrono::system_clock::now().time_since_epoch())
+                                    .count());
 
     Topic topic{.group_id = config_.group_id,
                 .message_type = MessageType::DDEATH,
@@ -778,6 +791,8 @@ EdgeNode::publish_device_death(std::string_view device_id) {
     payload_data = death_payload.build();
     client = client_.get();
     qos = config_.data_qos;
+
+    seq_num_ = (seq_num_ + 1) % 256;
   }
 
   auto result = publish_message(client, topic_str, payload_data, qos, false);
