@@ -250,7 +250,7 @@ jobs:
           fi
           echo "Static bundle size: $(du -h $BUNDLE_LIB | cut -f1)"
           echo "Checking for expected symbols..."
-          nm $BUNDLE_LIB | grep -E " T (sparkplug_edge_node_create|sparkplug_host_application_create)" || {
+          nm $BUNDLE_LIB | grep -E " T (sparkplug_publisher_create|sparkplug_host_application_create)" || {
             echo "ERROR: Expected symbols not found"
             exit 1
           }
@@ -261,16 +261,19 @@ jobs:
           cat > test_link.c << 'EOF'
           #include <stdio.h>
 
-          // Declare symbols from sparkplug_c.h (avoid needing the full header)
-          typedef struct sparkplug_edge_node sparkplug_edge_node_t;
-          sparkplug_edge_node_t* sparkplug_edge_node_create(const char*, const char*, const char*);
-          void sparkplug_edge_node_destroy(sparkplug_edge_node_t*);
+          typedef struct sparkplug_publisher sparkplug_publisher_t;
+          typedef struct sparkplug_host_application sparkplug_host_application_t;
+
+          sparkplug_publisher_t* sparkplug_publisher_create(const char*, const char*, const char*, const char*);
+          void sparkplug_publisher_destroy(sparkplug_publisher_t*);
+          sparkplug_host_application_t* sparkplug_host_application_create(const char*, const char*);
+          void sparkplug_host_application_destroy(sparkplug_host_application_t*);
 
           int main() {
               printf("Testing static bundle link...\n");
-              // Don't actually call functions, just ensure they link
-              void* ptr = (void*)sparkplug_edge_node_create;
-              if (ptr) {
+              void* pub_ptr = (void*)sparkplug_publisher_create;
+              void* host_ptr = (void*)sparkplug_host_application_create;
+              if (pub_ptr && host_ptr) {
                   printf("Static link test passed!\n");
                   return 0;
               }
