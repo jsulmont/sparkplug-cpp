@@ -15,14 +15,25 @@ target_include_directories(sparkplug_cpp
         $<INSTALL_INTERFACE:include>
 )
 
-target_link_libraries(sparkplug_cpp
-    PUBLIC
-        sparkplug_proto
-        protobuf::libprotobuf
-        tl::expected
-    PRIVATE
-        eclipse-paho-mqtt-c::paho-mqtt3as
-)
+if(BUILD_STATIC_BUNDLE)
+    target_link_libraries(sparkplug_cpp
+        PUBLIC
+            sparkplug_proto
+            libprotobuf
+            tl::expected
+        PRIVATE
+            paho-mqtt3as-static
+    )
+else()
+    target_link_libraries(sparkplug_cpp
+        PUBLIC
+            sparkplug_proto
+            protobuf::libprotobuf
+            tl::expected
+        PRIVATE
+            eclipse-paho-mqtt-c::paho-mqtt3as
+    )
+endif()
 
 add_library(sparkplug_c SHARED
     c_bindings.cpp
@@ -46,3 +57,7 @@ install(TARGETS sparkplug_cpp sparkplug_c sparkplug_proto
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/
     DESTINATION include
 )
+
+if(BUILD_STATIC_BUNDLE)
+    create_static_bundle()
+endif()
