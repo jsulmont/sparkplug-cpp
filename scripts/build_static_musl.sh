@@ -71,11 +71,11 @@ ranlib libsparkplug_c_static_bundle.a
 
 # Create package directory
 echo "Creating package structure..."
-mkdir -p "${PACKAGE_DIR}"/{lib,include}
+mkdir -p "${PACKAGE_DIR}"/{lib,include/sparkplug}
 
 # Copy library and headers
 cp libsparkplug_c_static_bundle.a "${PACKAGE_DIR}/lib/"
-cp "${PROJECT_ROOT}/include/sparkplug/sparkplug_c.h" "${PACKAGE_DIR}/include/"
+cp "${PROJECT_ROOT}/include/sparkplug/sparkplug_c.h" "${PACKAGE_DIR}/include/sparkplug/"
 
 # Create README
 cat > "${PACKAGE_DIR}/README.md" << 'EOF'
