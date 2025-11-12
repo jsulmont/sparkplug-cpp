@@ -56,7 +56,10 @@ ar x "${BUILD_DIR}/_deps/paho-mqtt-c-build/src/libpaho-mqtt3as-static.a" 2>/dev/
     ar x "${BUILD_DIR}/_deps/paho-mqtt-c-build/src/libpaho-mqtt3as.a"
 
 echo "  Extracting protobuf..."
-ar x "${BUILD_DIR}/_deps/protobuf-build/libprotobuf.a"
+find "${BUILD_DIR}/_deps/protobuf-build" -name "libprotobuf*.a" -o -name "libutf8*.a" | while read lib; do
+    echo "    Extracting $(basename $lib)..."
+    ar x "$lib" 2>/dev/null || true
+done
 
 echo "  Extracting abseil libraries..."
 find "${BUILD_DIR}/_deps/abseil-cpp-build" -name "libabsl_*.a" -exec sh -c 'ar x "$1"' _ {} \;
