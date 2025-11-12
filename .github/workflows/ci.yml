@@ -210,3 +210,91 @@ jobs:
           echo "Checking that tl::expected fallback is working..."
           strings build/src/libsparkplug_cpp.a | grep -q "tl::" || echo "Note: Binary doesn't contain tl:: symbols (may be optimized out)"
           echo "Ubuntu 24.04 build successful with C++23 compatibility layer!"
+
+  build-static-musl:
+    name: Build and test static musl bundle (Alpine)
+    runs-on: ubuntu-latest
+    container: alpine:latest
+    needs: [tidy-check]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          apk add --no-cache \
+            build-base \
+            cmake \
+            git \
+            bash \
+            linux-headers \
+            openssl-dev \
+            openssl-libs-static \
+            zlib-static \
+            samurai
+
+      - name: Build static musl bundle
+        run: |
+          export VERSION="ci-test"
+          bash ./scripts/build_static_musl.sh
+
+      - name: Verify static bundle was created
+        run: |
+          BUNDLE_LIB="build-static-musl/sparkplug-c-ci-test-linux-musl-x86_64-static/lib/libsparkplug_c_static_bundle.a"
+          if [ ! -f "$BUNDLE_LIB" ]; then
+            echo "ERROR: Static bundle not found at $BUNDLE_LIB"
+            exit 1
+          fi
+          echo "Static bundle size: $(du -h $BUNDLE_LIB | cut -f1)"
+          echo "Checking for expected symbols..."
+          nm $BUNDLE_LIB | grep -E " T (sparkplug_edge_node_create|sparkplug_host_application_create)" || {
+            echo "ERROR: Expected symbols not found"
+            exit 1
+          }
+          echo "Static bundle verification passed!"
+
+      - name: Test linking static bundle
+        run: |
+          cat > test_link.c << 'EOF'
+          #include <stdio.h>
+
+          // Declare symbols from sparkplug_c.h (avoid needing the full header)
+          typedef struct sparkplug_edge_node sparkplug_edge_node_t;
+          sparkplug_edge_node_t* sparkplug_edge_node_create(const char*, const char*, const char*);
+          void sparkplug_edge_node_destroy(sparkplug_edge_node_t*);
+
+          int main() {
+              printf("Testing static bundle link...\n");
+              // Don't actually call functions, just ensure they link
+              void* ptr = (void*)sparkplug_edge_node_create;
+              if (ptr) {
+                  printf("Static link test passed!\n");
+                  return 0;
+              }
+              return 1;
+          }
+          EOF
+
+          gcc test_link.c \
+            -I build-static-musl/sparkplug-c-ci-test-linux-musl-x86_64-static/include \
+            -L build-static-musl/sparkplug-c-ci-test-linux-musl-x86_64-static/lib \
+            -lsparkplug_c_static_bundle \
+            -lssl -lcrypto -lpthread -ldl \
+            -o test_link
+
+          ./test_link
+          echo "Link test successful!"
+
+      - name: Check static bundle has no unexpected dependencies
+        run: |
+          echo "Checking that bundle is truly static (except OpenSSL)..."
+          # The .a file itself shouldn't have dependencies
+          # A linked executable should only depend on libc and OpenSSL
+          if ldd test_link 2>&1 | grep -v "libc\|libssl\|libcrypto\|libpthread\|libdl\|ld-musl" | grep "=>"; then
+            echo "WARNING: Unexpected dynamic dependencies found"
+            ldd test_link
+          else
+            echo "Static bundle dependencies look good!"
+            ldd test_link || echo "(statically linked)"
+          fi
