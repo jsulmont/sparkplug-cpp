@@ -83,10 +83,12 @@ endif()
 add_subdirectory(proto)
 target_compile_options(sparkplug_proto PRIVATE -w)
 add_subdirectory(src)
-add_subdirectory(examples)
 
-enable_testing()
-add_subdirectory(tests)
+if(NOT BUILD_STATIC_BUNDLE)
+    add_subdirectory(examples)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
 
 # Doxygen documentation target
 find_package(Doxygen QUIET)
