@@ -69,18 +69,26 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(tl-expected)
 
-find_package(Protobuf REQUIRED)
-find_package(absl CONFIG QUIET)  # Optional - newer protobuf needs it
-find_package(OpenSSL REQUIRED)   # Required for TLS/SSL support
-find_package(eclipse-paho-mqtt-c REQUIRED)
+include(cmake/StaticBundle.cmake)
+
+if(NOT BUILD_STATIC_BUNDLE)
+    find_package(Protobuf REQUIRED)
+    find_package(absl CONFIG QUIET)
+    find_package(OpenSSL REQUIRED)
+    find_package(eclipse-paho-mqtt-c REQUIRED)
+else()
+    find_package(OpenSSL REQUIRED)
+endif()
 
 add_subdirectory(proto)
 target_compile_options(sparkplug_proto PRIVATE -w)
 add_subdirectory(src)
-add_subdirectory(examples)
 
-enable_testing()
-add_subdirectory(tests)
+if(NOT BUILD_STATIC_BUNDLE)
+    add_subdirectory(examples)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
 
 # Doxygen documentation target
 find_package(Doxygen QUIET)

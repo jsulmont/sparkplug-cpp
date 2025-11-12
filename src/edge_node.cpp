@@ -97,6 +97,22 @@ int EdgeNode::on_message_arrived(void* context,
     topic_str = std::string(topicName);
   }
 
+  if (topic_str.starts_with("spBv1.0/STATE/")) {
+    std::string payload_str(static_cast<const char*>(message->payload),
+                            message->payloadlen);
+
+    std::lock_guard<std::mutex> lock(edge_node->mutex_);
+    if (payload_str.find("\"online\":true") != std::string::npos) {
+      edge_node->primary_host_online_ = true;
+    } else if (payload_str.find("\"online\":false") != std::string::npos) {
+      edge_node->primary_host_online_ = false;
+    }
+
+    MQTTAsync_freeMessage(&message);
+    MQTTAsync_free(topicName);
+    return 1;
+  }
+
   auto topic_result = Topic::parse(topic_str);
   if (!topic_result) {
     MQTTAsync_freeMessage(&message);
@@ -106,7 +122,9 @@ int EdgeNode::on_message_arrived(void* context,
 
   const auto& topic = topic_result.value();
 
-  if (topic.message_type == MessageType::NCMD && edge_node->config_.command_callback) {
+  if ((topic.message_type == MessageType::NCMD ||
+       topic.message_type == MessageType::DCMD) &&
+      edge_node->config_.command_callback) {
     org::eclipse::tahu::protobuf::Payload payload;
     if (payload.ParseFromArray(message->payload, message->payloadlen)) {
       edge_node->config_.command_callback.value()(topic, payload);
@@ -269,37 +287,68 @@ stdx::expected<void, std::string> EdgeNode::connect() {
 
   is_connected_ = true;
 
-  if (config_.command_callback.has_value()) {
-    Topic ncmd_topic{.group_id = config_.group_id,
-                     .message_type = MessageType::NCMD,
-                     .edge_node_id = config_.edge_node_id,
-                     .device_id = ""};
+  if (!config_.primary_host_id.has_value()) {
+    primary_host_online_ = true;
+  }
 
-    auto ncmd_topic_str = ncmd_topic.to_string();
+  Topic ncmd_topic{.group_id = config_.group_id,
+                   .message_type = MessageType::NCMD,
+                   .edge_node_id = config_.edge_node_id,
+                   .device_id = ""};
 
-    std::promise<void> subscribe_promise;
-    auto subscribe_future = subscribe_promise.get_future();
+  auto ncmd_topic_str = ncmd_topic.to_string();
 
-    MQTTAsync_responseOptions sub_opts = MQTTAsync_responseOptions_initializer;
-    sub_opts.context = &subscribe_promise;
-    sub_opts.onSuccess = on_subscribe_success;
-    sub_opts.onFailure = on_subscribe_failure;
+  std::promise<void> subscribe_promise;
+  auto subscribe_future = subscribe_promise.get_future();
 
-    rc = MQTTAsync_subscribe(client_.get(), ncmd_topic_str.c_str(), 1, &sub_opts);
+  MQTTAsync_responseOptions sub_opts = MQTTAsync_responseOptions_initializer;
+  sub_opts.context = &subscribe_promise;
+  sub_opts.onSuccess = on_subscribe_success;
+  sub_opts.onFailure = on_subscribe_failure;
+
+  rc = MQTTAsync_subscribe(client_.get(), ncmd_topic_str.c_str(), 1, &sub_opts);
+  if (rc != MQTTASYNC_SUCCESS) {
+    return stdx::unexpected(std::format("Failed to subscribe to NCMD: {}", rc));
+  }
+
+  auto sub_status =
+      subscribe_future.wait_for(std::chrono::milliseconds(SUBSCRIBE_TIMEOUT_MS));
+  if (sub_status == std::future_status::timeout) {
+    return stdx::unexpected("NCMD subscription timeout");
+  }
+
+  try {
+    subscribe_future.get();
+  } catch (const std::exception& e) {
+    return stdx::unexpected(std::format("NCMD subscription failed: {}", e.what()));
+  }
+
+  if (config_.primary_host_id.has_value()) {
+    std::string state_topic = "spBv1.0/STATE/" + config_.primary_host_id.value();
+
+    std::promise<void> state_subscribe_promise;
+    auto state_subscribe_future = state_subscribe_promise.get_future();
+
+    MQTTAsync_responseOptions state_sub_opts = MQTTAsync_responseOptions_initializer;
+    state_sub_opts.context = &state_subscribe_promise;
+    state_sub_opts.onSuccess = on_subscribe_success;
+    state_sub_opts.onFailure = on_subscribe_failure;
+
+    rc = MQTTAsync_subscribe(client_.get(), state_topic.c_str(), 1, &state_sub_opts);
     if (rc != MQTTASYNC_SUCCESS) {
-      return stdx::unexpected(std::format("Failed to subscribe to NCMD: {}", rc));
+      return stdx::unexpected(std::format("Failed to subscribe to STATE: {}", rc));
     }
 
-    auto sub_status =
-        subscribe_future.wait_for(std::chrono::milliseconds(SUBSCRIBE_TIMEOUT_MS));
-    if (sub_status == std::future_status::timeout) {
-      return stdx::unexpected("NCMD subscription timeout");
+    auto state_sub_status =
+        state_subscribe_future.wait_for(std::chrono::milliseconds(SUBSCRIBE_TIMEOUT_MS));
+    if (state_sub_status == std::future_status::timeout) {
+      return stdx::unexpected("STATE subscription timeout");
     }
 
     try {
-      subscribe_future.get();
+      state_subscribe_future.get();
     } catch (const std::exception& e) {
-      return stdx::unexpected(std::format("NCMD subscription failed: {}", e.what()));
+      return stdx::unexpected(std::format("STATE subscription failed: {}", e.what()));
     }
   }
 
@@ -382,6 +431,10 @@ stdx::expected<void, std::string> EdgeNode::publish_birth(PayloadBuilder& payloa
       return stdx::unexpected("Not connected");
     }
 
+    if (!primary_host_online_) {
+      return stdx::unexpected("Primary host is not online");
+    }
+
     payload.set_seq(0);
 
     bool has_bdseq = false;
@@ -399,6 +452,9 @@ stdx::expected<void, std::string> EdgeNode::publish_birth(PayloadBuilder& payloa
       metric->set_name("bdSeq");
       metric->set_datatype(std::to_underlying(DataType::UInt64));
       metric->set_long_value(bd_seq_num_);
+      if (proto_payload.has_timestamp()) {
+        metric->set_timestamp(proto_payload.timestamp());
+      }
     }
 
     Topic topic{.group_id = config_.group_id,
@@ -472,13 +528,22 @@ stdx::expected<void, std::string> EdgeNode::publish_death() {
       return stdx::unexpected("Not connected");
     }
 
+    seq_num_ = (seq_num_ + 1) % 256;
+
+    PayloadBuilder death_payload;
+    death_payload.add_metric("bdSeq", bd_seq_num_);
+    death_payload.set_seq(seq_num_);
+    death_payload.set_timestamp(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                    std::chrono::system_clock::now().time_since_epoch())
+                                    .count());
+
     Topic topic{.group_id = config_.group_id,
                 .message_type = MessageType::NDEATH,
                 .edge_node_id = config_.edge_node_id,
                 .device_id = ""};
 
     topic_str = topic.to_string();
-    payload_data = death_payload_data_;
+    payload_data = death_payload.build();
     client = client_.get();
     qos = config_.death_qos;
   }
@@ -581,6 +646,10 @@ EdgeNode::publish_device_birth(std::string_view device_id, PayloadBuilder& paylo
       return stdx::unexpected("Not connected");
     }
 
+    if (!primary_host_online_) {
+      return stdx::unexpected("Primary host is not online");
+    }
+
     if (last_birth_payload_.empty()) {
       return stdx::unexpected("Must publish NBIRTH before DBIRTH");
     }
@@ -597,6 +666,40 @@ EdgeNode::publish_device_birth(std::string_view device_id, PayloadBuilder& paylo
     payload_data = payload.build();
     client = client_.get();
     qos = config_.data_qos;
+  }
+
+  // Subscribe to DCMD for this device BEFORE publishing DBIRTH (required by Sparkplug
+  // spec)
+  Topic dcmd_topic{.group_id = config_.group_id,
+                   .message_type = MessageType::DCMD,
+                   .edge_node_id = config_.edge_node_id,
+                   .device_id = std::string(device_id)};
+
+  auto dcmd_topic_str = dcmd_topic.to_string();
+
+  std::promise<void> subscribe_promise;
+  auto subscribe_future = subscribe_promise.get_future();
+
+  MQTTAsync_responseOptions sub_opts = MQTTAsync_responseOptions_initializer;
+  sub_opts.context = &subscribe_promise;
+  sub_opts.onSuccess = on_subscribe_success;
+  sub_opts.onFailure = on_subscribe_failure;
+
+  int rc = MQTTAsync_subscribe(client, dcmd_topic_str.c_str(), 1, &sub_opts);
+  if (rc != MQTTASYNC_SUCCESS) {
+    return stdx::unexpected(std::format("Failed to subscribe to DCMD: {}", rc));
+  }
+
+  auto sub_status =
+      subscribe_future.wait_for(std::chrono::milliseconds(SUBSCRIBE_TIMEOUT_MS));
+  if (sub_status == std::future_status::timeout) {
+    return stdx::unexpected("DCMD subscription timeout");
+  }
+
+  try {
+    subscribe_future.get();
+  } catch (const std::exception& e) {
+    return stdx::unexpected(std::format("DCMD subscription failed: {}", e.what()));
   }
 
   auto result = publish_message(client, topic_str, payload_data, qos, false);
@@ -673,7 +776,13 @@ EdgeNode::publish_device_death(std::string_view device_id) {
       return stdx::unexpected(std::format("Unknown device: '{}'", device_id));
     }
 
+    seq_num_ = (seq_num_ + 1) % 256;
+
     PayloadBuilder death_payload;
+    death_payload.set_seq(seq_num_);
+    death_payload.set_timestamp(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                    std::chrono::system_clock::now().time_since_epoch())
+                                    .count());
 
     Topic topic{.group_id = config_.group_id,
                 .message_type = MessageType::DDEATH,

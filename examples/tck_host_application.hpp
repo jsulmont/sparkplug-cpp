@@ -1,19 +1,18 @@
 #pragma once
 
-#include <atomic>
-#include <functional>
+#include "tck_test_runner.hpp"
+
 #include <memory>
-#include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
-#include <MQTTAsync.h>
 #include <sparkplug/host_application.hpp>
 #include <sparkplug/payload_builder.hpp>
 
 namespace sparkplug::tck {
 
-struct TCKConfig {
+struct TCKHostConfig {
   std::string broker_url = "tcp://localhost:1883";
   std::string username;
   std::string password;
@@ -23,42 +22,22 @@ struct TCKConfig {
   int utc_window_ms = 5000;
 };
 
-enum class TestState { IDLE, RUNNING, COMPLETED, FAILED };
-
-class TCKHostApplication {
+class TCKHostApplication : public TCKTestRunner {
 public:
-  explicit TCKHostApplication(TCKConfig config);
-  ~TCKHostApplication();
+  explicit TCKHostApplication(TCKHostConfig config);
+  ~TCKHostApplication() override;
 
-  // Start the TCK application (connect and subscribe to control topics)
-  [[nodiscard]] auto start() -> stdx::expected<void, std::string>;
+  auto start_with_session() -> stdx::expected<void, std::string>;
 
-  // Stop the TCK application
-  void stop();
+protected:
+  void dispatch_test(const std::string& test_type,
+                     const std::vector<std::string>& params) override;
 
-  // Check if running
-  [[nodiscard]] auto is_running() const -> bool;
+  void handle_end_test() override;
+
+  void handle_prompt_specific(const std::string& message) override;
 
 private:
-  // MQTT callbacks for TCK control client
-  static void on_connection_lost(void* context, char* cause);
-  static int on_message_arrived(void* context,
-                                char* topicName,
-                                int topicLen,
-                                MQTTAsync_message* message);
-  static void on_delivery_complete(void* context, MQTTAsync_token token);
-  static void on_connect_success(void* context, MQTTAsync_successData* response);
-  static void on_connect_failure(void* context, MQTTAsync_failureData* response);
-  static void on_subscribe_success(void* context, MQTTAsync_successData* response);
-  static void on_subscribe_failure(void* context, MQTTAsync_failureData* response);
-
-  // Message handlers for TCK control topics
-  void handle_test_control(const std::string& message);
-  void handle_console_prompt(const std::string& message);
-  void handle_config(const std::string& message);
-  void handle_result_config(const std::string& message);
-
-  // Test handlers (7 tests from the spec)
   void run_session_establishment_test(const std::vector<std::string>& params);
   void run_session_termination_test(const std::vector<std::string>& params);
   void run_send_command_test(const std::vector<std::string>& params);
@@ -67,37 +46,20 @@ private:
   void run_message_ordering_test(const std::vector<std::string>& params);
   void run_multiple_broker_test(const std::vector<std::string>& params);
 
-  // Helper to establish session without publishing test results
   [[nodiscard]] auto
   establish_session(const std::string& host_id) -> stdx::expected<void, std::string>;
 
-  // Utility functions for TCK communication
-  void log(const std::string& level, const std::string& message);
-  void publish_result(const std::string& result);
-  void publish_console_reply(const std::string& reply);
-
-  // MQTT publish helper for TCK topics
-  [[nodiscard]] auto publish_tck(const std::string& topic,
-                                 const std::string& payload,
-                                 int qos) -> stdx::expected<void, std::string>;
-
-  // Helper to get current UTC timestamp in milliseconds
-  [[nodiscard]] static auto get_timestamp() -> uint64_t;
-
-  TCKConfig config_;
-  MQTTAsync tck_client_; // TCK control MQTT client
-  std::atomic<bool> running_{false};
-  std::atomic<bool> connected_{false};
-  std::mutex mutex_;
-
-  // Test state
-  TestState test_state_{TestState::IDLE};
-  std::string current_test_name_;
-  std::vector<std::string> current_test_params_;
-
-  // Sparkplug Host Application instance (created per test)
+  std::string host_id_;
+  std::string namespace_prefix_;
   std::unique_ptr<HostApplication> host_application_;
   std::string current_host_id_;
+
+  struct MetricInfo {
+    std::string name;
+    uint32_t datatype;
+  };
+  std::unordered_map<std::string, std::unordered_map<std::string, MetricInfo>>
+      device_metrics_;
 };
 
 } // namespace sparkplug::tck

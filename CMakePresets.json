@@ -18,6 +18,16 @@
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             }
+        },
+        {
+            "name": "static-bundle",
+            "displayName": "Static Bundle (for Rust FFI)",
+            "binaryDir": "${sourceDir}/build-static-bundle",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "BUILD_STATIC_BUNDLE": "ON",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            }
         }
     ],
     "buildPresets": [
@@ -28,6 +38,10 @@
         {
             "name": "release",
             "configurePreset": "release"
+        },
+        {
+            "name": "static-bundle",
+            "configurePreset": "static-bundle"
         }
     ],
     "testPresets": [

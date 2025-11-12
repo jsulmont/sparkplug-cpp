@@ -517,6 +517,71 @@ void sparkplug_payload_add_bool_with_alias(sparkplug_payload_t* payload,
     payload->impl.add_metric_with_alias(name, alias, value);
 }
 
+// Add metrics with name, alias, and timestamp (for NBIRTH with historical data)
+
+void sparkplug_payload_add_int32_with_alias_timestamp(sparkplug_payload_t* payload,
+                                                      const char* name,
+                                                      uint64_t alias,
+                                                      int32_t value,
+                                                      uint64_t timestamp_ms) {
+  if (payload && name)
+    payload->impl.add_metric_with_alias(name, alias, value, timestamp_ms);
+}
+
+void sparkplug_payload_add_int64_with_alias_timestamp(sparkplug_payload_t* payload,
+                                                      const char* name,
+                                                      uint64_t alias,
+                                                      int64_t value,
+                                                      uint64_t timestamp_ms) {
+  if (payload && name)
+    payload->impl.add_metric_with_alias(name, alias, value, timestamp_ms);
+}
+
+void sparkplug_payload_add_uint32_with_alias_timestamp(sparkplug_payload_t* payload,
+                                                       const char* name,
+                                                       uint64_t alias,
+                                                       uint32_t value,
+                                                       uint64_t timestamp_ms) {
+  if (payload && name)
+    payload->impl.add_metric_with_alias(name, alias, value, timestamp_ms);
+}
+
+void sparkplug_payload_add_uint64_with_alias_timestamp(sparkplug_payload_t* payload,
+                                                       const char* name,
+                                                       uint64_t alias,
+                                                       uint64_t value,
+                                                       uint64_t timestamp_ms) {
+  if (payload && name)
+    payload->impl.add_metric_with_alias(name, alias, value, timestamp_ms);
+}
+
+void sparkplug_payload_add_float_with_alias_timestamp(sparkplug_payload_t* payload,
+                                                      const char* name,
+                                                      uint64_t alias,
+                                                      float value,
+                                                      uint64_t timestamp_ms) {
+  if (payload && name)
+    payload->impl.add_metric_with_alias(name, alias, value, timestamp_ms);
+}
+
+void sparkplug_payload_add_double_with_alias_timestamp(sparkplug_payload_t* payload,
+                                                       const char* name,
+                                                       uint64_t alias,
+                                                       double value,
+                                                       uint64_t timestamp_ms) {
+  if (payload && name)
+    payload->impl.add_metric_with_alias(name, alias, value, timestamp_ms);
+}
+
+void sparkplug_payload_add_bool_with_alias_timestamp(sparkplug_payload_t* payload,
+                                                     const char* name,
+                                                     uint64_t alias,
+                                                     bool value,
+                                                     uint64_t timestamp_ms) {
+  if (payload && name)
+    payload->impl.add_metric_with_alias(name, alias, value, timestamp_ms);
+}
+
 // Add metrics by alias only (for NDATA)
 void sparkplug_payload_add_int32_by_alias(sparkplug_payload_t* payload,
                                           uint64_t alias,

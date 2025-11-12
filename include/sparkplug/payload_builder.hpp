@@ -249,6 +249,30 @@ public:
   }
 
   /**
+   * @brief Adds a metric with name, alias, and custom timestamp (for NBIRTH with
+   * historical data).
+   *
+   * @tparam T Value type (automatically deduced, must satisfy SparkplugMetricType)
+   * @param name Metric name
+   * @param alias Metric alias (numeric identifier for NDATA)
+   * @param value Metric value
+   * @param timestamp_ms Custom timestamp in milliseconds since Unix epoch
+   *
+   * @return Reference to this builder for method chaining
+   *
+   * @note Useful for NBIRTH messages with historical data or specific timestamps.
+   */
+  template <SparkplugMetricType T>
+  PayloadBuilder& add_metric_with_alias(std::string_view name,
+                                        uint64_t alias,
+                                        T&& value,
+                                        uint64_t timestamp_ms) {
+    detail::add_metric_to_payload(payload_, name, std::forward<T>(value), alias,
+                                  timestamp_ms);
+    return *this;
+  }
+
+  /**
    * @brief Adds a metric by alias only (for NDATA messages).
    *
    * @tparam T Value type (automatically deduced, must satisfy SparkplugMetricType)

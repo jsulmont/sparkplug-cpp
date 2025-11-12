@@ -320,11 +320,36 @@ HostApplication::publish_raw_message(std::string_view topic,
   msg.qos = qos;
   msg.retained = retain ? 1 : 0;
 
+  std::promise<void> send_promise;
+  auto send_future = send_promise.get_future();
+
   MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
+  opts.context = &send_promise;
+  opts.onSuccess = [](void* context, MQTTAsync_successData* /*response*/) {
+    auto* promise = static_cast<std::promise<void>*>(context);
+    promise->set_value();
+  };
+  opts.onFailure = [](void* context, MQTTAsync_failureData* response) {
+    auto* promise = static_cast<std::promise<void>*>(context);
+    std::string error =
+        std::format("Publish failed: code={}", response ? response->code : -1);
+    promise->set_exception(std::make_exception_ptr(std::runtime_error(error)));
+  };
 
   int rc = MQTTAsync_sendMessage(client_.get(), std::string(topic).c_str(), &msg, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
     return stdx::unexpected(std::format("Failed to publish: {}", rc));
+  }
+
+  auto status = send_future.wait_for(std::chrono::milliseconds(5000));
+  if (status == std::future_status::timeout) {
+    return stdx::unexpected("Publish timeout");
+  }
+
+  try {
+    send_future.get();
+  } catch (const std::exception& e) {
+    return stdx::unexpected(e.what());
   }
 
   return {};
@@ -340,7 +365,7 @@ HostApplication::publish_command_message(std::string_view topic,
   MQTTAsync_message msg = MQTTAsync_message_initializer;
   msg.payload = const_cast<void*>(reinterpret_cast<const void*>(payload_data.data()));
   msg.payloadlen = static_cast<int>(payload_data.size());
-  msg.qos = config_.qos;
+  msg.qos = 0;
   msg.retained = 0;
 
   MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
