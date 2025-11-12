@@ -44,7 +44,7 @@ FetchContent_Declare(
 )
 set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-set(protobuf_ABSL_PROVIDER "package" CACHE STRING "" FORCE)
+set(protobuf_ABSL_PROVIDER "module" CACHE STRING "" FORCE)
 set(protobuf_BUILD_PROTOC_BINARIES ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(protobuf)
 
