@@ -44,7 +44,6 @@ FetchContent_Declare(
 )
 set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-set(protobuf_ABSL_PROVIDER "module" CACHE STRING "" FORCE)
 set(protobuf_BUILD_PROTOC_BINARIES ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(protobuf)
 
@@ -70,7 +69,7 @@ function(create_static_bundle)
     target_link_libraries(sparkplug_bundle_objects
         PUBLIC
             sparkplug_proto
-            protobuf::libprotobuf
+            libprotobuf
             tl::expected
         PRIVATE
             paho-mqtt3as-static
@@ -90,7 +89,7 @@ function(create_static_bundle)
 
     target_link_libraries(sparkplug_c_bundle PUBLIC
         paho-mqtt3as-static
-        protobuf::libprotobuf
+        libprotobuf
         OpenSSL::SSL
         OpenSSL::Crypto
     )

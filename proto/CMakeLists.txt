@@ -26,7 +26,7 @@ endif()
 set_target_properties(sparkplug_proto PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 if(BUILD_STATIC_BUNDLE)
-    target_link_libraries(sparkplug_proto PUBLIC protobuf::libprotobuf)
+    target_link_libraries(sparkplug_proto PUBLIC libprotobuf)
 else()
     target_link_libraries(sparkplug_proto PUBLIC protobuf::libprotobuf)
     if(TARGET absl::log_internal_message)

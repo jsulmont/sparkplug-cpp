@@ -19,7 +19,7 @@ if(BUILD_STATIC_BUNDLE)
     target_link_libraries(sparkplug_cpp
         PUBLIC
             sparkplug_proto
-            protobuf::libprotobuf
+            libprotobuf
             tl::expected
         PRIVATE
             paho-mqtt3as-static
