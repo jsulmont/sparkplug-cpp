@@ -53,13 +53,14 @@ void TCKEdgeNode::handle_end_test() {
     }
   }
 
-  // Only destroy edge node for tests that explicitly handle termination
-  // For SessionEstablishmentTest, keep the edge node alive for subsequent tests
-  if (current_edge_node_id_ != "SessionEstablishmentTest")
-    if (edge_node_) {
-      (void)edge_node_->disconnect();
-      edge_node_.reset();
-    }
+  if (edge_node_) {
+    (void)edge_node_->disconnect();
+    edge_node_.reset();
+  }
+
+  current_group_id_.clear();
+  current_edge_node_id_.clear();
+  device_ids_.clear();
 }
 
 void TCKEdgeNode::handle_prompt_specific(const std::string& /*message*/) {
@@ -161,22 +162,14 @@ void TCKEdgeNode::run_session_termination_test(const std::vector<std::string>& p
       }
     }
 
-    log("INFO", "Publishing NDEATH for deliberate node termination");
+    log("INFO", "Publishing NDEATH and disconnecting from broker");
     auto death_result = edge_node_->publish_death();
     if (!death_result) {
-      log("ERROR", "Failed to publish NDEATH: " + death_result.error());
+      log("ERROR", "Failed to publish NDEATH and disconnect: " + death_result.error());
       publish_result("OVERALL: FAIL");
       return;
     }
-    log("INFO", "NDEATH published successfully");
-
-    log("INFO", "Disconnecting Edge Node from broker");
-    auto disconnect_result = edge_node_->disconnect();
-    if (!disconnect_result) {
-      log("ERROR", "Failed to disconnect: " + disconnect_result.error());
-      publish_result("OVERALL: FAIL");
-      return;
-    }
+    log("INFO", "NDEATH published and disconnected successfully");
 
     edge_node_.reset();
     current_group_id_.clear();
