@@ -10,9 +10,60 @@ permissions:
   contents: write
 
 jobs:
+  format-check:
+    name: Check code formatting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install clang-format-18
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format-18
+
+      - name: Check C++ formatting
+        run: ./scripts/format.sh --check
+
+  tidy-check:
+    name: Run clang-tidy checks
+    runs-on: ubuntu-latest
+    container: fedora:42
+    needs: [format-check]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          dnf install -y \
+            gcc-c++ \
+            clang \
+            clang-tools-extra \
+            cmake \
+            ninja-build \
+            git \
+            protobuf-devel \
+            abseil-cpp-devel \
+            paho-c-devel \
+            openssl-devel
+
+      - name: Configure CMake
+        env:
+          CC: clang
+          CXX: clang++
+        run: cmake --preset default
+
+      - name: Build (for compile_commands.json)
+        run: cmake --build build -j$(nproc)
+
+      - name: Run clang-tidy
+        run: ./scripts/tidy.sh --quiet
+
   build-ubuntu-dynamic:
     name: Build Ubuntu 24.04 (dynamic)
     runs-on: ubuntu-24.04
+    needs: [tidy-check]
     strategy:
       matrix:
         library: [c, cpp]
@@ -110,6 +161,7 @@ jobs:
     name: Build Alpine Linux (static musl)
     runs-on: ubuntu-latest
     container: alpine:latest
+    needs: [tidy-check]
     steps:
       - name: Install build dependencies
         run: |
@@ -144,6 +196,7 @@ jobs:
     name: Build Fedora 42 (dynamic)
     runs-on: ubuntu-latest
     container: fedora:42
+    needs: [tidy-check]
     strategy:
       matrix:
         library: [c, cpp]
