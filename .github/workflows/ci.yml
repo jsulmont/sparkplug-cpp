@@ -281,7 +281,7 @@ jobs:
           }
           EOF
 
-          gcc test_link.c \
+          g++ test_link.c \
             -I build-static-musl/sparkplug-c-ci-test-linux-musl-x86_64-static/include \
             -L build-static-musl/sparkplug-c-ci-test-linux-musl-x86_64-static/lib \
             -lsparkplug_c_static_bundle \
