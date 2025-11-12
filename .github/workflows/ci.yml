@@ -260,14 +260,7 @@ jobs:
         run: |
           cat > test_link.c << 'EOF'
           #include <stdio.h>
-
-          typedef struct sparkplug_publisher sparkplug_publisher_t;
-          typedef struct sparkplug_host_application sparkplug_host_application_t;
-
-          sparkplug_publisher_t* sparkplug_publisher_create(const char*, const char*, const char*, const char*);
-          void sparkplug_publisher_destroy(sparkplug_publisher_t*);
-          sparkplug_host_application_t* sparkplug_host_application_create(const char*, const char*);
-          void sparkplug_host_application_destroy(sparkplug_host_application_t*);
+          #include <sparkplug/sparkplug_c.h>
 
           int main() {
               printf("Testing static bundle link...\n");
