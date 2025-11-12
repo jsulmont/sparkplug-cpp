@@ -36,24 +36,17 @@ set(ABSL_USE_GOOGLETEST_HEAD OFF CACHE BOOL "" FORCE)
 set(ABSL_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(abseil-cpp)
 
-message(STATUS "About to declare protobuf...")
 FetchContent_Declare(
     protobuf
     GIT_REPOSITORY https://github.com/protocolbuffers/protobuf.git
     GIT_TAG v29.4
     GIT_SHALLOW TRUE
 )
-message(STATUS "About to configure protobuf options...")
 set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_PROTOC_BINARIES OFF CACHE BOOL "" FORCE)
 set(protobuf_INSTALL OFF CACHE BOOL "" FORCE)
-message(STATUS "About to make protobuf available...")
 FetchContent_MakeAvailable(protobuf)
-message(STATUS "Protobuf should now be available")
-message(STATUS "protobuf_POPULATED = ${protobuf_POPULATED}")
-message(STATUS "protobuf_SOURCE_DIR = ${protobuf_SOURCE_DIR}")
-message(STATUS "protobuf_BINARY_DIR = ${protobuf_BINARY_DIR}")
 
 # Note: protoc target is now available as 'protoc' (not protobuf::protoc in this version)
 # The proto/CMakeLists.txt will use this target

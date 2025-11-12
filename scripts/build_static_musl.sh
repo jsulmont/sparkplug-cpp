@@ -44,29 +44,38 @@ cmake --build "${BUILD_DIR}" -j$(nproc 2>/dev/null || echo 4)
 # Create combined static archive
 echo "Creating combined static archive..."
 BUNDLE_DIR="${BUILD_DIR}/bundle_objects"
+rm -rf "${BUNDLE_DIR}"
 mkdir -p "${BUNDLE_DIR}"
-cd "${BUNDLE_DIR}"
 
-# Extract all object files from dependencies
+# Extract each library to its own subdirectory to avoid name collisions
 echo "  Extracting sparkplug_c_bundle..."
+mkdir -p "${BUNDLE_DIR}/sparkplug" && cd "${BUNDLE_DIR}/sparkplug"
 ar x "${BUILD_DIR}/src/libsparkplug_c_bundle.a"
 
 echo "  Extracting paho-mqtt-c..."
+mkdir -p "${BUNDLE_DIR}/paho" && cd "${BUNDLE_DIR}/paho"
 ar x "${BUILD_DIR}/_deps/paho-mqtt-c-build/src/libpaho-mqtt3as-static.a" 2>/dev/null || \
     ar x "${BUILD_DIR}/_deps/paho-mqtt-c-build/src/libpaho-mqtt3as.a"
 
 echo "  Extracting protobuf..."
-find "${BUILD_DIR}/_deps/protobuf-build" -name "libprotobuf*.a" -o -name "libutf8*.a" | while read lib; do
-    echo "    Extracting $(basename $lib)..."
+find "${BUILD_DIR}/_deps/protobuf-build" \( -name "libprotobuf*.a" -o -name "libutf8*.a" \) | while read lib; do
+    libname=$(basename "$lib" .a)
+    echo "    Extracting $libname..."
+    mkdir -p "${BUNDLE_DIR}/protobuf_${libname}" && cd "${BUNDLE_DIR}/protobuf_${libname}"
     ar x "$lib" 2>/dev/null || true
 done
 
 echo "  Extracting abseil libraries..."
-find "${BUILD_DIR}/_deps/abseil-cpp-build" -name "libabsl_*.a" -exec sh -c 'ar x "$1"' _ {} \;
+find "${BUILD_DIR}/_deps/abseil-cpp-build" -name "libabsl_*.a" | while read lib; do
+    libname=$(basename "$lib" .a)
+    mkdir -p "${BUNDLE_DIR}/absl_${libname}" && cd "${BUNDLE_DIR}/absl_${libname}"
+    ar x "$lib"
+done
 
-# Create combined archive
+# Create combined archive from all extracted objects
 echo "  Creating final archive..."
-ar rcs libsparkplug_c_static_bundle.a *.o *.obj 2>/dev/null || ar rcs libsparkplug_c_static_bundle.a *.o
+cd "${BUNDLE_DIR}"
+find . \( -name "*.o" -o -name "*.obj" \) -exec ar rcs libsparkplug_c_static_bundle.a {} +
 ranlib libsparkplug_c_static_bundle.a
 
 # Create package directory
