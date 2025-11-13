@@ -249,6 +249,8 @@ jobs:
                 protobuf-dev \
                 protoc
 
+              git config --global --add safe.directory /workspace
+
               export VERSION="${GITHUB_REF_NAME#v}"
               export ARCH="${{ matrix.arch }}"
               bash ./scripts/build_static_musl.sh
@@ -307,6 +309,8 @@ jobs:
                 abseil-cpp-devel \
                 paho-c-devel \
                 openssl-devel
+
+              git config --global --add safe.directory /workspace
 
               export CC=clang
               export CXX=clang++
