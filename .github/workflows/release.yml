@@ -331,25 +331,25 @@ jobs:
                 cp -r include/sparkplug ${PACKAGE_NAME}/include/
               fi
 
-              cat > ${PACKAGE_NAME}/README.md << "INNEREOF"
-# Sparkplug B ${{ matrix.library }} Library (Fedora 42)
-
-Dynamic library build for Fedora 42+.
-
-## Dependencies
-
-```bash
-sudo dnf install protobuf abseil-cpp paho-c openssl
-```
-
-## Installation
-
-```bash
-sudo cp lib/* /usr/local/lib64/
-sudo cp -r include/* /usr/local/include/
-sudo ldconfig
-```
-INNEREOF
+              printf "%s\n" \
+                "# Sparkplug B ${{ matrix.library }} Library (Fedora 42)" \
+                "" \
+                "Dynamic library build for Fedora 42+." \
+                "" \
+                "## Dependencies" \
+                "" \
+                "\`\`\`bash" \
+                "sudo dnf install protobuf abseil-cpp paho-c openssl" \
+                "\`\`\`" \
+                "" \
+                "## Installation" \
+                "" \
+                "\`\`\`bash" \
+                "sudo cp lib/* /usr/local/lib64/" \
+                "sudo cp -r include/* /usr/local/include/" \
+                "sudo ldconfig" \
+                "\`\`\`" \
+                > ${PACKAGE_NAME}/README.md
 
               tar czf ${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}
             '
