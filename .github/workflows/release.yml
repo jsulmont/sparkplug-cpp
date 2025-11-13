@@ -67,9 +67,27 @@ jobs:
     strategy:
       matrix:
         library: [c, cpp]
+        arch: [x86_64, aarch64]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up QEMU for ARM64 emulation
+        if: matrix.arch == 'aarch64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/arm64
+
+      - name: Set architecture variables
+        id: arch
+        run: |
+          if [ "${{ matrix.arch }}" = "aarch64" ]; then
+            echo "dpkg_arch=arm64" >> $GITHUB_OUTPUT
+            echo "gcc_arch=aarch64-linux-gnu" >> $GITHUB_OUTPUT
+          else
+            echo "dpkg_arch=amd64" >> $GITHUB_OUTPUT
+            echo "gcc_arch=x86_64-linux-gnu" >> $GITHUB_OUTPUT
+          fi
 
       - name: Install dependencies
         run: |
@@ -85,17 +103,35 @@ jobs:
             libssl-dev \
             pkg-config
 
+          if [ "${{ matrix.arch }}" = "aarch64" ]; then
+            sudo apt-get install -y \
+              gcc-aarch64-linux-gnu \
+              g++-aarch64-linux-gnu \
+              libprotobuf-dev:arm64 \
+              libabsl-dev:arm64 \
+              libssl-dev:arm64
+            sudo dpkg --add-architecture arm64
+          fi
+
       - name: Build and install Paho MQTT C
         run: |
           cd /tmp
           git clone --depth 1 --branch v1.3.15 https://github.com/eclipse/paho.mqtt.c.git
           cd paho.mqtt.c
+
+          if [ "${{ matrix.arch }}" = "aarch64" ]; then
+            CMAKE_TOOLCHAIN_ARGS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++"
+          else
+            CMAKE_TOOLCHAIN_ARGS=""
+          fi
+
           cmake -Bbuild \
             -DCMAKE_BUILD_TYPE=Release \
             -DPAHO_WITH_SSL=ON \
             -DPAHO_BUILD_DOCUMENTATION=OFF \
             -DPAHO_BUILD_SAMPLES=OFF \
-            -DPAHO_BUILD_STATIC=OFF
+            -DPAHO_BUILD_STATIC=OFF \
+            $CMAKE_TOOLCHAIN_ARGS
           cmake --build build -j$(nproc)
           sudo cmake --install build
 
@@ -104,15 +140,22 @@ jobs:
           CC: clang-18
           CXX: clang++-18
         run: |
+          if [ "${{ matrix.arch }}" = "aarch64" ]; then
+            CMAKE_TOOLCHAIN_ARGS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++"
+          else
+            CMAKE_TOOLCHAIN_ARGS=""
+          fi
+
           cmake -S . -B build-release \
             -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_SHARED_LIBS=ON
+            -DBUILD_SHARED_LIBS=ON \
+            $CMAKE_TOOLCHAIN_ARGS
           cmake --build build-release -j$(nproc) --target sparkplug_${{ matrix.library }}
 
       - name: Create package
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          PACKAGE_NAME="sparkplug-${{ matrix.library }}-${VERSION}-ubuntu24.04-x86_64"
+          PACKAGE_NAME="sparkplug-${{ matrix.library }}-${VERSION}-ubuntu24.04-${{ matrix.arch }}"
           mkdir -p ${PACKAGE_NAME}/{lib,include}
 
           # Copy library
@@ -154,121 +197,167 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ubuntu-${{ matrix.library }}
+          name: ubuntu-${{ matrix.library }}-${{ matrix.arch }}
           path: '*.tar.gz'
 
   build-alpine-static:
     name: Build Alpine Linux (static musl)
     runs-on: ubuntu-latest
-    container: alpine:latest
     needs: [tidy-check]
+    strategy:
+      matrix:
+        arch: [x86_64, aarch64]
     steps:
-      - name: Install build dependencies
-        run: |
-          apk add --no-cache \
-            build-base \
-            cmake \
-            git \
-            bash \
-            linux-headers \
-            openssl-dev \
-            openssl-libs-static \
-            zlib-static \
-            samurai \
-            protobuf-dev \
-            protoc
-
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build static musl bundle
+      - name: Set up QEMU for multi-platform builds
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set platform variable
+        id: platform
         run: |
-          export VERSION="${GITHUB_REF_NAME#v}"
-          bash ./scripts/build_static_musl.sh
+          if [ "${{ matrix.arch }}" = "aarch64" ]; then
+            echo "docker_platform=linux/arm64" >> $GITHUB_OUTPUT
+          else
+            echo "docker_platform=linux/amd64" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build static musl bundle in Alpine container
+        run: |
+          docker run --rm \
+            --platform ${{ steps.platform.outputs.docker_platform }} \
+            -v $PWD:/workspace \
+            -w /workspace \
+            alpine:latest \
+            sh -c '
+              apk add --no-cache \
+                build-base \
+                cmake \
+                git \
+                bash \
+                linux-headers \
+                openssl-dev \
+                openssl-libs-static \
+                zlib-static \
+                samurai \
+                protobuf-dev \
+                protoc
+
+              export VERSION="${GITHUB_REF_NAME#v}"
+              export ARCH="${{ matrix.arch }}"
+              bash ./scripts/build_static_musl.sh
+            '
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: alpine-static-c
+          name: alpine-static-c-${{ matrix.arch }}
           path: 'build-static-musl/*.tar.gz'
 
   build-fedora-dynamic:
     name: Build Fedora 42 (dynamic)
     runs-on: ubuntu-latest
-    container: fedora:42
     needs: [tidy-check]
     strategy:
       matrix:
         library: [c, cpp]
+        arch: [x86_64, aarch64]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Set up QEMU for multi-platform builds
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set platform variable
+        id: platform
         run: |
-          dnf install -y \
-            gcc-c++ \
-            clang \
-            cmake \
-            ninja-build \
-            git \
-            protobuf-devel \
-            abseil-cpp-devel \
-            paho-c-devel \
-            openssl-devel
-
-      - name: Build ${{ matrix.library }} library
-        env:
-          CC: clang
-          CXX: clang++
-        run: |
-          cmake -S . -B build-release \
-            -GNinja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_SHARED_LIBS=ON
-          cmake --build build-release -j$(nproc) --target sparkplug_${{ matrix.library }}
-
-      - name: Create package
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          PACKAGE_NAME="sparkplug-${{ matrix.library }}-${VERSION}-fedora42-x86_64"
-          mkdir -p ${PACKAGE_NAME}/{lib,include}
-
-          cp build-release/src/libsparkplug_${{ matrix.library }}.so* ${PACKAGE_NAME}/lib/
-
-          if [ "${{ matrix.library }}" = "c" ]; then
-            mkdir -p ${PACKAGE_NAME}/include/sparkplug
-            cp include/sparkplug/sparkplug_c.h ${PACKAGE_NAME}/include/sparkplug/
+          if [ "${{ matrix.arch }}" = "aarch64" ]; then
+            echo "docker_platform=linux/arm64" >> $GITHUB_OUTPUT
           else
-            cp -r include/sparkplug ${PACKAGE_NAME}/include/
+            echo "docker_platform=linux/amd64" >> $GITHUB_OUTPUT
           fi
 
-          cat > ${PACKAGE_NAME}/README.md << 'EOF'
-          # Sparkplug B ${{ matrix.library }} Library (Fedora 42)
+      - name: Build ${{ matrix.library }} library in Fedora container
+        run: |
+          docker run --rm \
+            --platform ${{ steps.platform.outputs.docker_platform }} \
+            -v $PWD:/workspace \
+            -w /workspace \
+            fedora:42 \
+            sh -c '
+              dnf install -y \
+                gcc-c++ \
+                clang \
+                cmake \
+                ninja-build \
+                git \
+                protobuf-devel \
+                abseil-cpp-devel \
+                paho-c-devel \
+                openssl-devel
 
-          Dynamic library build for Fedora 42+.
+              export CC=clang
+              export CXX=clang++
 
-          ## Dependencies
+              cmake -S . -B build-release \
+                -GNinja \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DBUILD_SHARED_LIBS=ON
+              cmake --build build-release -j$(nproc) --target sparkplug_${{ matrix.library }}
 
-          ```bash
-          sudo dnf install protobuf abseil-cpp paho-c openssl
-          ```
+              VERSION="${GITHUB_REF_NAME#v}"
+              ARCH="${{ matrix.arch }}"
+              PACKAGE_NAME="sparkplug-${{ matrix.library }}-${VERSION}-fedora42-${ARCH}"
+              mkdir -p ${PACKAGE_NAME}/{lib,include}
 
-          ## Installation
+              cp build-release/src/libsparkplug_${{ matrix.library }}.so* ${PACKAGE_NAME}/lib/
 
-          ```bash
-          sudo cp lib/* /usr/local/lib64/
-          sudo cp -r include/* /usr/local/include/
-          sudo ldconfig
-          ```
-          EOF
+              if [ "${{ matrix.library }}" = "c" ]; then
+                mkdir -p ${PACKAGE_NAME}/include/sparkplug
+                cp include/sparkplug/sparkplug_c.h ${PACKAGE_NAME}/include/sparkplug/
+              else
+                cp -r include/sparkplug ${PACKAGE_NAME}/include/
+              fi
 
-          tar czf ${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}
+              cat > ${PACKAGE_NAME}/README.md << "INNEREOF"
+# Sparkplug B ${{ matrix.library }} Library (Fedora 42)
+
+Dynamic library build for Fedora 42+.
+
+## Dependencies
+
+```bash
+sudo dnf install protobuf abseil-cpp paho-c openssl
+```
+
+## Installation
+
+```bash
+sudo cp lib/* /usr/local/lib64/
+sudo cp -r include/* /usr/local/include/
+sudo ldconfig
+```
+INNEREOF
+
+              tar czf ${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}
+            '
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: fedora-${{ matrix.library }}
+          name: fedora-${{ matrix.library }}-${{ matrix.arch }}
           path: '*.tar.gz'
 
   create-release:
