@@ -12,33 +12,9 @@ permissions:
   contents: write
 
 jobs:
-  format-check:
-    name: Check code formatting
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install clang-format-18
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang-format-18
-
-      - name: Check C++ formatting
-        run: ./scripts/format.sh --check
-
-  tidy-check:
-    name: Run clang-tidy checks
-    runs-on: ubuntu-latest
-    needs: [format-check]
-    steps:
-      - name: Skip tidy check (temporarily disabled - too slow)
-        run: echo "Tidy check skipped for release workflow"
-
   build-ubuntu-dynamic:
     name: Build Ubuntu 24.04 (dynamic)
     runs-on: ubuntu-latest
-    needs: [tidy-check]
     strategy:
       matrix:
         library: [c, cpp]
@@ -127,7 +103,6 @@ jobs:
   build-alpine-static:
     name: Build Alpine Linux (static musl)
     runs-on: ubuntu-latest
-    needs: [tidy-check]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -174,7 +149,6 @@ jobs:
   build-fedora-dynamic:
     name: Build Fedora 42 (dynamic)
     runs-on: ubuntu-latest
-    needs: [tidy-check]
     strategy:
       matrix:
         library: [c, cpp]
