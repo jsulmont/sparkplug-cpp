@@ -107,38 +107,37 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build static musl bundle
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build static musl bundle in Alpine container
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            cmake \
-            git \
-            bash \
-            libssl-dev \
-            zlib1g-dev \
-            ninja-build \
-            protobuf-compiler \
-            libprotobuf-dev
+          docker run --rm \
+            --platform linux/amd64 \
+            -v $PWD:/workspace \
+            -w /workspace \
+            alpine:latest \
+            sh -c '
+              apk add --no-cache \
+                build-base \
+                cmake \
+                git \
+                bash \
+                linux-headers \
+                openssl-dev \
+                openssl-libs-static \
+                zlib-static \
+                samurai \
+                protobuf-dev \
+                protoc
 
-          export VERSION="${{ inputs.version }}"
-          export VERSION="${VERSION#v}"
-          export ARCH="x86_64"
+              git config --global --add safe.directory /workspace
 
-          apk add --no-cache \
-            build-base \
-            cmake \
-            git \
-            bash \
-            linux-headers \
-            openssl-dev \
-            openssl-libs-static \
-            zlib-static \
-            samurai \
-            protobuf-dev \
-            protoc || true
-
-          bash ./scripts/build_static_musl.sh
+              export VERSION="${{ inputs.version }}"
+              export VERSION="${VERSION#v}"
+              export ARCH="x86_64"
+              bash ./scripts/build_static_musl.sh
+            '
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
