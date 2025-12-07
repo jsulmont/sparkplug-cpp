@@ -284,7 +284,7 @@ public:
    * @note Useful for monitoring and debugging.
    */
   [[nodiscard]] uint64_t get_seq() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
     return seq_num_;
   }
 
@@ -296,7 +296,7 @@ public:
    * @note Used by SCADA to detect new sessions/rebirths.
    */
   [[nodiscard]] uint64_t get_bd_seq() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
     return bd_seq_num_;
   }
 
@@ -310,7 +310,7 @@ public:
    * @note Used to determine if NBIRTH/DBIRTH can be published.
    */
   [[nodiscard]] bool is_primary_host_online() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
     return primary_host_online_;
   }
 

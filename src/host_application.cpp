@@ -64,7 +64,7 @@ HostApplication::~HostApplication() {
 HostApplication::HostApplication(HostApplication&& other) noexcept
     : config_(std::move(other.config_)), client_(std::move(other.client_)),
       is_connected_(other.is_connected_) {
-  std::lock_guard<std::mutex> lock(other.mutex_);
+  std::scoped_lock lock(other.mutex_);
   other.is_connected_ = false;
 }
 
@@ -83,28 +83,28 @@ HostApplication& HostApplication::operator=(HostApplication&& other) noexcept {
 
 void HostApplication::set_credentials(std::optional<std::string> username,
                                       std::optional<std::string> password) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
   config_.username = std::move(username);
   config_.password = std::move(password);
 }
 
 void HostApplication::set_tls(std::optional<TlsOptions> tls) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
   config_.tls = std::move(tls);
 }
 
 void HostApplication::set_message_callback(MessageCallback callback) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
   config_.message_callback = std::move(callback);
 }
 
 void HostApplication::set_log_callback(LogCallback callback) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
   config_.log_callback = std::move(callback);
 }
 
 stdx::expected<void, std::string> HostApplication::connect() {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   MQTTAsync raw_client = nullptr;
   int rc =
@@ -181,7 +181,7 @@ stdx::expected<void, std::string> HostApplication::connect() {
 }
 
 stdx::expected<void, std::string> HostApplication::disconnect() {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   if (!client_) {
     return stdx::unexpected("Not connected");
@@ -219,7 +219,7 @@ stdx::expected<void, std::string> HostApplication::disconnect() {
 
 stdx::expected<void, std::string>
 HostApplication::publish_state_birth(uint64_t timestamp) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   if (!is_connected_) {
     return stdx::unexpected("Not connected");
@@ -237,7 +237,7 @@ HostApplication::publish_state_birth(uint64_t timestamp) {
 
 stdx::expected<void, std::string>
 HostApplication::publish_state_death(uint64_t timestamp) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   if (!is_connected_) {
     return stdx::unexpected("Not connected");
@@ -260,7 +260,7 @@ HostApplication::publish_node_command(std::string_view group_id,
   std::string topic_str;
   std::vector<uint8_t> payload_data;
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     if (!is_connected_) {
       return stdx::unexpected("Not connected");
@@ -286,7 +286,7 @@ HostApplication::publish_device_command(std::string_view group_id,
   std::string topic_str;
   std::vector<uint8_t> payload_data;
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     if (!is_connected_) {
       return stdx::unexpected("Not connected");
@@ -378,7 +378,7 @@ HostApplication::publish_command_message(std::string_view topic,
 }
 
 stdx::expected<void, std::string> HostApplication::subscribe_all_groups() {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   if (!client_) {
     return stdx::unexpected("Not connected");
@@ -398,7 +398,7 @@ stdx::expected<void, std::string> HostApplication::subscribe_all_groups() {
 
 stdx::expected<void, std::string>
 HostApplication::subscribe_group(std::string_view group_id) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   if (!client_) {
     return stdx::unexpected("Not connected");
@@ -419,7 +419,7 @@ HostApplication::subscribe_group(std::string_view group_id) {
 stdx::expected<void, std::string>
 HostApplication::subscribe_node(std::string_view group_id,
                                 std::string_view edge_node_id) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   if (!client_) {
     return stdx::unexpected("Not connected");
@@ -439,7 +439,7 @@ HostApplication::subscribe_node(std::string_view group_id,
 
 stdx::expected<void, std::string>
 HostApplication::subscribe_state(std::string_view host_id) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   if (!client_) {
     return stdx::unexpected("Not connected");
@@ -460,7 +460,7 @@ HostApplication::subscribe_state(std::string_view host_id) {
 std::optional<std::reference_wrapper<const HostApplication::NodeState>>
 HostApplication::get_node_state(std::string_view group_id,
                                 std::string_view edge_node_id) const {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   auto it = node_states_.find(std::make_pair(group_id, edge_node_id));
   if (it != node_states_.end()) {
@@ -474,7 +474,7 @@ HostApplication::get_metric_name(std::string_view group_id,
                                  std::string_view edge_node_id,
                                  std::string_view device_id,
                                  uint64_t alias) const {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   auto it = node_states_.find(std::make_pair(group_id, edge_node_id));
   if (it == node_states_.end()) {
@@ -754,7 +754,7 @@ int HostApplication::on_message_arrived(void* context,
   }
 
   {
-    std::lock_guard<std::mutex> lock(host_app->mutex_);
+    std::scoped_lock lock(host_app->mutex_);
     host_app->validate_message(*topic_result, payload);
   }
 
@@ -777,7 +777,7 @@ void HostApplication::on_connection_lost(void* context, char* cause) {
   }
 
   {
-    std::lock_guard<std::mutex> lock(host_app->mutex_);
+    std::scoped_lock lock(host_app->mutex_);
     host_app->is_connected_ = false;
   }
 
