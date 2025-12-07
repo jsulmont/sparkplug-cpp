@@ -305,7 +305,7 @@ void TCKHostApplication::handle_prompt_specific(const std::string& message) {
 
 auto TCKHostApplication::establish_session(const std::string& host_id)
     -> stdx::expected<void, std::string> {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   if (host_application_) {
     return {};

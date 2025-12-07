@@ -1,7 +1,7 @@
-// include/sparkplug/host_application.hpp
 #pragma once
 
 #include "detail/compat.hpp"
+#include "logging.hpp"
 #include "mqtt_handle.hpp"
 #include "payload_builder.hpp"
 #include "sparkplug_b.pb.h"
@@ -18,21 +18,6 @@
 #include <MQTTAsync.h>
 
 namespace sparkplug {
-
-/**
- * @brief Log severity levels for library diagnostics.
- */
-enum class LogLevel {
-  DEBUG = 0, ///< Detailed debugging information
-  INFO = 1,  ///< Informational messages
-  WARN = 2,  ///< Warning messages (potential issues)
-  ERROR = 3  ///< Error messages (serious problems)
-};
-
-/**
- * @brief Callback function type for receiving log messages from the library.
- */
-using LogCallback = std::function<void(LogLevel, std::string_view)>;
 
 /**
  * @brief Callback function type for receiving Sparkplug B messages.

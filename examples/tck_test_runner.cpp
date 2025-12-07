@@ -52,7 +52,7 @@ TCKTestRunner::~TCKTestRunner() {
 }
 
 auto TCKTestRunner::start() -> stdx::expected<void, std::string> {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   if (running_) {
     return stdx::unexpected("TCK test runner is already running");
@@ -91,7 +91,7 @@ auto TCKTestRunner::start() -> stdx::expected<void, std::string> {
 }
 
 void TCKTestRunner::stop() {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   if (!running_) {
     return;

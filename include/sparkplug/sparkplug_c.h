@@ -210,12 +210,10 @@ int sparkplug_publisher_set_tls(sparkplug_publisher_t* pub,
                                 const char* private_key_password,
                                 int enable_server_cert_auth);
 
-/**
- * @brief Connects the publisher to the MQTT broker.
- *
- * @param pub Publisher handle
- * @return 0 on success, -1 on failure
- */
+void sparkplug_publisher_set_log_callback(sparkplug_publisher_t* pub,
+                                          sparkplug_log_callback_t callback,
+                                          void* user_data);
+
 int sparkplug_publisher_connect(sparkplug_publisher_t* pub);
 
 /**

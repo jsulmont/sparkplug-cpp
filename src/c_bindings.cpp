@@ -1,4 +1,3 @@
-// src/c_bindings.cpp
 #include "sparkplug/edge_node.hpp"
 #include "sparkplug/host_application.hpp"
 #include "sparkplug/payload_builder.hpp"
@@ -197,10 +196,35 @@ int sparkplug_publisher_set_tls(sparkplug_publisher_t* pub,
   return 0;
 }
 
+void sparkplug_publisher_set_log_callback(sparkplug_publisher_t* pub,
+                                          sparkplug_log_callback_t callback,
+                                          void* user_data) {
+  if (!pub) {
+    return;
+  }
+
+  if (callback) {
+    auto cpp_callback = [callback, user_data](sparkplug::LogLevel level,
+                                              std::string_view message) {
+      callback(static_cast<int>(level), message.data(), message.size(), user_data);
+    };
+    pub->impl.set_log_callback(std::move(cpp_callback));
+  } else {
+    pub->impl.set_log_callback(std::nullopt);
+  }
+}
+
 int sparkplug_publisher_connect(sparkplug_publisher_t* pub) {
   if (!pub)
     return -1;
-  return pub->impl.connect().has_value() ? 0 : -1;
+
+  auto result = pub->impl.connect();
+  if (!result.has_value()) {
+    auto error_msg = std::format("EdgeNode MQTT connection failed: {}", result.error());
+    pub->impl.log(sparkplug::LogLevel::ERROR, error_msg);
+    return -1;
+  }
+  return 0;
 }
 
 int sparkplug_publisher_disconnect(sparkplug_publisher_t* pub) {
@@ -869,7 +893,13 @@ int sparkplug_host_application_connect(sparkplug_host_application_t* host) {
   }
 
   auto result = host->impl.connect();
-  return result.has_value() ? 0 : -1;
+  if (!result.has_value()) {
+    auto error_msg =
+        std::format("HostApplication MQTT connection failed: {}", result.error());
+    host->impl.log(sparkplug::LogLevel::ERROR, error_msg);
+    return -1;
+  }
+  return 0;
 }
 
 int sparkplug_host_application_disconnect(sparkplug_host_application_t* host) {
