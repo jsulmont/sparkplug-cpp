@@ -62,7 +62,7 @@ void EdgeNode::on_connection_lost(void* context, char* cause) {
   }
 
   {
-    std::lock_guard<std::mutex> lock(edge_node->mutex_);
+    std::scoped_lock lock(edge_node->mutex_);
     edge_node->is_connected_ = false;
   }
 
@@ -101,7 +101,7 @@ int EdgeNode::on_message_arrived(void* context,
     std::string payload_str(static_cast<const char*>(message->payload),
                             message->payloadlen);
 
-    std::lock_guard<std::mutex> lock(edge_node->mutex_);
+    std::scoped_lock lock(edge_node->mutex_);
     if (payload_str.find("\"online\":true") != std::string::npos) {
       edge_node->primary_host_online_ = true;
     } else if (payload_str.find("\"online\":false") != std::string::npos) {
@@ -152,16 +152,14 @@ EdgeNode::EdgeNode(EdgeNode&& other) noexcept
       device_states_(std::move(other.device_states_)), is_connected_(other.is_connected_)
 // mutex_ is default-constructed (mutexes are not moveable)
 {
-  std::lock_guard<std::mutex> lock(other.mutex_);
+  std::scoped_lock lock(other.mutex_);
   other.is_connected_ = false;
 }
 
 EdgeNode& EdgeNode::operator=(EdgeNode&& other) noexcept {
   if (this != &other) {
-    // Lock both mutexes in consistent order to avoid deadlock
-    std::lock(mutex_, other.mutex_);
-    std::lock_guard<std::mutex> lock1(mutex_, std::adopt_lock);
-    std::lock_guard<std::mutex> lock2(other.mutex_, std::adopt_lock);
+    // Lock both mutexes with automatic deadlock avoidance
+    std::scoped_lock lock(mutex_, other.mutex_);
 
     config_ = std::move(other.config_);
     client_ = std::move(other.client_);
@@ -178,23 +176,23 @@ EdgeNode& EdgeNode::operator=(EdgeNode&& other) noexcept {
 
 void EdgeNode::set_credentials(std::optional<std::string> username,
                                std::optional<std::string> password) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
   config_.username = std::move(username);
   config_.password = std::move(password);
 }
 
 void EdgeNode::set_tls(std::optional<TlsOptions> tls) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
   config_.tls = std::move(tls);
 }
 
 void EdgeNode::set_log_callback(std::optional<LogCallback> callback) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
   config_.log_callback = std::move(callback);
 }
 
 stdx::expected<void, std::string> EdgeNode::connect() {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   MQTTAsync raw_client = nullptr;
   int rc =
@@ -361,7 +359,7 @@ stdx::expected<void, std::string> EdgeNode::connect() {
 }
 
 stdx::expected<void, std::string> EdgeNode::disconnect() {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   if (!client_) {
     return stdx::unexpected("Not connected");
@@ -430,7 +428,7 @@ stdx::expected<void, std::string> EdgeNode::publish_birth(PayloadBuilder& payloa
   int qos = 0;
 
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     if (!is_connected_) {
       return stdx::unexpected("Not connected");
@@ -479,7 +477,7 @@ stdx::expected<void, std::string> EdgeNode::publish_birth(PayloadBuilder& payloa
   }
 
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
     last_birth_payload_ = std::move(payload_data);
     seq_num_ = 0;
   }
@@ -494,7 +492,7 @@ stdx::expected<void, std::string> EdgeNode::publish_data(PayloadBuilder& payload
   int qos = 0;
 
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     if (!is_connected_) {
       return stdx::unexpected("Not connected");
@@ -527,7 +525,7 @@ stdx::expected<void, std::string> EdgeNode::publish_death() {
   int qos = 0;
 
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     if (!is_connected_) {
       return stdx::unexpected("Not connected");
@@ -567,7 +565,7 @@ stdx::expected<void, std::string> EdgeNode::rebirth() {
   int qos = 0;
 
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     if (!is_connected_) {
       return stdx::unexpected("Not connected");
@@ -619,7 +617,7 @@ stdx::expected<void, std::string> EdgeNode::rebirth() {
                     .and_then([this, &topic_str, &payload_data, qos]() {
                       MQTTAsync client = nullptr;
                       {
-                        std::lock_guard<std::mutex> lock(mutex_);
+                        std::scoped_lock lock(mutex_);
                         client = client_.get();
                       }
                       return publish_message(client, topic_str, payload_data, qos, false);
@@ -630,7 +628,7 @@ stdx::expected<void, std::string> EdgeNode::rebirth() {
   }
 
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
     seq_num_ = 0;
   }
 
@@ -645,7 +643,7 @@ EdgeNode::publish_device_birth(std::string_view device_id, PayloadBuilder& paylo
   int qos = 0;
 
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     if (!is_connected_) {
       return stdx::unexpected("Not connected");
@@ -713,7 +711,7 @@ EdgeNode::publish_device_birth(std::string_view device_id, PayloadBuilder& paylo
   }
 
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
     auto& device_state = device_states_[std::string(device_id)];
     device_state.last_birth_payload = std::move(payload_data);
     device_state.is_online = true;
@@ -730,7 +728,7 @@ EdgeNode::publish_device_data(std::string_view device_id, PayloadBuilder& payloa
   int qos = 0;
 
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     if (!is_connected_) {
       return stdx::unexpected("Not connected");
@@ -770,7 +768,7 @@ EdgeNode::publish_device_death(std::string_view device_id) {
   int qos = 0;
 
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     if (!is_connected_) {
       return stdx::unexpected("Not connected");
@@ -806,7 +804,7 @@ EdgeNode::publish_device_death(std::string_view device_id) {
   }
 
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
     auto it = device_states_.find(device_id);
     if (it != device_states_.end()) {
       it->second.is_online = false;
@@ -825,7 +823,7 @@ EdgeNode::publish_node_command(std::string_view target_edge_node_id,
   int qos = 0;
 
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     if (!is_connected_) {
       return stdx::unexpected("Not connected");
@@ -855,7 +853,7 @@ EdgeNode::publish_device_command(std::string_view target_edge_node_id,
   int qos = 0;
 
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     if (!is_connected_) {
       return stdx::unexpected("Not connected");

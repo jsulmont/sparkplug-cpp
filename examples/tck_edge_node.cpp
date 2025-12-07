@@ -1088,7 +1088,7 @@ auto TCKEdgeNode::create_edge_node(const std::string& host_id,
                                    const std::string& edge_node_id,
                                    const std::vector<std::string>& device_ids)
     -> stdx::expected<void, std::string> {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_);
 
   if (edge_node_) {
     return stdx::unexpected("Edge Node already exists");
