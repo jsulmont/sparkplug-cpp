@@ -225,6 +225,7 @@ jobs:
         run: |
           apk add --no-cache \
             build-base \
+            clang \
             cmake \
             git \
             bash \
@@ -237,6 +238,9 @@ jobs:
             protoc
 
       - name: Build static musl bundle
+        env:
+          CC: clang
+          CXX: clang++
         run: |
           export VERSION="ci-test"
           bash ./scripts/build_static_musl.sh
