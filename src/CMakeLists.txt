@@ -15,6 +15,12 @@ target_include_directories(sparkplug_cpp
         $<INSTALL_INTERFACE:include>
 )
 
+# Add fmt include directory and link library if using fmt fallback
+if(SPARKPLUG_USE_FMT)
+    target_include_directories(sparkplug_cpp PUBLIC ${FMT_INCLUDE_DIR})
+    target_link_libraries(sparkplug_cpp PRIVATE ${FMT_LIBRARY})
+endif()
+
 if(BUILD_STATIC_BUNDLE)
     target_link_libraries(sparkplug_cpp
         PUBLIC

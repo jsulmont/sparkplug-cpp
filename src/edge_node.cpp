@@ -1,8 +1,9 @@
 // src/edge_node.cpp
 #include "sparkplug/edge_node.hpp"
 
+#include "sparkplug/detail/compat.hpp"
+
 #include <cstring>
-#include <format>
 #include <future>
 #include <thread>
 #include <utility>
@@ -25,7 +26,7 @@ void on_connect_success(void* context, MQTTAsync_successData* response) {
 
 void on_connect_failure(void* context, MQTTAsync_failureData* response) {
   auto* promise = static_cast<std::promise<void>*>(context);
-  auto error = std::format("Connection failed: code={}", response ? response->code : -1);
+  auto error = stdx::format("Connection failed: code={}", response ? response->code : -1);
   promise->set_exception(std::make_exception_ptr(std::runtime_error(error)));
 }
 
@@ -37,7 +38,7 @@ void on_disconnect_success(void* context, MQTTAsync_successData* response) {
 
 void on_disconnect_failure(void* context, MQTTAsync_failureData* response) {
   auto* promise = static_cast<std::promise<void>*>(context);
-  auto error = std::format("Disconnect failed: code={}", response ? response->code : -1);
+  auto error = stdx::format("Disconnect failed: code={}", response ? response->code : -1);
   promise->set_exception(std::make_exception_ptr(std::runtime_error(error)));
 }
 
@@ -49,7 +50,7 @@ void on_subscribe_success(void* context, MQTTAsync_successData* response) {
 
 void on_subscribe_failure(void* context, MQTTAsync_failureData* response) {
   auto* promise = static_cast<std::promise<void>*>(context);
-  auto error = std::format("Subscribe failed: code={}", response ? response->code : -1);
+  auto error = stdx::format("Subscribe failed: code={}", response ? response->code : -1);
   promise->set_exception(std::make_exception_ptr(std::runtime_error(error)));
 }
 
@@ -201,7 +202,7 @@ stdx::expected<void, std::string> EdgeNode::connect() {
       MQTTAsync_create(&raw_client, config_.broker_url.c_str(), config_.client_id.c_str(),
                        MQTTCLIENT_PERSISTENCE_NONE, nullptr);
   if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to create client: {}", rc));
+    return stdx::unexpected(stdx::format("Failed to create client: {}", rc));
   }
   client_ = MQTTAsyncHandle(raw_client);
 
@@ -210,7 +211,7 @@ stdx::expected<void, std::string> EdgeNode::connect() {
   rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost, on_message_arrived,
                               nullptr);
   if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to set callbacks: {}", rc));
+    return stdx::unexpected(stdx::format("Failed to set callbacks: {}", rc));
   }
 
   // Increment bdSeq for this session (Sparkplug spec requires bdSeq to start at 1)
@@ -276,7 +277,7 @@ stdx::expected<void, std::string> EdgeNode::connect() {
 
   rc = MQTTAsync_connect(client_.get(), &conn_opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to connect: {}", rc));
+    return stdx::unexpected(stdx::format("Failed to connect: {}", rc));
   }
 
   auto status = connect_future.wait_for(std::chrono::milliseconds(CONNECTION_TIMEOUT_MS));
@@ -313,7 +314,7 @@ stdx::expected<void, std::string> EdgeNode::connect() {
 
   rc = MQTTAsync_subscribe(client_.get(), ncmd_topic_str.c_str(), 1, &sub_opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to subscribe to NCMD: {}", rc));
+    return stdx::unexpected(stdx::format("Failed to subscribe to NCMD: {}", rc));
   }
 
   auto sub_status =
@@ -325,7 +326,7 @@ stdx::expected<void, std::string> EdgeNode::connect() {
   try {
     subscribe_future.get();
   } catch (const std::exception& e) {
-    return stdx::unexpected(std::format("NCMD subscription failed: {}", e.what()));
+    return stdx::unexpected(stdx::format("NCMD subscription failed: {}", e.what()));
   }
 
   if (config_.primary_host_id.has_value()) {
@@ -341,7 +342,7 @@ stdx::expected<void, std::string> EdgeNode::connect() {
 
     rc = MQTTAsync_subscribe(client_.get(), state_topic.c_str(), 1, &state_sub_opts);
     if (rc != MQTTASYNC_SUCCESS) {
-      return stdx::unexpected(std::format("Failed to subscribe to STATE: {}", rc));
+      return stdx::unexpected(stdx::format("Failed to subscribe to STATE: {}", rc));
     }
 
     auto state_sub_status =
@@ -353,7 +354,7 @@ stdx::expected<void, std::string> EdgeNode::connect() {
     try {
       state_subscribe_future.get();
     } catch (const std::exception& e) {
-      return stdx::unexpected(std::format("STATE subscription failed: {}", e.what()));
+      return stdx::unexpected(stdx::format("STATE subscription failed: {}", e.what()));
     }
   }
 
@@ -378,7 +379,7 @@ stdx::expected<void, std::string> EdgeNode::disconnect() {
 
   int rc = MQTTAsync_disconnect(client_.get(), &opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to disconnect: {}", rc));
+    return stdx::unexpected(stdx::format("Failed to disconnect: {}", rc));
   }
 
   auto status =
@@ -417,7 +418,7 @@ EdgeNode::publish_message(MQTTAsync client,
 
   int rc = MQTTAsync_sendMessage(client, topic_str.c_str(), &msg, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to publish: {}", rc));
+    return stdx::unexpected(stdx::format("Failed to publish: {}", rc));
   }
 
   return {};
@@ -692,7 +693,7 @@ EdgeNode::publish_device_birth(std::string_view device_id, PayloadBuilder& paylo
 
   int rc = MQTTAsync_subscribe(client, dcmd_topic_str.c_str(), 1, &sub_opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to subscribe to DCMD: {}", rc));
+    return stdx::unexpected(stdx::format("Failed to subscribe to DCMD: {}", rc));
   }
 
   auto sub_status =
@@ -704,7 +705,7 @@ EdgeNode::publish_device_birth(std::string_view device_id, PayloadBuilder& paylo
   try {
     subscribe_future.get();
   } catch (const std::exception& e) {
-    return stdx::unexpected(std::format("DCMD subscription failed: {}", e.what()));
+    return stdx::unexpected(stdx::format("DCMD subscription failed: {}", e.what()));
   }
 
   auto result = publish_message(client, topic_str, payload_data, qos, false);
@@ -739,7 +740,7 @@ EdgeNode::publish_device_data(std::string_view device_id, PayloadBuilder& payloa
     auto it = device_states_.find(device_id);
     if (it == device_states_.end() || !it->second.is_online) {
       return stdx::unexpected(
-          std::format("Must publish DBIRTH for device '{}' before DDATA", device_id));
+          stdx::format("Must publish DBIRTH for device '{}' before DDATA", device_id));
     }
 
     seq_num_ = (seq_num_ + 1) % SEQ_NUMBER_MAX;
@@ -778,7 +779,7 @@ EdgeNode::publish_device_death(std::string_view device_id) {
 
     auto it = device_states_.find(device_id);
     if (it == device_states_.end()) {
-      return stdx::unexpected(std::format("Unknown device: '{}'", device_id));
+      return stdx::unexpected(stdx::format("Unknown device: '{}'", device_id));
     }
 
     seq_num_ = (seq_num_ + 1) % 256;

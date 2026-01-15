@@ -3,16 +3,27 @@
 
 set -e
 
-# Detect clang-tidy binary
-if [ -f /opt/homebrew/opt/llvm/bin/clang-tidy ]; then
-    CLANG_TIDY=/opt/homebrew/opt/llvm/bin/clang-tidy
+# Detect clang-tidy binary (prefer clang-tidy-18 to match CI)
+if [ -n "$CLANG_TIDY" ]; then
+    # Use environment variable if set
+    :
 elif command -v clang-tidy-18 &> /dev/null; then
     CLANG_TIDY=clang-tidy-18
+elif command -v clang-tidy-mp-18 &> /dev/null; then
+    # MacPorts clang-18
+    CLANG_TIDY=clang-tidy-mp-18
+elif [ -f /opt/local/bin/clang-tidy-mp-18 ]; then
+    CLANG_TIDY=/opt/local/bin/clang-tidy-mp-18
+elif [ -f /opt/homebrew/opt/llvm/bin/clang-tidy ]; then
+    CLANG_TIDY=/opt/homebrew/opt/llvm/bin/clang-tidy
 elif command -v clang-tidy &> /dev/null; then
     CLANG_TIDY=clang-tidy
 else
     echo "Error: clang-tidy not found!"
-    echo "Install it with: brew install llvm (macOS) or apt install clang-tidy-18 (Linux)"
+    echo "Install it with:"
+    echo "  macOS (MacPorts): sudo port install clang-18"
+    echo "  macOS (Homebrew): brew install llvm"
+    echo "  Linux (Ubuntu):   apt install clang-tidy-18"
     exit 1
 fi
 
@@ -64,7 +75,10 @@ done
 # Find all C++ source files if none specified
 # Only check .cpp files - headers will be analyzed when included
 if [ ${#FILES_TO_CHECK[@]} -eq 0 ]; then
-    mapfile -t FILES_TO_CHECK < <(find src tests examples \
+    # Use while loop for portability (mapfile requires bash 4+)
+    while IFS= read -r file; do
+        FILES_TO_CHECK+=("$file")
+    done < <(find src tests examples \
         -name "*.cpp" \
         -not -path "*/build/*" \
         -not -path "*/build-*/*")

@@ -1,10 +1,10 @@
+#include "sparkplug/detail/compat.hpp"
 #include "sparkplug/edge_node.hpp"
 #include "sparkplug/host_application.hpp"
 #include "sparkplug/payload_builder.hpp"
 #include "sparkplug/sparkplug_c.h"
 
 #include <cstring>
-#include <format>
 #include <memory>
 
 struct sparkplug_publisher {
@@ -220,7 +220,8 @@ int sparkplug_publisher_connect(sparkplug_publisher_t* pub) {
 
   auto result = pub->impl.connect();
   if (!result.has_value()) {
-    auto error_msg = std::format("EdgeNode MQTT connection failed: {}", result.error());
+    auto error_msg =
+        sparkplug::stdx::format("EdgeNode MQTT connection failed: {}", result.error());
     pub->impl.log(sparkplug::LogLevel::ERROR, error_msg);
     return -1;
   }
@@ -894,8 +895,8 @@ int sparkplug_host_application_connect(sparkplug_host_application_t* host) {
 
   auto result = host->impl.connect();
   if (!result.has_value()) {
-    auto error_msg =
-        std::format("HostApplication MQTT connection failed: {}", result.error());
+    auto error_msg = sparkplug::stdx::format("HostApplication MQTT connection failed: {}",
+                                             result.error());
     host->impl.log(sparkplug::LogLevel::ERROR, error_msg);
     return -1;
   }
@@ -951,8 +952,9 @@ int sparkplug_host_application_publish_node_command(sparkplug_host_application_t
 
     auto result = host->impl.publish_node_command(group_id, target_edge_node_id, builder);
     if (!result.has_value()) {
-      auto error_msg = std::format("publish_node_command failed for {}/{}: {}", group_id,
-                                   target_edge_node_id, result.error());
+      auto error_msg =
+          sparkplug::stdx::format("publish_node_command failed for {}/{}: {}", group_id,
+                                  target_edge_node_id, result.error());
       host->impl.log(sparkplug::LogLevel::ERROR, error_msg);
     }
     return result.has_value() ? 0 : -1;

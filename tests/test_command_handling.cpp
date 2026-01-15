@@ -1,4 +1,5 @@
 // tests/test_command_handling.cpp
+#include <fmt/format.h>
 // Tests for command handling (NCMD/DCMD)
 #include <atomic>
 #include <cassert>
@@ -106,7 +107,7 @@ void test_ncmd_callback_invoked() {
   bool passed = command_received && rebirth_command;
   report_test("NCMD callback invoked", passed,
               passed ? ""
-                     : std::format("Received: {}, Rebirth: {}", command_received.load(),
+                     : fmt::format("Received: {}, Rebirth: {}", command_received.load(),
                                    rebirth_command.load()));
 
   (void)pub.disconnect();
@@ -193,7 +194,7 @@ void test_dcmd_callback_invoked() {
                 (received_metric == "SetPoint");
   report_test("DCMD callback invoked", passed,
               passed ? ""
-                     : std::format("Received: {}, Device: {}, Metric: {}",
+                     : fmt::format("Received: {}, Device: {}, Metric: {}",
                                    command_received.load(), received_device,
                                    received_metric));
 
@@ -283,7 +284,7 @@ void test_multiple_commands() {
   report_test("Multiple commands handled", passed,
               passed
                   ? ""
-                  : std::format("Count: {}, Rebirth: {}, Scan: {}", command_count.load(),
+                  : fmt::format("Count: {}, Rebirth: {}, Scan: {}", command_count.load(),
                                 rebirth_cmd.load(), scan_rate.load()));
 
   (void)pub.disconnect();
@@ -355,7 +356,7 @@ void test_both_callbacks_invoked() {
   bool passed = regular_callback_invoked;
   report_test("Both callbacks invoked", passed,
               passed ? ""
-                     : std::format("Regular CB: {}", regular_callback_invoked.load()));
+                     : fmt::format("Regular CB: {}", regular_callback_invoked.load()));
 
   (void)pub.disconnect();
   (void)sub.disconnect();

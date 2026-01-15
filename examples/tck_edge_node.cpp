@@ -5,6 +5,8 @@
 #include <iostream>
 #include <thread>
 
+#include <fmt/format.h>
+
 namespace sparkplug::tck {
 
 TCKEdgeNode::TCKEdgeNode(TCKEdgeNodeConfig config)
@@ -93,7 +95,7 @@ void TCKEdgeNode::run_session_establishment_test(const std::vector<std::string>&
 
   try {
     log("INFO",
-        std::format(
+        fmt::format(
             "Starting SessionEstablishmentTest: host={}, group={}, node={}, devices={}",
             host_id, group_id, edge_node_id, params.size() > 3 ? params[3] : "none"));
 
@@ -109,7 +111,7 @@ void TCKEdgeNode::run_session_establishment_test(const std::vector<std::string>&
     log("INFO", "NBIRTH published with bdSeq and metrics");
 
     if (!device_ids.empty()) {
-      log("INFO", std::format("Published DBIRTH for {} device(s)", device_ids.size()));
+      log("INFO", fmt::format("Published DBIRTH for {} device(s)", device_ids.size()));
     }
 
   } catch (const std::exception& e) {
@@ -136,7 +138,7 @@ void TCKEdgeNode::run_session_termination_test(const std::vector<std::string>& p
 
   try {
     log("INFO",
-        std::format(
+        fmt::format(
             "Starting SessionTerminationTest: host={}, group={}, node={}, devices={}",
             host_id, group_id, edge_node_id, params.size() > 3 ? params[3] : "none"));
 
@@ -155,10 +157,10 @@ void TCKEdgeNode::run_session_termination_test(const std::vector<std::string>& p
     for (const auto& device_id : device_ids_) {
       auto result = edge_node_->publish_device_death(device_id);
       if (!result) {
-        log("WARN", std::format("Failed to publish DDEATH for {}: {}", device_id,
+        log("WARN", fmt::format("Failed to publish DDEATH for {}: {}", device_id,
                                 result.error()));
       } else {
-        log("INFO", std::format("DDEATH published for device: {}", device_id));
+        log("INFO", fmt::format("DDEATH published for device: {}", device_id));
       }
     }
 
@@ -203,7 +205,7 @@ void TCKEdgeNode::run_send_data_test(const std::vector<std::string>& params) {
 
   try {
     log("INFO",
-        std::format("Starting SendDataTest: host={}, group={}, node={}, devices={}",
+        fmt::format("Starting SendDataTest: host={}, group={}, node={}, devices={}",
                     host_id, group_id, edge_node_id,
                     params.size() > 3 ? params[3] : "none"));
 
@@ -234,11 +236,11 @@ void TCKEdgeNode::run_send_data_test(const std::vector<std::string>& params) {
         return;
       }
 
-      log("INFO", std::format("NDATA message {} published with aliases", i + 1));
+      log("INFO", fmt::format("NDATA message {} published with aliases", i + 1));
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
-    log("INFO", std::format("Successfully sent {} NDATA messages", num_ndata_messages));
+    log("INFO", fmt::format("Successfully sent {} NDATA messages", num_ndata_messages));
 
     if (!device_ids.empty()) {
       log("INFO", "Sending DDATA messages from devices");
@@ -254,18 +256,18 @@ void TCKEdgeNode::run_send_data_test(const std::vector<std::string>& params) {
 
           auto ddata_result = edge_node_->publish_device_data(device_id, ddata);
           if (!ddata_result) {
-            log("ERROR", std::format("Failed to publish DDATA for {}: {}", device_id,
+            log("ERROR", fmt::format("Failed to publish DDATA for {}: {}", device_id,
                                      ddata_result.error()));
             publish_result("OVERALL: FAIL");
             return;
           }
 
-          log("INFO", std::format("DDATA message {} published for device {} with aliases",
+          log("INFO", fmt::format("DDATA message {} published for device {} with aliases",
                                   i + 1, device_id));
           std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 
-        log("INFO", std::format("Successfully sent {} DDATA messages for device {}",
+        log("INFO", fmt::format("Successfully sent {} DDATA messages for device {}",
                                 num_ddata_messages, device_id));
       }
     }
@@ -310,7 +312,7 @@ auto TCKEdgeNode::create_edge_node(const std::string& host_id,
     return stdx::unexpected("Edge Node already exists");
   }
 
-  log("INFO", std::format("Creating Edge Node group_id={}, edge_node_id={}, devices={}",
+  log("INFO", fmt::format("Creating Edge Node group_id={}, edge_node_id={}, devices={}",
                           group_id, edge_node_id, device_ids.size()));
 
   current_group_id_ = group_id;
@@ -328,7 +330,7 @@ auto TCKEdgeNode::create_edge_node(const std::string& host_id,
     }
 
     edge_config.command_callback = [this](const Topic& topic, const auto& /*payload*/) {
-      log("INFO", std::format("Received command on topic: {}", topic.to_string()));
+      log("INFO", fmt::format("Received command on topic: {}", topic.to_string()));
     };
 
     edge_config.primary_host_id = host_id;
@@ -342,7 +344,7 @@ auto TCKEdgeNode::create_edge_node(const std::string& host_id,
     }
 
     if (!host_id.empty()) {
-      log("INFO", std::format("Waiting for primary host '{}' to be online", host_id));
+      log("INFO", fmt::format("Waiting for primary host '{}' to be online", host_id));
       constexpr int max_wait_ms = 10000;
       constexpr int poll_interval_ms = 100;
       int waited_ms = 0;
@@ -359,7 +361,7 @@ auto TCKEdgeNode::create_edge_node(const std::string& host_id,
 
       if (!edge_node_->is_primary_host_online()) {
         return stdx::unexpected(
-            std::format("Timeout waiting for primary host '{}' to be online", host_id));
+            fmt::format("Timeout waiting for primary host '{}' to be online", host_id));
       }
     }
 
@@ -380,7 +382,7 @@ auto TCKEdgeNode::create_edge_node(const std::string& host_id,
     log("INFO", "NBIRTH published successfully");
 
     for (const auto& device_id : device_ids) {
-      log("INFO", std::format("Publishing DBIRTH for device: {}", device_id));
+      log("INFO", fmt::format("Publishing DBIRTH for device: {}", device_id));
 
       PayloadBuilder dbirth;
       auto device_timestamp = get_timestamp();
@@ -393,10 +395,10 @@ auto TCKEdgeNode::create_edge_node(const std::string& host_id,
 
       auto device_result = edge_node_->publish_device_birth(device_id, dbirth);
       if (!device_result) {
-        log("WARN", std::format("Failed to publish DBIRTH for {}: {}", device_id,
+        log("WARN", fmt::format("Failed to publish DBIRTH for {}: {}", device_id,
                                 device_result.error()));
       } else {
-        log("INFO", std::format("DBIRTH published for device: {}", device_id));
+        log("INFO", fmt::format("DBIRTH published for device: {}", device_id));
       }
     }
 

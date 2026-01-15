@@ -9,6 +9,11 @@ if [ -n "$CLANG_FORMAT" ]; then
     :
 elif command -v clang-format-18 &> /dev/null; then
     CLANG_FORMAT=clang-format-18
+elif command -v clang-format-mp-18 &> /dev/null; then
+    # MacPorts clang-18
+    CLANG_FORMAT=clang-format-mp-18
+elif [ -f /opt/local/bin/clang-format-mp-18 ]; then
+    CLANG_FORMAT=/opt/local/bin/clang-format-mp-18
 elif [ -f /opt/homebrew/opt/llvm@18/bin/clang-format ]; then
     CLANG_FORMAT=/opt/homebrew/opt/llvm@18/bin/clang-format
 elif command -v /opt/homebrew/bin/clang-format &> /dev/null; then
@@ -17,7 +22,10 @@ elif command -v clang-format &> /dev/null; then
     CLANG_FORMAT=clang-format
 else
     echo "Error: clang-format not found!"
-    echo "Install it with: brew install clang-format (macOS) or apt install clang-format-18 (Linux)"
+    echo "Install it with:"
+    echo "  macOS (MacPorts): sudo port install clang-18"
+    echo "  macOS (Homebrew): brew install llvm@18"
+    echo "  Linux (Ubuntu):   apt install clang-format-18"
     exit 1
 fi
 

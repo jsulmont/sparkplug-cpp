@@ -1,4 +1,5 @@
 // tests/test_compliance.cpp
+#include <fmt/format.h>
 // Sparkplug 2.2 Compliance Tests
 #include <atomic>
 #include <cassert>
@@ -52,7 +53,7 @@ void test_nbirth_sequence_zero() {
 
   bool passed = (pub.get_seq() == 0);
   report_test("NBIRTH sequence zero", passed,
-              passed ? "" : std::format("Got seq={}", pub.get_seq()));
+              passed ? "" : fmt::format("Got seq={}", pub.get_seq()));
 
   (void)pub.disconnect();
 }
@@ -85,7 +86,7 @@ void test_sequence_wraps() {
     data.add_metric("test", i);
     if (!pub.publish_data(data)) {
       report_test("Sequence wraps at 256", false,
-                  std::format("Failed at iteration {}", i));
+                  fmt::format("Failed at iteration {}", i));
       (void)pub.disconnect();
       return;
     }
@@ -93,7 +94,7 @@ void test_sequence_wraps() {
 
   bool passed = (pub.get_seq() == 0);
   report_test("Sequence wraps at 256", passed,
-              passed ? "" : std::format("Got seq={}", pub.get_seq()));
+              passed ? "" : fmt::format("Got seq={}", pub.get_seq()));
 
   (void)pub.disconnect();
 }
@@ -133,7 +134,7 @@ void test_bdseq_increment() {
 
   report_test("bdSeq increments on rebirth", passed,
               passed ? ""
-                     : std::format("First={}, Second={}", first_bdseq, second_bdseq));
+                     : fmt::format("First={}, Second={}", first_bdseq, second_bdseq));
 
   (void)pub.disconnect();
 }
@@ -383,7 +384,7 @@ void test_auto_sequence() {
   bool passed = (new_seq == 1 && prev_seq == 0);
 
   report_test("Auto sequence management", passed,
-              passed ? "" : std::format("Expected 0->1, got {}->{}", prev_seq, new_seq));
+              passed ? "" : fmt::format("Expected 0->1, got {}->{}", prev_seq, new_seq));
 
   (void)pub.disconnect();
 }
@@ -461,7 +462,7 @@ void test_dbirth_sequence_zero() {
   bool passed = got_dbirth && dbirth_seq == 1;
   report_test("DBIRTH sequence zero", passed,
               !got_dbirth ? "No DBIRTH received"
-                          : std::format("Expected seq=1 (after NBIRTH seq=0), got seq={}",
+                          : fmt::format("Expected seq=1 (after NBIRTH seq=0), got seq={}",
                                         dbirth_seq.load()));
 
   (void)pub.disconnect();
@@ -592,7 +593,7 @@ void test_device_sequence_shared() {
   report_test("Device and node share sequence", passed,
               !got_ddata
                   ? "No DDATA received"
-                  : std::format("Expected seq=3 for both, got DDATA seq={}, node seq={}",
+                  : fmt::format("Expected seq=3 for both, got DDATA seq={}, node seq={}",
                                 ddata_seq.load(), pub.get_seq()));
 
   (void)pub.disconnect();

@@ -1,10 +1,10 @@
 // src/host_application.cpp
 #include "sparkplug/host_application.hpp"
 
+#include "sparkplug/detail/compat.hpp"
 #include "sparkplug/topic.hpp"
 
 #include <cstring>
-#include <format>
 #include <future>
 #include <thread>
 #include <utility>
@@ -28,8 +28,8 @@ void on_connect_failure(void* context, MQTTAsync_failureData* response) {
   auto* promise = static_cast<std::promise<void>*>(context);
   std::string error;
   if (response) {
-    error = std::format("Connection failed: code={}, message={}", response->code,
-                        response->message ? response->message : "none");
+    error = stdx::format("Connection failed: code={}, message={}", response->code,
+                         response->message ? response->message : "none");
   } else {
     error = "Connection failed: no response data";
   }
@@ -44,7 +44,7 @@ void on_disconnect_success(void* context, MQTTAsync_successData* response) {
 
 void on_disconnect_failure(void* context, MQTTAsync_failureData* response) {
   auto* promise = static_cast<std::promise<void>*>(context);
-  auto error = std::format("Disconnect failed: code={}", response ? response->code : -1);
+  auto error = stdx::format("Disconnect failed: code={}", response ? response->code : -1);
   promise->set_exception(std::make_exception_ptr(std::runtime_error(error)));
 }
 
@@ -112,14 +112,14 @@ stdx::expected<void, std::string> HostApplication::connect() {
       MQTTAsync_create(&raw_client, config_.broker_url.c_str(), config_.client_id.c_str(),
                        MQTTCLIENT_PERSISTENCE_NONE, nullptr);
   if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to create client: {}", rc));
+    return stdx::unexpected(stdx::format("Failed to create client: {}", rc));
   }
   client_ = MQTTAsyncHandle(raw_client);
 
   rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost, on_message_arrived,
                               nullptr);
   if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to set callbacks: {}", rc));
+    return stdx::unexpected(stdx::format("Failed to set callbacks: {}", rc));
   }
 
   MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
@@ -158,7 +158,7 @@ stdx::expected<void, std::string> HostApplication::connect() {
   rc = MQTTAsync_connect(client_.get(), &conn_opts);
   if (rc != MQTTASYNC_SUCCESS) {
     MQTTAsync_setCallbacks(client_.get(), nullptr, nullptr, nullptr, nullptr);
-    return stdx::unexpected(std::format("Failed to connect: {}", rc));
+    return stdx::unexpected(stdx::format("Failed to connect: {}", rc));
   }
 
   auto status = connect_future.wait_for(std::chrono::milliseconds(CONNECTION_TIMEOUT_MS));
@@ -199,7 +199,7 @@ stdx::expected<void, std::string> HostApplication::disconnect() {
 
   int rc = MQTTAsync_disconnect(client_.get(), &opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to disconnect: {}", rc));
+    return stdx::unexpected(stdx::format("Failed to disconnect: {}", rc));
   }
 
   auto status =
@@ -227,9 +227,9 @@ HostApplication::publish_state_birth(uint64_t timestamp) {
   }
 
   std::string json_payload =
-      std::format("{{\"online\":true,\"timestamp\":{}}}", timestamp);
+      stdx::format("{{\"online\":true,\"timestamp\":{}}}", timestamp);
 
-  std::string topic = std::format("{}/STATE/{}", NAMESPACE, config_.host_id);
+  std::string topic = stdx::format("{}/STATE/{}", NAMESPACE, config_.host_id);
 
   std::vector<uint8_t> payload_data(json_payload.begin(), json_payload.end());
 
@@ -245,9 +245,9 @@ HostApplication::publish_state_death(uint64_t timestamp) {
   }
 
   std::string json_payload =
-      std::format("{{\"online\":false,\"timestamp\":{}}}", timestamp);
+      stdx::format("{{\"online\":false,\"timestamp\":{}}}", timestamp);
 
-  std::string topic = std::format("{}/STATE/{}", NAMESPACE, config_.host_id);
+  std::string topic = stdx::format("{}/STATE/{}", NAMESPACE, config_.host_id);
 
   std::vector<uint8_t> payload_data(json_payload.begin(), json_payload.end());
 
@@ -332,13 +332,13 @@ HostApplication::publish_raw_message(std::string_view topic,
   opts.onFailure = [](void* context, MQTTAsync_failureData* response) {
     auto* promise = static_cast<std::promise<void>*>(context);
     std::string error =
-        std::format("Publish failed: code={}", response ? response->code : -1);
+        stdx::format("Publish failed: code={}", response ? response->code : -1);
     promise->set_exception(std::make_exception_ptr(std::runtime_error(error)));
   };
 
   int rc = MQTTAsync_sendMessage(client_.get(), std::string(topic).c_str(), &msg, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to publish: {}", rc));
+    return stdx::unexpected(stdx::format("Failed to publish: {}", rc));
   }
 
   auto status = send_future.wait_for(std::chrono::milliseconds(5000));
@@ -372,7 +372,7 @@ HostApplication::publish_command_message(std::string_view topic,
 
   int rc = MQTTAsync_sendMessage(client_.get(), std::string(topic).c_str(), &msg, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to publish: {}", rc));
+    return stdx::unexpected(stdx::format("Failed to publish: {}", rc));
   }
 
   return {};
@@ -385,13 +385,13 @@ stdx::expected<void, std::string> HostApplication::subscribe_all_groups() {
     return stdx::unexpected("Not connected");
   }
 
-  std::string topic = std::format("{}/#", NAMESPACE);
+  std::string topic = stdx::format("{}/#", NAMESPACE);
 
   MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
 
   int rc = MQTTAsync_subscribe(client_.get(), topic.c_str(), config_.qos, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to subscribe: {}", rc));
+    return stdx::unexpected(stdx::format("Failed to subscribe: {}", rc));
   }
 
   return {};
@@ -405,13 +405,13 @@ HostApplication::subscribe_group(std::string_view group_id) {
     return stdx::unexpected("Not connected");
   }
 
-  std::string topic = std::format("{}/{}/#", NAMESPACE, group_id);
+  std::string topic = stdx::format("{}/{}/#", NAMESPACE, group_id);
 
   MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
 
   int rc = MQTTAsync_subscribe(client_.get(), topic.c_str(), config_.qos, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to subscribe: {}", rc));
+    return stdx::unexpected(stdx::format("Failed to subscribe: {}", rc));
   }
 
   return {};
@@ -426,13 +426,13 @@ HostApplication::subscribe_node(std::string_view group_id,
     return stdx::unexpected("Not connected");
   }
 
-  std::string topic = std::format("{}/{}/+/{}/#", NAMESPACE, group_id, edge_node_id);
+  std::string topic = stdx::format("{}/{}/+/{}/#", NAMESPACE, group_id, edge_node_id);
 
   MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
 
   int rc = MQTTAsync_subscribe(client_.get(), topic.c_str(), config_.qos, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to subscribe: {}", rc));
+    return stdx::unexpected(stdx::format("Failed to subscribe: {}", rc));
   }
 
   return {};
@@ -446,13 +446,13 @@ HostApplication::subscribe_state(std::string_view host_id) {
     return stdx::unexpected("Not connected");
   }
 
-  std::string topic = std::format("{}/STATE/{}", NAMESPACE, host_id);
+  std::string topic = stdx::format("{}/STATE/{}", NAMESPACE, host_id);
 
   MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
 
   int rc = MQTTAsync_subscribe(client_.get(), topic.c_str(), config_.qos, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to subscribe: {}", rc));
+    return stdx::unexpected(stdx::format("Failed to subscribe: {}", rc));
   }
 
   return {};
@@ -525,8 +525,8 @@ bool HostApplication::validate_message(
   switch (topic.message_type) {
   case MessageType::NBIRTH: {
     if (payload.has_seq() && payload.seq() != 0) {
-      log(LogLevel::WARN, std::format("NBIRTH for {} has invalid seq: {} (expected 0)",
-                                      node_id, payload.seq()));
+      log(LogLevel::WARN, stdx::format("NBIRTH for {} has invalid seq: {} (expected 0)",
+                                       node_id, payload.seq()));
       return false;
     }
 
@@ -542,7 +542,7 @@ bool HostApplication::validate_message(
 
     if (!has_bdseq) {
       log(LogLevel::WARN,
-          std::format("NBIRTH for {} missing required bdSeq metric", node_id));
+          stdx::format("NBIRTH for {} missing required bdSeq metric", node_id));
       return false;
     }
 
@@ -573,8 +573,8 @@ bool HostApplication::validate_message(
 
     if (state.birth_received && bd_seq != state.bd_seq) {
       log(LogLevel::WARN,
-          std::format("NDEATH bdSeq mismatch for {} (NDEATH: {}, NBIRTH: {})", node_id,
-                      bd_seq, state.bd_seq));
+          stdx::format("NDEATH bdSeq mismatch for {} (NDEATH: {}, NBIRTH: {})", node_id,
+                       bd_seq, state.bd_seq));
     }
 
     state.is_online = false;
@@ -583,7 +583,7 @@ bool HostApplication::validate_message(
 
   case MessageType::NDATA: {
     if (!state.birth_received) {
-      log(LogLevel::WARN, std::format("Received NDATA for {} before NBIRTH", node_id));
+      log(LogLevel::WARN, stdx::format("Received NDATA for {} before NBIRTH", node_id));
       return false;
     }
 
@@ -593,8 +593,8 @@ bool HostApplication::validate_message(
 
       if (seq != expected_seq) {
         log(LogLevel::WARN,
-            std::format("Sequence number gap for {} (got {}, expected {})", node_id, seq,
-                        expected_seq));
+            stdx::format("Sequence number gap for {} (got {}, expected {})", node_id, seq,
+                         expected_seq));
       }
 
       state.last_seq = seq;
@@ -606,7 +606,7 @@ bool HostApplication::validate_message(
   case MessageType::DBIRTH: {
     if (!state.birth_received) {
       log(LogLevel::WARN,
-          std::format("Received DBIRTH for device on {} before node NBIRTH", node_id));
+          stdx::format("Received DBIRTH for device on {} before node NBIRTH", node_id));
       return false;
     }
 
@@ -616,7 +616,7 @@ bool HostApplication::validate_message(
 
       if (seq != expected_seq) {
         log(LogLevel::WARN,
-            std::format(
+            stdx::format(
                 "Sequence number gap for DBIRTH device '{}' on {} (got {}, expected {})",
                 topic.device_id, node_id, seq, expected_seq));
       }
@@ -643,16 +643,16 @@ bool HostApplication::validate_message(
   case MessageType::DDATA: {
     if (!state.birth_received) {
       log(LogLevel::WARN,
-          std::format("Received DDATA for device '{}' on {} before node NBIRTH",
-                      topic.device_id, node_id));
+          stdx::format("Received DDATA for device '{}' on {} before node NBIRTH",
+                       topic.device_id, node_id));
       return false;
     }
 
     auto device_it = state.devices.find(topic.device_id);
     if (device_it == state.devices.end() || !device_it->second.birth_received) {
       log(LogLevel::WARN,
-          std::format("Received DDATA for device '{}' on {} before DBIRTH",
-                      topic.device_id, node_id));
+          stdx::format("Received DDATA for device '{}' on {} before DBIRTH",
+                       topic.device_id, node_id));
       return false;
     }
 
@@ -662,8 +662,9 @@ bool HostApplication::validate_message(
 
       if (seq != expected_seq) {
         log(LogLevel::WARN,
-            std::format("Sequence number gap for device '{}' on {} (got {}, expected {})",
-                        topic.device_id, node_id, seq, expected_seq));
+            stdx::format(
+                "Sequence number gap for device '{}' on {} (got {}, expected {})",
+                topic.device_id, node_id, seq, expected_seq));
       }
 
       state.last_seq = seq;
@@ -680,11 +681,11 @@ bool HostApplication::validate_message(
         device_it->second.offline_timestamp = payload.timestamp();
       }
       device_it->second.metrics_stale = true;
-      log(LogLevel::DEBUG, std::format("Device {} offline, metrics stale on {}",
-                                       topic.device_id, node_id));
+      log(LogLevel::DEBUG, stdx::format("Device {} offline, metrics stale on {}",
+                                        topic.device_id, node_id));
     } else {
-      log(LogLevel::WARN, std::format("Received DDEATH for unknown device {} on {}",
-                                      topic.device_id, node_id));
+      log(LogLevel::WARN, stdx::format("Received DDEATH for unknown device {} on {}",
+                                       topic.device_id, node_id));
     }
     return true;
   }
@@ -694,7 +695,7 @@ bool HostApplication::validate_message(
   case MessageType::STATE:
     return true;
   }
-  std::unreachable();
+  stdx::unreachable();
 }
 
 int HostApplication::on_message_arrived(void* context,
@@ -713,7 +714,7 @@ int HostApplication::on_message_arrived(void* context,
 
   std::string topic_str(topicName, topicLen > 0 ? topicLen : strlen(topicName));
 
-  std::string state_prefix = std::format("{}/STATE/", NAMESPACE);
+  std::string state_prefix = stdx::format("{}/STATE/", NAMESPACE);
   if (topic_str.starts_with(state_prefix)) {
     std::string state_value(static_cast<char*>(message->payload), message->payloadlen);
 
@@ -740,7 +741,7 @@ int HostApplication::on_message_arrived(void* context,
 
   if (!topic_result) {
     host_app->log(LogLevel::DEBUG,
-                  std::format("Ignoring non-Sparkplug topic: {}", topic_str));
+                  stdx::format("Ignoring non-Sparkplug topic: {}", topic_str));
     MQTTAsync_freeMessage(&message);
     MQTTAsync_free(topicName);
     return 1;
@@ -783,7 +784,7 @@ void HostApplication::on_connection_lost(void* context, char* cause) {
   }
 
   if (cause) {
-    host_app->log(LogLevel::WARN, std::format("Connection lost: {}", cause));
+    host_app->log(LogLevel::WARN, stdx::format("Connection lost: {}", cause));
   } else {
     host_app->log(LogLevel::WARN, "Connection lost");
   }
