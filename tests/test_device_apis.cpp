@@ -1,6 +1,15 @@
 // tests/test_device_apis.cpp
-#include <fmt/format.h>
 // Tests for device-level Sparkplug B APIs (DBIRTH/DDATA/DDEATH)
+
+// Portable format: use fmt on macOS (lacks std::format), std::format elsewhere
+#if defined(SPARKPLUG_USE_FMT) || defined(__APPLE__)
+#  include <fmt/format.h>
+#else
+#  include <format>
+namespace fmt {
+using std::format;
+}
+#endif
 #include <atomic>
 #include <cassert>
 #include <iostream>

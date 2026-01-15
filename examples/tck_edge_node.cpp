@@ -1,11 +1,18 @@
 #include "tck_edge_node.hpp"
 
 #include <chrono>
-#include <format>
 #include <iostream>
 #include <thread>
 
-#include <fmt/format.h>
+// Portable format: use fmt on macOS (lacks std::format), std::format elsewhere
+#if defined(SPARKPLUG_USE_FMT) || defined(__APPLE__)
+#  include <fmt/format.h>
+#else
+#  include <format>
+namespace fmt {
+using std::format;
+}
+#endif
 
 namespace sparkplug::tck {
 
