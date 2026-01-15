@@ -1,10 +1,10 @@
 // src/topic.cpp
 #include "sparkplug/topic.hpp"
 
+#include "sparkplug/detail/compat.hpp"
+
 #include <algorithm>
-#include <format>
-#include <ranges>
-#include <utility>
+#include <string>
 #include <vector>
 
 namespace sparkplug {
@@ -34,7 +34,7 @@ constexpr std::string_view message_type_to_string(MessageType type) noexcept {
   case MessageType::STATE:
     return "STATE";
   }
-  std::unreachable();
+  stdx::unreachable();
 }
 
 stdx::expected<MessageType, std::string> parse_message_type(std::string_view str) {
@@ -56,43 +56,50 @@ stdx::expected<MessageType, std::string> parse_message_type(std::string_view str
     return MessageType::DCMD;
   if (str == "STATE")
     return MessageType::STATE;
-  return stdx::unexpected(std::format("Unknown message type: {}", str));
+  return stdx::unexpected(stdx::format("Unknown message type: {}", str));
 }
+
+// Simple string_view split without C++20 ranges
+std::vector<std::string_view> split_string_view(std::string_view str, char delim) {
+  std::vector<std::string_view> parts;
+  size_t start = 0;
+  while (start < str.size()) {
+    size_t end = str.find(delim, start);
+    if (end == std::string_view::npos) {
+      parts.push_back(str.substr(start));
+      break;
+    }
+    parts.push_back(str.substr(start, end - start));
+    start = end + 1;
+  }
+  return parts;
+}
+
 } // namespace
 
 std::string Topic::to_string() const {
   if (message_type == MessageType::STATE) {
-    return std::format("{}/STATE/{}", NAMESPACE, edge_node_id);
+    return stdx::format("{}/STATE/{}", NAMESPACE, edge_node_id);
   }
 
-  auto base = std::format("{}/{}/{}/{}", NAMESPACE, group_id,
-                          message_type_to_string(message_type), edge_node_id);
+  auto base = stdx::format("{}/{}/{}/{}", NAMESPACE, group_id,
+                           message_type_to_string(message_type), edge_node_id);
 
   if (!device_id.empty()) {
-    return std::format("{}/{}", base, device_id);
+    return stdx::format("{}/{}", base, device_id);
   }
   return base;
 }
 
 stdx::expected<Topic, std::string> Topic::parse(std::string_view topic_str) {
-  // Parse without allocating vector - use iterators directly
-  auto parts = topic_str | std::views::split('/') | std::views::transform([](auto&& rng) {
-                 return std::string_view(rng.begin(),
-                                         std::ranges::distance(rng.begin(), rng.end()));
-               });
+  auto parts = split_string_view(topic_str, '/');
 
-  auto it = parts.begin();
-  auto end = parts.end();
-
-  if (it == end) {
+  if (parts.size() < 2) {
     return stdx::unexpected("Invalid topic format");
   }
 
-  std::string_view part0 = *it++;
-  if (it == end) {
-    return stdx::unexpected("Invalid topic format");
-  }
-  std::string_view part1 = *it++;
+  std::string_view part0 = parts[0];
+  std::string_view part1 = parts[1];
 
   // Sparkplug B topic: spBv1.0/{group_id}/{message_type}/{edge_node_id}[/{device_id}]
   // or STATE message: spBv1.0/STATE/{host_id}
@@ -102,25 +109,22 @@ stdx::expected<Topic, std::string> Topic::parse(std::string_view topic_str) {
 
   // Check for STATE message: spBv1.0/STATE/{host_id}
   if (part1 == "STATE") {
-    if (it == end) {
+    if (parts.size() < 3) {
       return stdx::unexpected("STATE topic requires host_id");
     }
-    std::string_view host_id = *it++;
+    std::string_view host_id = parts[2];
     return Topic{.group_id = "",
                  .message_type = MessageType::STATE,
                  .edge_node_id = std::string(host_id),
                  .device_id = ""};
   }
 
-  if (it == end) {
+  if (parts.size() < 4) {
     return stdx::unexpected("Invalid Sparkplug B topic");
   }
-  std::string_view part2 = *it++;
 
-  if (it == end) {
-    return stdx::unexpected("Invalid Sparkplug B topic");
-  }
-  std::string_view part3 = *it++;
+  std::string_view part2 = parts[2];
+  std::string_view part3 = parts[3];
 
   auto msg_type = parse_message_type(part2);
   if (!msg_type) {
@@ -128,8 +132,8 @@ stdx::expected<Topic, std::string> Topic::parse(std::string_view topic_str) {
   }
 
   std::string device_id;
-  if (it != end) {
-    device_id = std::string(*it);
+  if (parts.size() > 4) {
+    device_id = std::string(parts[4]);
   }
 
   return Topic{.group_id = std::string(part1),

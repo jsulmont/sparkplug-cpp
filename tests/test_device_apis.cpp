@@ -1,4 +1,5 @@
 // tests/test_device_apis.cpp
+#include <fmt/format.h>
 // Tests for device-level Sparkplug B APIs (DBIRTH/DDATA/DDEATH)
 #include <atomic>
 #include <cassert>
@@ -133,7 +134,7 @@ void test_dbirth_sequence_zero() {
   bool passed = found_dbirth && (dbirth_seq == 1);
   report_test("DBIRTH sequence zero", passed,
               passed ? ""
-                     : std::format("Found: {}, Seq: {} (expected 1 after NBIRTH seq=0)",
+                     : fmt::format("Found: {}, Seq: {} (expected 1 after NBIRTH seq=0)",
                                    found_dbirth.load(), dbirth_seq.load()));
 
   (void)pub.disconnect();
@@ -279,7 +280,7 @@ void test_device_sequence_shared() {
   report_test(
       "Device and node share sequence", passed,
       passed ? ""
-             : std::format("NDATA count={} seq={} (expected 5/10), DDATA count={} seq={} "
+             : fmt::format("NDATA count={} seq={} (expected 5/10), DDATA count={} seq={} "
                            "(expected 5/11)",
                            ndata_count.load(), last_ndata_seq.load(), ddata_count.load(),
                            last_ddata_seq.load()));
@@ -371,7 +372,7 @@ void test_ddata_sequence_increments() {
     ddata.add_metric_by_alias(1, 20.5 + i);
     if (!pub.publish_device_data("Device01", ddata)) {
       report_test("DDATA sequence increments (TCK)", false,
-                  std::format("DDATA #{} failed", i + 1));
+                  fmt::format("DDATA #{} failed", i + 1));
       (void)pub.disconnect();
       (void)sub.disconnect();
       return;
@@ -392,18 +393,18 @@ void test_ddata_sequence_increments() {
   if (dbirth_seq != 1) {
     passed = false;
     error_msg =
-        std::format("DBIRTH seq={}, expected 1 (after NBIRTH seq=0)", dbirth_seq.load());
+        fmt::format("DBIRTH seq={}, expected 1 (after NBIRTH seq=0)", dbirth_seq.load());
   } else if (ddata_sequences.size() != 10) {
     passed = false;
     error_msg =
-        std::format("Received {} DDATA messages, expected 10", ddata_sequences.size());
+        fmt::format("Received {} DDATA messages, expected 10", ddata_sequences.size());
   } else {
     // Check each DDATA sequence increments correctly
     for (size_t i = 0; i < ddata_sequences.size(); i++) {
       uint64_t expected_seq = i + 2; // First DDATA should be 2 (after DBIRTH=1)
       if (ddata_sequences[i] != expected_seq) {
         passed = false;
-        error_msg = std::format("DDATA #{} has seq={}, expected {}", i + 1,
+        error_msg = fmt::format("DDATA #{} has seq={}, expected {}", i + 1,
                                 ddata_sequences[i], expected_seq);
         break;
       }

@@ -2,15 +2,8 @@
 cmake_minimum_required(VERSION 3.25)
 
 # Platform-specific compiler detection (must be before project())
-if(APPLE)
-    # macOS: Use Homebrew LLVM if not specified
-    if(NOT DEFINED CMAKE_CXX_COMPILER)
-        set(CMAKE_CXX_COMPILER /opt/homebrew/opt/llvm/bin/clang++)
-    endif()
-    if(NOT DEFINED CMAKE_C_COMPILER)
-        set(CMAKE_C_COMPILER /opt/homebrew/opt/llvm/bin/clang)
-    endif()
-elseif(UNIX)
+# By default, use system compiler. Override with -DCMAKE_CXX_COMPILER=...
+if(UNIX AND NOT APPLE)
     # Linux: Prefer clang-18 if not specified
     if(NOT DEFINED CMAKE_CXX_COMPILER)
         find_program(CLANG_CXX NAMES clang++-18 clang++)
@@ -37,15 +30,17 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # Platform-specific flags
 if(APPLE)
-    # macOS: Use Homebrew LLVM libc++
+    # macOS: Use system libc++ (works with both Apple Clang and MacPorts)
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>)
     add_link_options($<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>)
-    add_link_options($<$<COMPILE_LANGUAGE:CXX>:-L/opt/homebrew/opt/llvm/lib/c++>)
-    add_link_options($<$<COMPILE_LANGUAGE:CXX>:-Wl,-rpath,/opt/homebrew/opt/llvm/lib/c++>)
 
-    set(CMAKE_PREFIX_PATH "/opt/homebrew;/opt/homebrew/opt/abseil")
-    set(Protobuf_INCLUDE_DIR "/opt/homebrew/include")
-    set(Protobuf_PROTOC_EXECUTABLE "/opt/homebrew/bin/protoc")
+    # Support MacPorts (/opt/local) or Homebrew (/opt/homebrew)
+    if(EXISTS "/opt/local")
+        list(APPEND CMAKE_PREFIX_PATH "/opt/local")
+    endif()
+    if(EXISTS "/opt/homebrew")
+        list(APPEND CMAKE_PREFIX_PATH "/opt/homebrew" "/opt/homebrew/opt/abseil")
+    endif()
 elseif(UNIX)
     # Linux: No special flags needed (use distribution's default stdlib)
 endif()
@@ -78,6 +73,25 @@ if(NOT BUILD_STATIC_BUNDLE)
     find_package(eclipse-paho-mqtt-c REQUIRED)
 else()
     find_package(OpenSSL REQUIRED)
+endif()
+
+# fmt library for std::format compatibility on older platforms
+# (macOS < 13.3 lacks to_chars for floating point required by std::format)
+if(APPLE)
+    # Check if we need fmt (macOS < 13.3)
+    # Try to find fmt in MacPorts location
+    find_library(FMT_LIBRARY NAMES fmt PATHS /opt/local/lib/libfmt11 /opt/local/lib)
+    find_path(FMT_INCLUDE_DIR fmt/format.h PATHS /opt/local/include/libfmt11 /opt/local/include)
+    if(FMT_LIBRARY AND FMT_INCLUDE_DIR)
+        message(STATUS "Found fmt: ${FMT_LIBRARY}")
+        set(SPARKPLUG_USE_FMT ON CACHE BOOL "Use fmt library for format" FORCE)
+        add_compile_definitions(SPARKPLUG_USE_FMT)
+        # Make fmt available globally for examples and tests
+        include_directories(${FMT_INCLUDE_DIR})
+        link_libraries(${FMT_LIBRARY})
+    else()
+        message(STATUS "fmt library not found, using std::format (requires macOS 13.3+)")
+    endif()
 endif()
 
 add_subdirectory(proto)
