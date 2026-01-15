@@ -4,8 +4,11 @@
 #
 # Prerequisites (Alpine):
 #   apk add build-base cmake git bash linux-headers \
-#           openssl-dev openssl-libs-static zlib-static samurai \
-#           protobuf-dev protoc
+#           openssl-dev openssl-libs-static zlib-static samurai clang
+#
+# NOTE: Do NOT install protobuf-dev or protoc from system packages!
+#       FetchContent downloads protobuf v29.4 including protoc compiler.
+#       Installing system protoc causes version mismatch errors.
 
 set -e
 

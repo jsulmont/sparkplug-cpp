@@ -44,12 +44,12 @@ FetchContent_Declare(
 )
 set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-set(protobuf_BUILD_PROTOC_BINARIES OFF CACHE BOOL "" FORCE)
+# IMPORTANT: Build protoc so we don't rely on system protoc (avoids version mismatch)
+set(protobuf_BUILD_PROTOC_BINARIES ON CACHE BOOL "" FORCE)
 set(protobuf_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(protobuf)
 
-# Note: protoc target is now available as 'protoc' (not protobuf::protoc in this version)
-# The proto/CMakeLists.txt will use this target
+# protoc target is available as 'protoc' from FetchContent build
 include(${protobuf_SOURCE_DIR}/cmake/protobuf-generate.cmake)
 
 function(create_static_bundle)

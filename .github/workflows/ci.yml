@@ -223,6 +223,9 @@ jobs:
 
       - name: Install dependencies
         run: |
+          # NOTE: Do NOT install protobuf-dev or protoc here!
+          # The static bundle uses FetchContent to download protobuf v29.4
+          # Installing system protoc causes version mismatch errors
           apk add --no-cache \
             build-base \
             clang \
@@ -233,9 +236,7 @@ jobs:
             openssl-dev \
             openssl-libs-static \
             zlib-static \
-            samurai \
-            protobuf-dev \
-            protoc
+            samurai
 
       - name: Build static musl bundle
         env:
