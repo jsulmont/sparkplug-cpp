@@ -53,17 +53,14 @@ void test_edge_node_move_under_contention() {
 
   std::atomic<bool> stop{false};
 
-  // Background thread repeatedly reads seq (acquires mutex_ internally)
   std::thread reader([&] {
     while (!stop.load(std::memory_order_relaxed)) {
       [[maybe_unused]] auto seq = node.get_seq();
     }
   });
 
-  // Let the reader thread start running
   std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
-  // Move — must acquire other.mutex_ before reading any members
   sparkplug::EdgeNode moved(std::move(node));
 
   stop.store(true, std::memory_order_relaxed);
@@ -150,7 +147,6 @@ void test_host_application_move_under_contention() {
 
   std::atomic<bool> stop{false};
 
-  // get_node_state acquires mutex_ internally
   std::thread reader([&] {
     while (!stop.load(std::memory_order_relaxed)) {
       [[maybe_unused]] auto s = host.get_node_state("g", "n");

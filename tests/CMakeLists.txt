@@ -35,6 +35,11 @@ add_executable(test_move_constructor_race test_move_constructor_race.cpp)
 target_link_libraries(test_move_constructor_race PRIVATE sparkplug_cpp)
 add_test(NAME MoveConstructorRaceTest COMMAND test_move_constructor_race)
 
+# STATE publish deadlock tests
+add_executable(test_state_publish_deadlock test_state_publish_deadlock.cpp)
+target_link_libraries(test_state_publish_deadlock PRIVATE sparkplug_cpp)
+add_test(NAME StatePublishDeadlockTest COMMAND test_state_publish_deadlock)
+
 # Mutex-escaping reference tests
 add_executable(test_mutex_escaping_refs test_mutex_escaping_refs.cpp)
 target_link_libraries(test_mutex_escaping_refs PRIVATE sparkplug_cpp)

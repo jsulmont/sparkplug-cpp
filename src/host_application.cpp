@@ -221,38 +221,50 @@ stdx::expected<void, std::string> HostApplication::disconnect() {
 
 stdx::expected<void, std::string>
 HostApplication::publish_state_birth(uint64_t timestamp) {
-  std::scoped_lock lock(mutex_);
+  std::string topic;
+  std::vector<uint8_t> payload_data;
+  int qos = 0;
 
-  if (!is_connected_) {
-    return stdx::unexpected("Not connected");
+  {
+    std::scoped_lock lock(mutex_);
+
+    if (!is_connected_) {
+      return stdx::unexpected("Not connected");
+    }
+
+    std::string json_payload =
+        std::format("{{\"online\":true,\"timestamp\":{}}}", timestamp);
+
+    topic = std::format("{}/STATE/{}", NAMESPACE, config_.host_id);
+    payload_data.assign(json_payload.begin(), json_payload.end());
+    qos = config_.qos;
   }
 
-  std::string json_payload =
-      std::format("{{\"online\":true,\"timestamp\":{}}}", timestamp);
-
-  std::string topic = std::format("{}/STATE/{}", NAMESPACE, config_.host_id);
-
-  std::vector<uint8_t> payload_data(json_payload.begin(), json_payload.end());
-
-  return publish_raw_message(topic, payload_data, config_.qos, true);
+  return publish_raw_message(topic, payload_data, qos, true);
 }
 
 stdx::expected<void, std::string>
 HostApplication::publish_state_death(uint64_t timestamp) {
-  std::scoped_lock lock(mutex_);
+  std::string topic;
+  std::vector<uint8_t> payload_data;
+  int qos = 0;
 
-  if (!is_connected_) {
-    return stdx::unexpected("Not connected");
+  {
+    std::scoped_lock lock(mutex_);
+
+    if (!is_connected_) {
+      return stdx::unexpected("Not connected");
+    }
+
+    std::string json_payload =
+        std::format("{{\"online\":false,\"timestamp\":{}}}", timestamp);
+
+    topic = std::format("{}/STATE/{}", NAMESPACE, config_.host_id);
+    payload_data.assign(json_payload.begin(), json_payload.end());
+    qos = config_.qos;
   }
 
-  std::string json_payload =
-      std::format("{{\"online\":false,\"timestamp\":{}}}", timestamp);
-
-  std::string topic = std::format("{}/STATE/{}", NAMESPACE, config_.host_id);
-
-  std::vector<uint8_t> payload_data(json_payload.begin(), json_payload.end());
-
-  return publish_raw_message(topic, payload_data, config_.qos, true);
+  return publish_raw_message(topic, payload_data, qos, true);
 }
 
 stdx::expected<void, std::string>

@@ -56,27 +56,22 @@ void test_node_state_snapshot_is_owned() {
   std::this_thread::sleep_for(SETTLE);
   assert(got_nbirth.load());
 
-  // Take a snapshot
   auto snapshot = sub.get_node_state("SnapGroup", "SnapNode01");
   assert(snapshot.has_value());
   assert(snapshot->is_online);
   assert(snapshot->birth_received);
   uint64_t saved_bd_seq = snapshot->bd_seq;
 
-  // Now disconnect the publisher — the internal NodeState will be mutated
-  // (on_connection_lost -> NDEATH processing sets is_online = false)
+  // Disconnect publisher to mutate the internal NodeState
   (void)pub.disconnect();
   std::this_thread::sleep_for(SETTLE);
 
-  // The snapshot we took earlier must still show the old state
+  // Snapshot must still reflect the pre-disconnect state
   assert(snapshot->is_online);
   assert(snapshot->bd_seq == saved_bd_seq);
 
-  // A fresh query should reflect the updated state
   auto snapshot2 = sub.get_node_state("SnapGroup", "SnapNode01");
   assert(snapshot2.has_value());
-  // Node should be offline after NDEATH
-  // (depends on whether broker delivers Will; either way snapshot is safe)
 
   (void)sub.disconnect();
   std::cout << "[OK] get_node_state returns owned snapshot\n";
@@ -126,7 +121,6 @@ void test_metric_name_is_owned() {
   std::this_thread::sleep_for(SETTLE);
   assert(got_nbirth.load());
 
-  // Get metric names — these should be owned strings
   auto name0 = sub.get_metric_name("MetricGroup", "MetricNode01", "", 0);
   auto name1 = sub.get_metric_name("MetricGroup", "MetricNode01", "", 1);
   assert(name0.has_value());
@@ -134,19 +128,15 @@ void test_metric_name_is_owned() {
   assert(*name0 == "Temperature");
   assert(*name1 == "Humidity");
 
-  // Disconnect publisher to mutate internal state
   (void)pub.disconnect();
   std::this_thread::sleep_for(SETTLE);
 
-  // Strings we captured must still be valid and correct
   assert(*name0 == "Temperature");
   assert(*name1 == "Humidity");
 
-  // Non-existent alias returns nullopt
   auto name_bad = sub.get_metric_name("MetricGroup", "MetricNode01", "", 999);
   assert(!name_bad.has_value());
 
-  // Non-existent node returns nullopt
   auto name_nonode = sub.get_metric_name("MetricGroup", "NoSuchNode", "", 0);
   assert(!name_nonode.has_value());
 
