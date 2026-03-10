@@ -8,7 +8,6 @@
 #include "topic.hpp"
 
 #include <functional>
-#include <memory>
 #include <mutex>
 #include <optional>
 #include <span>

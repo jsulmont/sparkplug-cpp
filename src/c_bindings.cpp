@@ -5,7 +5,6 @@
 
 #include <cstring>
 #include <format>
-#include <memory>
 
 struct sparkplug_publisher {
   sparkplug::EdgeNode impl;

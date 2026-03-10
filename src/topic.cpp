@@ -1,11 +1,9 @@
 // src/topic.cpp
 #include "sparkplug/topic.hpp"
 
-#include <algorithm>
 #include <format>
 #include <ranges>
 #include <utility>
-#include <vector>
 
 namespace sparkplug {
 

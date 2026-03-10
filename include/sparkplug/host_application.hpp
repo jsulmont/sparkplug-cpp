@@ -433,7 +433,8 @@ public:
    * @param payload PayloadBuilder containing command metrics (e.g., "Node
    * Control/Rebirth")
    *
-   * @return void on success, error message on failure
+   * @return void on success, error message on failure (fire-and-forget QoS 0,
+   *         only reports local send errors)
    *
    * @note Common Node Control commands:
    *       - "Node Control/Rebirth" (bool): Request node to republish NBIRTH
@@ -464,7 +465,8 @@ public:
    * @param target_device_id The target device identifier
    * @param payload PayloadBuilder containing command metrics
    *
-   * @return void on success, error message on failure
+   * @return void on success, error message on failure (fire-and-forget QoS 0,
+   *         only reports local send errors)
    *
    * @par Example Usage
    * @code

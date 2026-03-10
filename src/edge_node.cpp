@@ -4,7 +4,6 @@
 #include <cstring>
 #include <format>
 #include <future>
-#include <thread>
 #include <utility>
 
 #include <MQTTAsync.h>
@@ -552,7 +551,7 @@ stdx::expected<void, std::string> EdgeNode::publish_death() {
       return stdx::unexpected("Not connected");
     }
 
-    seq_num_ = (seq_num_ + 1) % 256;
+    seq_num_ = (seq_num_ + 1) % SEQ_NUMBER_MAX;
 
     PayloadBuilder death_payload;
     death_payload.add_metric("bdSeq", bd_seq_num_);
@@ -625,12 +624,6 @@ stdx::expected<void, std::string> EdgeNode::rebirth() {
 
     topic_str = topic.to_string();
     qos = config_.data_qos;
-
-    // Update NDEATH Will Testament payload with new bdSeq BEFORE disconnecting
-    // This ensures the Will Testament sent during disconnect has the correct bdSeq
-    PayloadBuilder death_payload;
-    death_payload.add_metric("bdSeq", new_bdseq);
-    death_payload_data_ = death_payload.build();
   }
 
   auto result = disconnect()
@@ -800,7 +793,7 @@ EdgeNode::publish_device_death(std::string_view device_id) {
       return stdx::unexpected(std::format("Unknown device: '{}'", device_id));
     }
 
-    seq_num_ = (seq_num_ + 1) % 256;
+    seq_num_ = (seq_num_ + 1) % SEQ_NUMBER_MAX;
 
     PayloadBuilder death_payload;
     death_payload.set_seq(seq_num_);

@@ -6,7 +6,6 @@
 #include <cstring>
 #include <format>
 #include <future>
-#include <thread>
 #include <utility>
 
 #include <MQTTAsync.h>
