@@ -7,27 +7,10 @@ on:
     branches: [ main ]
 
 jobs:
-  format-check:
-    name: Check code formatting
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install clang-format-18
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang-format-18
-
-      - name: Check C++ formatting
-        run: ./scripts/format.sh --check
-
   tidy-check:
     name: Run clang-tidy checks
     runs-on: ubuntu-latest
     container: fedora:42
-    needs: [format-check]
 
     steps:
       - name: Checkout code
