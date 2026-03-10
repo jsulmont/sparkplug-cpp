@@ -50,6 +50,10 @@ add_executable(test_mutex_escaping_refs test_mutex_escaping_refs.cpp)
 target_link_libraries(test_mutex_escaping_refs PRIVATE sparkplug_cpp)
 add_test(NAME MutexEscapingRefsTest COMMAND test_mutex_escaping_refs)
 
+# Soak test (not registered with ctest — run manually)
+add_executable(soak_test soak_test.cpp)
+target_link_libraries(soak_test PRIVATE sparkplug_cpp)
+
 # C API tests
 add_executable(test_c_api test_c_api.c)
 target_link_libraries(test_c_api PRIVATE sparkplug_c)
