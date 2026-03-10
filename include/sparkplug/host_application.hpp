@@ -318,16 +318,30 @@ public:
   subscribe_state(std::string_view host_id);
 
   /**
+   * @brief Lightweight snapshot of node state (scalars only, no maps).
+   *
+   * Returned by value from get_node_state() so callers don't hold references
+   * into mutex-protected data. Use get_metric_name() for alias resolution.
+   */
+  struct NodeStateSnapshot {
+    bool is_online{false};
+    uint64_t last_seq{255};
+    uint64_t bd_seq{0};
+    uint64_t birth_timestamp{0};
+    bool birth_received{false};
+  };
+
+  /**
    * @brief Gets the current state of a specific edge node.
    *
    * @param group_id The group ID
    * @param edge_node_id The edge node ID to query
    *
-   * @return NodeState if the node has been seen, std::nullopt otherwise
+   * @return NodeStateSnapshot if the node has been seen, std::nullopt otherwise
    *
    * @note Useful for monitoring node online/offline status and bdSeq.
    */
-  [[nodiscard]] std::optional<std::reference_wrapper<const NodeState>>
+  [[nodiscard]] std::optional<NodeStateSnapshot>
   get_node_state(std::string_view group_id, std::string_view edge_node_id) const;
 
   /**
@@ -341,16 +355,15 @@ public:
    * @param device_id The device ID (empty string for node-level metrics)
    * @param alias The metric alias to resolve
    *
-   * @return A string_view to the metric name if found, std::nullopt otherwise
+   * @return The metric name if found, std::nullopt otherwise
    *
    * @note Returns std::nullopt if the node/device hasn't sent a birth message yet,
    *       or if the alias is not found in the birth message.
    */
-  [[nodiscard]] std::optional<std::string_view>
-  get_metric_name(std::string_view group_id,
-                  std::string_view edge_node_id,
-                  std::string_view device_id,
-                  uint64_t alias) const;
+  [[nodiscard]] std::optional<std::string> get_metric_name(std::string_view group_id,
+                                                           std::string_view edge_node_id,
+                                                           std::string_view device_id,
+                                                           uint64_t alias) const;
 
   /**
    * @brief Publishes a STATE birth message to indicate Host Application is online.

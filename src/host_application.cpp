@@ -459,23 +459,27 @@ HostApplication::subscribe_state(std::string_view host_id) {
   return {};
 }
 
-std::optional<std::reference_wrapper<const HostApplication::NodeState>>
+std::optional<HostApplication::NodeStateSnapshot>
 HostApplication::get_node_state(std::string_view group_id,
                                 std::string_view edge_node_id) const {
   std::scoped_lock lock(mutex_);
 
   auto it = node_states_.find(std::make_pair(group_id, edge_node_id));
   if (it != node_states_.end()) {
-    return std::cref(it->second);
+    const auto& ns = it->second;
+    return NodeStateSnapshot{.is_online = ns.is_online,
+                             .last_seq = ns.last_seq,
+                             .bd_seq = ns.bd_seq,
+                             .birth_timestamp = ns.birth_timestamp,
+                             .birth_received = ns.birth_received};
   }
   return std::nullopt;
 }
 
-std::optional<std::string_view>
-HostApplication::get_metric_name(std::string_view group_id,
-                                 std::string_view edge_node_id,
-                                 std::string_view device_id,
-                                 uint64_t alias) const {
+std::optional<std::string> HostApplication::get_metric_name(std::string_view group_id,
+                                                            std::string_view edge_node_id,
+                                                            std::string_view device_id,
+                                                            uint64_t alias) const {
   std::scoped_lock lock(mutex_);
 
   auto it = node_states_.find(std::make_pair(group_id, edge_node_id));
@@ -494,14 +498,14 @@ HostApplication::get_metric_name(std::string_view group_id,
     const auto& device_state = device_it->second;
     auto alias_it = device_state.alias_map.find(alias);
     if (alias_it != device_state.alias_map.end()) {
-      return std::string_view(alias_it->second);
+      return alias_it->second;
     }
     return std::nullopt;
   }
 
   auto alias_it = node_state.alias_map.find(alias);
   if (alias_it != node_state.alias_map.end()) {
-    return std::string_view(alias_it->second);
+    return alias_it->second;
   }
   return std::nullopt;
 }

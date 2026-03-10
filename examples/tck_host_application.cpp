@@ -259,17 +259,12 @@ void TCKHostApplication::handle_prompt_specific(const std::string& message) {
       }
 
       std::string metric_name;
-      auto node_state_opt = host_application_->get_node_state(group_id, edge_node_id);
-      if (node_state_opt) {
-        const auto& node_state = node_state_opt->get();
-        if (!node_state.alias_map.empty()) {
-          metric_name = node_state.alias_map.begin()->second;
-          log("INFO",
-              "Found metric '" + metric_name + "' from NBIRTH, using for command");
-        }
-      }
-
-      if (metric_name.empty()) {
+      // Try alias 0 (common first alias in Sparkplug NBIRTH)
+      auto name_opt = host_application_->get_metric_name(group_id, edge_node_id, "", 0);
+      if (name_opt) {
+        metric_name = *name_opt;
+        log("INFO", "Found metric '" + metric_name + "' from NBIRTH, using for command");
+      } else {
         log("WARN", "No metrics found in NBIRTH, using fallback TestMetric");
         metric_name = "TestMetric";
       }
