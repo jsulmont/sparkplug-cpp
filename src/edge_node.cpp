@@ -17,6 +17,26 @@ constexpr int DISCONNECT_TIMEOUT_MS = 11000;
 constexpr int SUBSCRIBE_TIMEOUT_MS = 5000;
 constexpr uint64_t SEQ_NUMBER_MAX = 256;
 
+// Parse "online" boolean from Sparkplug STATE JSON, tolerating whitespace.
+std::optional<bool> parse_state_online(std::string_view json) {
+  constexpr std::string_view ws = " \t\n\r";
+  auto key_pos = json.find("\"online\"");
+  if (key_pos == std::string_view::npos)
+    return std::nullopt;
+  auto rest = json.substr(key_pos + 8);
+  auto colon = rest.find_first_not_of(ws);
+  if (colon == std::string_view::npos || rest[colon] != ':')
+    return std::nullopt;
+  auto val = rest.find_first_not_of(ws, colon + 1);
+  if (val == std::string_view::npos)
+    return std::nullopt;
+  if (rest[val] == 't')
+    return true;
+  if (rest[val] == 'f')
+    return false;
+  return std::nullopt;
+}
+
 void on_connect_success(void* context, MQTTAsync_successData* response) {
   (void)response;
   auto* promise = static_cast<std::promise<void>*>(context);
@@ -102,10 +122,8 @@ int EdgeNode::on_message_arrived(void* context,
                             message->payloadlen);
 
     std::scoped_lock lock(edge_node->mutex_);
-    if (payload_str.find("\"online\":true") != std::string::npos) {
-      edge_node->primary_host_online_ = true;
-    } else if (payload_str.find("\"online\":false") != std::string::npos) {
-      edge_node->primary_host_online_ = false;
+    if (auto online = parse_state_online(payload_str)) {
+      edge_node->primary_host_online_ = *online;
     }
 
     MQTTAsync_freeMessage(&message);
