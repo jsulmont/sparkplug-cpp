@@ -30,6 +30,11 @@ add_executable(test_command_handling test_command_handling.cpp)
 target_link_libraries(test_command_handling PRIVATE sparkplug_cpp)
 add_test(NAME CommandHandlingTest COMMAND test_command_handling)
 
+# Move constructor race tests
+add_executable(test_move_constructor_race test_move_constructor_race.cpp)
+target_link_libraries(test_move_constructor_race PRIVATE sparkplug_cpp)
+add_test(NAME MoveConstructorRaceTest COMMAND test_move_constructor_race)
+
 # C API tests
 add_executable(test_c_api test_c_api.c)
 target_link_libraries(test_c_api PRIVATE sparkplug_c)

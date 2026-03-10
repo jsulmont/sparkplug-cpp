@@ -61,10 +61,12 @@ HostApplication::~HostApplication() {
   }
 }
 
-HostApplication::HostApplication(HostApplication&& other) noexcept
-    : config_(std::move(other.config_)), client_(std::move(other.client_)),
-      is_connected_(other.is_connected_) {
+HostApplication::HostApplication(HostApplication&& other) noexcept {
   std::scoped_lock lock(other.mutex_);
+  config_ = std::move(other.config_);
+  client_ = std::move(other.client_);
+  is_connected_ = other.is_connected_;
+  node_states_ = std::move(other.node_states_);
   other.is_connected_ = false;
 }
 

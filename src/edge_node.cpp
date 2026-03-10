@@ -144,16 +144,19 @@ EdgeNode::~EdgeNode() {
   }
 }
 
-EdgeNode::EdgeNode(EdgeNode&& other) noexcept
-    : config_(std::move(other.config_)), client_(std::move(other.client_)),
-      seq_num_(other.seq_num_), bd_seq_num_(other.bd_seq_num_),
-      death_payload_data_(std::move(other.death_payload_data_)),
-      last_birth_payload_(std::move(other.last_birth_payload_)),
-      device_states_(std::move(other.device_states_)), is_connected_(other.is_connected_)
-// mutex_ is default-constructed (mutexes are not moveable)
-{
+EdgeNode::EdgeNode(EdgeNode&& other) noexcept {
   std::scoped_lock lock(other.mutex_);
+  config_ = std::move(other.config_);
+  client_ = std::move(other.client_);
+  seq_num_ = other.seq_num_;
+  bd_seq_num_ = other.bd_seq_num_;
+  death_payload_data_ = std::move(other.death_payload_data_);
+  last_birth_payload_ = std::move(other.last_birth_payload_);
+  device_states_ = std::move(other.device_states_);
+  is_connected_ = other.is_connected_;
+  primary_host_online_ = other.primary_host_online_;
   other.is_connected_ = false;
+  other.primary_host_online_ = false;
 }
 
 EdgeNode& EdgeNode::operator=(EdgeNode&& other) noexcept {

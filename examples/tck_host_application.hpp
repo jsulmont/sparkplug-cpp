@@ -46,8 +46,8 @@ private:
   void run_message_ordering_test(const std::vector<std::string>& params);
   void run_multiple_broker_test(const std::vector<std::string>& params);
 
-  [[nodiscard]] auto
-  establish_session(const std::string& host_id) -> stdx::expected<void, std::string>;
+  [[nodiscard]] auto establish_session(const std::string& host_id)
+      -> stdx::expected<void, std::string>;
 
   std::string host_id_;
   std::string namespace_prefix_;
