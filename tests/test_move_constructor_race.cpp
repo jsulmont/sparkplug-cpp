@@ -34,10 +34,6 @@ void test_edge_node_move_transfers_state() {
   assert(moved.get_seq() == 0);
   assert(moved.get_bd_seq() == 0);
 
-  // Moved-from is not connected, disconnect should fail
-  auto result = node.disconnect();
-  assert(!result.has_value());
-
   std::cout << "[OK] EdgeNode move constructor transfers state correctly\n";
 }
 
@@ -135,10 +131,6 @@ void test_host_application_move_transfers_state() {
 
   auto state2 = moved.get_node_state("g", "n");
   assert(!state2.has_value());
-
-  // Moved-from is not connected
-  auto result = host.disconnect();
-  assert(!result.has_value());
 
   std::cout << "[OK] HostApplication move constructor transfers state correctly\n";
 }

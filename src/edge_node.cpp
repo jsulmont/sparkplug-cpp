@@ -596,8 +596,8 @@ stdx::expected<void, std::string> EdgeNode::rebirth() {
     proto_payload.set_seq(0);
 
     payload_data.resize(proto_payload.ByteSizeLong());
-    proto_payload.SerializeToArray(payload_data.data(),
-                                   static_cast<int>(payload_data.size()));
+    (void)proto_payload.SerializeToArray(payload_data.data(),
+                                         static_cast<int>(payload_data.size()));
     last_birth_payload_ = payload_data;
 
     Topic topic{.group_id = config_.group_id,

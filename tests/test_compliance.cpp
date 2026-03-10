@@ -336,7 +336,7 @@ void test_payload_timestamp() {
   auto built = payload.build();
 
   org::eclipse::tahu::protobuf::Payload proto;
-  proto.ParseFromArray(built.data(), static_cast<int>(built.size()));
+  (void)proto.ParseFromArray(built.data(), static_cast<int>(built.size()));
 
   bool passed = proto.has_timestamp() && proto.timestamp() > 0;
   report_test("Payload has timestamp", passed, passed ? "" : "Timestamp missing or zero");

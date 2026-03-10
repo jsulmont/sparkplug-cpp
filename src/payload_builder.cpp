@@ -24,7 +24,7 @@ std::vector<uint8_t> PayloadBuilder::build() const {
   }
 
   std::vector<uint8_t> buffer(payload_copy.ByteSizeLong());
-  payload_copy.SerializeToArray(buffer.data(), static_cast<int>(buffer.size()));
+  (void)payload_copy.SerializeToArray(buffer.data(), static_cast<int>(buffer.size()));
   return buffer;
 }
 
