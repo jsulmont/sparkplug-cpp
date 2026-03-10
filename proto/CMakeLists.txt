@@ -1,12 +1,11 @@
 # proto/CMakeLists.txt
 if(BUILD_STATIC_BUNDLE)
-    find_program(PROTOC_BIN protoc REQUIRED)
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/sparkplug_b.pb.cc ${CMAKE_CURRENT_BINARY_DIR}/sparkplug_b.pb.h
-        COMMAND ${PROTOC_BIN}
+        COMMAND $<TARGET_FILE:protoc>
         ARGS --cpp_out=${CMAKE_CURRENT_BINARY_DIR} -I${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/sparkplug_b.proto
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/sparkplug_b.proto
-        COMMENT "Generating protobuf code with system protoc"
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/sparkplug_b.proto protoc
+        COMMENT "Generating protobuf code with fetched protoc"
     )
     add_library(sparkplug_proto STATIC
         ${CMAKE_CURRENT_BINARY_DIR}/sparkplug_b.pb.cc

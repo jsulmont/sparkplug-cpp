@@ -4,8 +4,7 @@
 #
 # Prerequisites (Alpine):
 #   apk add build-base cmake git bash linux-headers \
-#           openssl-dev openssl-libs-static zlib-static samurai \
-#           protobuf-dev protoc
+#           openssl-dev openssl-libs-static zlib-static samurai
 
 set -e
 
