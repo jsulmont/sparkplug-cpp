@@ -3,6 +3,7 @@
 #include "sparkplug/payload_builder.hpp"
 #include "sparkplug/sparkplug_c.h"
 
+#include <chrono>
 #include <cstring>
 #include <format>
 
@@ -34,6 +35,12 @@ copy_metrics_to_builder(sparkplug::PayloadBuilder& builder,
     const char* name = metric.has_name() ? metric.name().c_str() : "";
     std::optional<uint64_t> alias =
         metric.has_alias() ? std::optional<uint64_t>(metric.alias()) : std::nullopt;
+    uint64_t ts = metric.has_timestamp()
+                      ? metric.timestamp()
+                      : static_cast<uint64_t>(
+                            std::chrono::duration_cast<std::chrono::milliseconds>(
+                                std::chrono::system_clock::now().time_since_epoch())
+                                .count());
 
     auto datatype = static_cast<sparkplug::DataType>(metric.datatype());
 
@@ -42,22 +49,22 @@ copy_metrics_to_builder(sparkplug::PayloadBuilder& builder,
     case sparkplug::DataType::Int16:
     case sparkplug::DataType::Int32:
       if (alias.has_value() && name[0] == '\0') {
-        builder.add_metric_by_alias(*alias, static_cast<int32_t>(metric.int_value()));
+        builder.add_metric_by_alias(*alias, static_cast<int32_t>(metric.int_value()), ts);
       } else if (alias.has_value()) {
         builder.add_metric_with_alias(name, *alias,
-                                      static_cast<int32_t>(metric.int_value()));
+                                      static_cast<int32_t>(metric.int_value()), ts);
       } else {
-        builder.add_metric(name, static_cast<int32_t>(metric.int_value()));
+        builder.add_metric(name, static_cast<int32_t>(metric.int_value()), ts);
       }
       break;
 
     case sparkplug::DataType::Int64:
       if (alias.has_value() && name[0] == '\0') {
-        builder.add_metric_by_alias(*alias, metric.long_value());
+        builder.add_metric_by_alias(*alias, metric.long_value(), ts);
       } else if (alias.has_value()) {
-        builder.add_metric_with_alias(name, *alias, metric.long_value());
+        builder.add_metric_with_alias(name, *alias, metric.long_value(), ts);
       } else {
-        builder.add_metric(name, metric.long_value());
+        builder.add_metric(name, metric.long_value(), ts);
       }
       break;
 
@@ -65,64 +72,66 @@ copy_metrics_to_builder(sparkplug::PayloadBuilder& builder,
     case sparkplug::DataType::UInt16:
     case sparkplug::DataType::UInt32:
       if (alias.has_value() && name[0] == '\0') {
-        builder.add_metric_by_alias(*alias, static_cast<uint32_t>(metric.int_value()));
+        builder.add_metric_by_alias(*alias, static_cast<uint32_t>(metric.int_value()),
+                                    ts);
       } else if (alias.has_value()) {
         builder.add_metric_with_alias(name, *alias,
-                                      static_cast<uint32_t>(metric.int_value()));
+                                      static_cast<uint32_t>(metric.int_value()), ts);
       } else {
-        builder.add_metric(name, static_cast<uint32_t>(metric.int_value()));
+        builder.add_metric(name, static_cast<uint32_t>(metric.int_value()), ts);
       }
       break;
 
     case sparkplug::DataType::UInt64:
       if (alias.has_value() && name[0] == '\0') {
-        builder.add_metric_by_alias(*alias, static_cast<uint64_t>(metric.long_value()));
+        builder.add_metric_by_alias(*alias, static_cast<uint64_t>(metric.long_value()),
+                                    ts);
       } else if (alias.has_value()) {
         builder.add_metric_with_alias(name, *alias,
-                                      static_cast<uint64_t>(metric.long_value()));
+                                      static_cast<uint64_t>(metric.long_value()), ts);
       } else {
-        builder.add_metric(name, static_cast<uint64_t>(metric.long_value()));
+        builder.add_metric(name, static_cast<uint64_t>(metric.long_value()), ts);
       }
       break;
 
     case sparkplug::DataType::Float:
       if (alias.has_value() && name[0] == '\0') {
-        builder.add_metric_by_alias(*alias, metric.float_value());
+        builder.add_metric_by_alias(*alias, metric.float_value(), ts);
       } else if (alias.has_value()) {
-        builder.add_metric_with_alias(name, *alias, metric.float_value());
+        builder.add_metric_with_alias(name, *alias, metric.float_value(), ts);
       } else {
-        builder.add_metric(name, metric.float_value());
+        builder.add_metric(name, metric.float_value(), ts);
       }
       break;
 
     case sparkplug::DataType::Double:
       if (alias.has_value() && name[0] == '\0') {
-        builder.add_metric_by_alias(*alias, metric.double_value());
+        builder.add_metric_by_alias(*alias, metric.double_value(), ts);
       } else if (alias.has_value()) {
-        builder.add_metric_with_alias(name, *alias, metric.double_value());
+        builder.add_metric_with_alias(name, *alias, metric.double_value(), ts);
       } else {
-        builder.add_metric(name, metric.double_value());
+        builder.add_metric(name, metric.double_value(), ts);
       }
       break;
 
     case sparkplug::DataType::Boolean:
       if (alias.has_value() && name[0] == '\0') {
-        builder.add_metric_by_alias(*alias, metric.boolean_value());
+        builder.add_metric_by_alias(*alias, metric.boolean_value(), ts);
       } else if (alias.has_value()) {
-        builder.add_metric_with_alias(name, *alias, metric.boolean_value());
+        builder.add_metric_with_alias(name, *alias, metric.boolean_value(), ts);
       } else {
-        builder.add_metric(name, metric.boolean_value());
+        builder.add_metric(name, metric.boolean_value(), ts);
       }
       break;
 
     case sparkplug::DataType::String:
     case sparkplug::DataType::Text:
       if (alias.has_value() && name[0] == '\0') {
-        builder.add_metric_by_alias(*alias, metric.string_value());
+        builder.add_metric_by_alias(*alias, metric.string_value(), ts);
       } else if (alias.has_value()) {
-        builder.add_metric_with_alias(name, *alias, metric.string_value());
+        builder.add_metric_with_alias(name, *alias, metric.string_value(), ts);
       } else {
-        builder.add_metric(name, metric.string_value());
+        builder.add_metric(name, metric.string_value(), ts);
       }
       break;
 

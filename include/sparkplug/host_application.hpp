@@ -7,6 +7,7 @@
 #include "sparkplug_b.pb.h"
 #include "topic.hpp"
 
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -492,7 +493,7 @@ public:
 private:
   Config config_;
   MQTTAsyncHandle client_;
-  bool is_connected_{false};
+  std::atomic<bool> is_connected_{false};
 
   // MQTT connection options that must outlive async operations
   MQTTAsync_SSLOptions ssl_opts_{};
@@ -539,8 +540,9 @@ private:
   };
 
   std::unordered_map<NodeKey, NodeState, NodeKeyHash, NodeKeyEqual> node_states_;
+  mutable std::mutex node_states_mutex_; // Protects node_states_ only
 
-  // Mutex for thread-safe access to all mutable state
+  // Mutex for thread-safe access to config and other mutable state
   mutable std::mutex mutex_;
 
   [[nodiscard]] stdx::expected<void, std::string>

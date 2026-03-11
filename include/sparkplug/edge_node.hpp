@@ -7,6 +7,7 @@
 #include "sparkplug_b.pb.h"
 #include "topic.hpp"
 
+#include <atomic>
 #include <functional>
 #include <mutex>
 #include <optional>
@@ -465,8 +466,8 @@ private:
   // Track state of attached devices (device_id -> state, with heterogeneous lookup)
   std::unordered_map<std::string, DeviceState, StringHash, StringEqual> device_states_;
 
-  bool is_connected_{false};
-  bool primary_host_online_{
+  std::atomic<bool> is_connected_{false};
+  std::atomic<bool> primary_host_online_{
       false}; // True if primary host is online (or no primary host configured)
 
   // Mutex for thread-safe access to all mutable state

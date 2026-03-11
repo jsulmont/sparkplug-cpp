@@ -80,11 +80,7 @@ void EdgeNode::on_connection_lost(void* context, char* cause) {
     return;
   }
 
-  {
-    std::scoped_lock lock(edge_node->mutex_);
-    edge_node->is_connected_ = false;
-  }
-
+  edge_node->is_connected_.store(false, std::memory_order_relaxed);
   (void)cause;
 }
 
@@ -120,9 +116,8 @@ int EdgeNode::on_message_arrived(void* context,
     std::string payload_str(static_cast<const char*>(message->payload),
                             message->payloadlen);
 
-    std::scoped_lock lock(edge_node->mutex_);
     if (auto online = parse_state_online(payload_str)) {
-      edge_node->primary_host_online_ = *online;
+      edge_node->primary_host_online_.store(*online, std::memory_order_relaxed);
     }
 
     MQTTAsync_freeMessage(&message);
@@ -154,10 +149,15 @@ int EdgeNode::on_message_arrived(void* context,
 }
 
 EdgeNode::~EdgeNode() {
-  if (client_ && is_connected_) {
-    (void)disconnect();
-  } else if (client_) {
+  if (client_) {
+    // Clear callbacks first to prevent callbacks during destruction
     MQTTAsync_setCallbacks(client_.get(), nullptr, nullptr, nullptr, nullptr);
+    // Always attempt disconnect — is_connected_ may be stale if on_connection_lost
+    // raced with disconnect(). MQTTAsync_disconnect handles already-disconnected
+    // clients gracefully.
+    MQTTAsync_disconnectOptions opts = MQTTAsync_disconnectOptions_initializer;
+    opts.timeout = 1000;
+    (void)MQTTAsync_disconnect(client_.get(), &opts);
   }
 }
 
@@ -170,10 +170,12 @@ EdgeNode::EdgeNode(EdgeNode&& other) noexcept {
   death_payload_data_ = std::move(other.death_payload_data_);
   last_birth_payload_ = std::move(other.last_birth_payload_);
   device_states_ = std::move(other.device_states_);
-  is_connected_ = other.is_connected_;
-  primary_host_online_ = other.primary_host_online_;
-  other.is_connected_ = false;
-  other.primary_host_online_ = false;
+  is_connected_.store(other.is_connected_.load(std::memory_order_relaxed),
+                      std::memory_order_relaxed);
+  primary_host_online_.store(other.primary_host_online_.load(std::memory_order_relaxed),
+                             std::memory_order_relaxed);
+  other.is_connected_.store(false, std::memory_order_relaxed);
+  other.primary_host_online_.store(false, std::memory_order_relaxed);
 }
 
 EdgeNode& EdgeNode::operator=(EdgeNode&& other) noexcept {
@@ -188,8 +190,12 @@ EdgeNode& EdgeNode::operator=(EdgeNode&& other) noexcept {
     death_payload_data_ = std::move(other.death_payload_data_);
     last_birth_payload_ = std::move(other.last_birth_payload_);
     device_states_ = std::move(other.device_states_);
-    is_connected_ = other.is_connected_;
-    other.is_connected_ = false;
+    is_connected_.store(other.is_connected_.load(std::memory_order_relaxed),
+                        std::memory_order_relaxed);
+    primary_host_online_.store(other.primary_host_online_.load(std::memory_order_relaxed),
+                               std::memory_order_relaxed);
+    other.is_connected_.store(false, std::memory_order_relaxed);
+    other.primary_host_online_.store(false, std::memory_order_relaxed);
   }
   return *this;
 }
@@ -212,91 +218,101 @@ void EdgeNode::set_log_callback(std::optional<LogCallback> callback) {
 }
 
 stdx::expected<void, std::string> EdgeNode::connect() {
-  std::scoped_lock lock(mutex_);
-
-  MQTTAsync raw_client = nullptr;
-  int rc =
-      MQTTAsync_create(&raw_client, config_.broker_url.c_str(), config_.client_id.c_str(),
-                       MQTTCLIENT_PERSISTENCE_NONE, nullptr);
-  if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to create client: {}", rc));
-  }
-  client_ = MQTTAsyncHandle(raw_client);
-
-  // Set callbacks (MUST be called after creating client but before connecting)
-  // Note: Paho requires message_arrived callback to be non-null, so always pass it
-  rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost, on_message_arrived,
-                              nullptr);
-  if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to set callbacks: {}", rc));
-  }
-
-  // Increment bdSeq for this session (Sparkplug spec requires bdSeq to start at 1)
-  bd_seq_num_++;
-
-  // Prepare NDEATH payload BEFORE connecting
-  PayloadBuilder death_payload;
-  death_payload.add_metric("bdSeq", bd_seq_num_);
-  death_payload_data_ = death_payload.build();
-
-  MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
-  conn_opts.keepAliveInterval = config_.keep_alive_interval;
-  conn_opts.cleansession = config_.clean_session;
-
-  if (config_.username.has_value()) {
-    conn_opts.username = config_.username.value().c_str();
-  }
-  if (config_.password.has_value()) {
-    conn_opts.password = config_.password.value().c_str();
-  }
-
-  ssl_opts_ = MQTTAsync_SSLOptions_initializer;
-  if (config_.tls.has_value()) {
-    const auto& tls = config_.tls.value();
-    ssl_opts_.trustStore = tls.trust_store.c_str();
-    ssl_opts_.keyStore = tls.key_store.empty() ? nullptr : tls.key_store.c_str();
-    ssl_opts_.privateKey = tls.private_key.empty() ? nullptr : tls.private_key.c_str();
-    ssl_opts_.privateKeyPassword =
-        tls.private_key_password.empty() ? nullptr : tls.private_key_password.c_str();
-    ssl_opts_.enabledCipherSuites =
-        tls.enabled_cipher_suites.empty() ? nullptr : tls.enabled_cipher_suites.c_str();
-    ssl_opts_.enableServerCertAuth = tls.enable_server_cert_auth;
-    conn_opts.ssl = &ssl_opts_;
-  }
-
-  // Setup Last Will and Testament (NDEATH)
-  // Initialize will options as member variable (must outlive async connect)
-  will_opts_ = MQTTAsync_willOptions_initializer;
-
-  Topic death_topic{.group_id = config_.group_id,
-                    .message_type = MessageType::NDEATH,
-                    .edge_node_id = config_.edge_node_id,
-                    .device_id = ""};
-
-  // Store as member variable to keep string alive for async MQTT operations
-  death_topic_str_ = death_topic.to_string();
-  will_opts_.topicName = death_topic_str_.c_str();
-
-  // Use payload.data/len for binary protobuf data
-  will_opts_.payload.data = death_payload_data_.data();
-  will_opts_.payload.len = static_cast<int>(death_payload_data_.size());
-  will_opts_.retained = 0;
-  will_opts_.qos = config_.death_qos;
-
-  conn_opts.will = &will_opts_;
-
+  // Phase 1: Prepare client and initiate async connect under lock.
+  // Lock is released before any blocking waits to prevent deadlock
+  // with on_connection_lost callback.
   std::promise<void> connect_promise;
   auto connect_future = connect_promise.get_future();
+  MQTTAsync client_handle = nullptr;
+  std::string group_id;
+  std::string edge_node_id;
+  std::optional<std::string> primary_host_id;
 
-  conn_opts.context = &connect_promise;
-  conn_opts.onSuccess = on_connect_success;
-  conn_opts.onFailure = on_connect_failure;
+  {
+    std::scoped_lock lock(mutex_);
 
-  rc = MQTTAsync_connect(client_.get(), &conn_opts);
-  if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to connect: {}", rc));
+    MQTTAsync raw_client = nullptr;
+    int rc =
+        MQTTAsync_create(&raw_client, config_.broker_url.c_str(),
+                         config_.client_id.c_str(), MQTTCLIENT_PERSISTENCE_NONE, nullptr);
+    if (rc != MQTTASYNC_SUCCESS) {
+      return stdx::unexpected(std::format("Failed to create client: {}", rc));
+    }
+    client_ = MQTTAsyncHandle(raw_client);
+
+    rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost,
+                                on_message_arrived, nullptr);
+    if (rc != MQTTASYNC_SUCCESS) {
+      return stdx::unexpected(std::format("Failed to set callbacks: {}", rc));
+    }
+
+    // Increment bdSeq for this session
+    bd_seq_num_++;
+
+    PayloadBuilder death_payload;
+    death_payload.add_metric("bdSeq", bd_seq_num_);
+    death_payload_data_ = death_payload.build();
+
+    MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
+    conn_opts.keepAliveInterval = config_.keep_alive_interval;
+    conn_opts.cleansession = config_.clean_session;
+
+    if (config_.username.has_value()) {
+      conn_opts.username = config_.username.value().c_str();
+    }
+    if (config_.password.has_value()) {
+      conn_opts.password = config_.password.value().c_str();
+    }
+
+    ssl_opts_ = MQTTAsync_SSLOptions_initializer;
+    if (config_.tls.has_value()) {
+      const auto& tls = config_.tls.value();
+      ssl_opts_.trustStore = tls.trust_store.c_str();
+      ssl_opts_.keyStore = tls.key_store.empty() ? nullptr : tls.key_store.c_str();
+      ssl_opts_.privateKey = tls.private_key.empty() ? nullptr : tls.private_key.c_str();
+      ssl_opts_.privateKeyPassword =
+          tls.private_key_password.empty() ? nullptr : tls.private_key_password.c_str();
+      ssl_opts_.enabledCipherSuites =
+          tls.enabled_cipher_suites.empty() ? nullptr : tls.enabled_cipher_suites.c_str();
+      ssl_opts_.enableServerCertAuth = tls.enable_server_cert_auth;
+      conn_opts.ssl = &ssl_opts_;
+    }
+
+    will_opts_ = MQTTAsync_willOptions_initializer;
+
+    Topic death_topic{.group_id = config_.group_id,
+                      .message_type = MessageType::NDEATH,
+                      .edge_node_id = config_.edge_node_id,
+                      .device_id = ""};
+
+    death_topic_str_ = death_topic.to_string();
+    will_opts_.topicName = death_topic_str_.c_str();
+    will_opts_.payload.data = death_payload_data_.data();
+    will_opts_.payload.len = static_cast<int>(death_payload_data_.size());
+    will_opts_.retained = 0;
+    will_opts_.qos = config_.death_qos;
+
+    conn_opts.will = &will_opts_;
+    conn_opts.context = &connect_promise;
+    conn_opts.onSuccess = on_connect_success;
+    conn_opts.onFailure = on_connect_failure;
+
+    rc = MQTTAsync_connect(client_.get(), &conn_opts);
+    if (rc != MQTTASYNC_SUCCESS) {
+      return stdx::unexpected(std::format("Failed to connect: {}", rc));
+    }
+
+    // Extract values needed outside the lock
+    client_handle = client_.get();
+    group_id = config_.group_id;
+    edge_node_id = config_.edge_node_id;
+    primary_host_id = config_.primary_host_id;
   }
+  // Paho copies conn_opts internally; local opts can safely go out of scope.
+  // Member variables (will_opts_, ssl_opts_, death_payload_data_, death_topic_str_)
+  // remain valid for the async operation.
 
+  // Phase 2: Wait for connect completion (no lock held)
   auto status = connect_future.wait_for(std::chrono::milliseconds(CONNECTION_TIMEOUT_MS));
   if (status == std::future_status::timeout) {
     return stdx::unexpected("Connection timeout");
@@ -308,15 +324,20 @@ stdx::expected<void, std::string> EdgeNode::connect() {
     return stdx::unexpected(e.what());
   }
 
-  is_connected_ = true;
-
-  if (!config_.primary_host_id.has_value()) {
-    primary_host_online_ = true;
+  // Phase 3: Update connected state atomically.
+  // on_connection_lost() may have fired between Phase 2 and now.
+  if (!MQTTAsync_isConnected(client_handle)) {
+    return stdx::unexpected("Connection lost during setup");
+  }
+  is_connected_.store(true, std::memory_order_relaxed);
+  if (!primary_host_id.has_value()) {
+    primary_host_online_.store(true, std::memory_order_relaxed);
   }
 
-  Topic ncmd_topic{.group_id = config_.group_id,
+  // Phase 4: Subscribe to NCMD (no lock held)
+  Topic ncmd_topic{.group_id = group_id,
                    .message_type = MessageType::NCMD,
-                   .edge_node_id = config_.edge_node_id,
+                   .edge_node_id = edge_node_id,
                    .device_id = ""};
 
   auto ncmd_topic_str = ncmd_topic.to_string();
@@ -329,7 +350,7 @@ stdx::expected<void, std::string> EdgeNode::connect() {
   sub_opts.onSuccess = on_subscribe_success;
   sub_opts.onFailure = on_subscribe_failure;
 
-  rc = MQTTAsync_subscribe(client_.get(), ncmd_topic_str.c_str(), 1, &sub_opts);
+  int rc = MQTTAsync_subscribe(client_handle, ncmd_topic_str.c_str(), 1, &sub_opts);
   if (rc != MQTTASYNC_SUCCESS) {
     return stdx::unexpected(std::format("Failed to subscribe to NCMD: {}", rc));
   }
@@ -346,8 +367,9 @@ stdx::expected<void, std::string> EdgeNode::connect() {
     return stdx::unexpected(std::format("NCMD subscription failed: {}", e.what()));
   }
 
-  if (config_.primary_host_id.has_value()) {
-    std::string state_topic = "spBv1.0/STATE/" + config_.primary_host_id.value();
+  // Phase 5: Subscribe to STATE if primary host configured (no lock held)
+  if (primary_host_id.has_value()) {
+    std::string state_topic = "spBv1.0/STATE/" + primary_host_id.value();
 
     std::promise<void> state_subscribe_promise;
     auto state_subscribe_future = state_subscribe_promise.get_future();
@@ -357,7 +379,7 @@ stdx::expected<void, std::string> EdgeNode::connect() {
     state_sub_opts.onSuccess = on_subscribe_success;
     state_sub_opts.onFailure = on_subscribe_failure;
 
-    rc = MQTTAsync_subscribe(client_.get(), state_topic.c_str(), 1, &state_sub_opts);
+    rc = MQTTAsync_subscribe(client_handle, state_topic.c_str(), 1, &state_sub_opts);
     if (rc != MQTTASYNC_SUCCESS) {
       return stdx::unexpected(std::format("Failed to subscribe to STATE: {}", rc));
     }
@@ -379,12 +401,18 @@ stdx::expected<void, std::string> EdgeNode::connect() {
 }
 
 stdx::expected<void, std::string> EdgeNode::disconnect() {
-  std::scoped_lock lock(mutex_);
-
-  if (!client_) {
-    return stdx::unexpected("Not connected");
+  // Phase 1: Initiate disconnect under lock
+  MQTTAsync client_handle = nullptr;
+  {
+    std::scoped_lock lock(mutex_);
+    if (!client_) {
+      return stdx::unexpected("Not connected");
+    }
+    client_handle = client_.get();
   }
 
+  // Phase 2: Wait for disconnect completion (no lock held)
+  // Lock is released to prevent deadlock with on_connection_lost callback.
   std::promise<void> disconnect_promise;
   auto disconnect_future = disconnect_promise.get_future();
 
@@ -394,24 +422,21 @@ stdx::expected<void, std::string> EdgeNode::disconnect() {
   opts.onSuccess = on_disconnect_success;
   opts.onFailure = on_disconnect_failure;
 
-  int rc = MQTTAsync_disconnect(client_.get(), &opts);
+  int rc = MQTTAsync_disconnect(client_handle, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
     return stdx::unexpected(std::format("Failed to disconnect: {}", rc));
   }
 
   auto status =
       disconnect_future.wait_for(std::chrono::milliseconds(DISCONNECT_TIMEOUT_MS));
-  if (status == std::future_status::timeout) {
-    is_connected_ = false;
-    return {};
+  if (status != std::future_status::timeout) {
+    try {
+      disconnect_future.get();
+    } catch (const std::exception&) {
+    }
   }
 
-  try {
-    disconnect_future.get();
-  } catch (const std::exception&) {
-  }
-
-  is_connected_ = false;
+  is_connected_.store(false, std::memory_order_relaxed);
   return {};
 }
 
@@ -888,8 +913,13 @@ EdgeNode::publish_device_command(std::string_view target_edge_node_id,
 }
 
 void EdgeNode::log(LogLevel level, std::string_view message) const noexcept {
-  if (config_.log_callback) {
-    config_.log_callback.value()(level, message);
+  std::optional<LogCallback> cb;
+  {
+    std::scoped_lock lock(mutex_);
+    cb = config_.log_callback;
+  }
+  if (cb) {
+    cb.value()(level, message);
   }
 }
 

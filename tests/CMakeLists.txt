@@ -58,3 +58,8 @@ target_link_libraries(soak_test PRIVATE sparkplug_cpp)
 add_executable(test_c_api test_c_api.c)
 target_link_libraries(test_c_api PRIVATE sparkplug_c)
 add_test(NAME CApiTest COMMAND test_c_api)
+
+# C bindings timestamp preservation tests
+add_executable(test_c_bindings_timestamps test_c_bindings_timestamps.cpp)
+target_link_libraries(test_c_bindings_timestamps PRIVATE sparkplug_c sparkplug_cpp)
+add_test(NAME CBindingsTimestampTest COMMAND test_c_bindings_timestamps)

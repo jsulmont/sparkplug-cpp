@@ -53,31 +53,37 @@ HostApplication::HostApplication(Config config) : config_(std::move(config)) {
 }
 
 HostApplication::~HostApplication() {
-  if (client_ && is_connected_) {
-    (void)disconnect();
-  } else if (client_) {
+  if (client_) {
     MQTTAsync_setCallbacks(client_.get(), nullptr, nullptr, nullptr, nullptr);
+    MQTTAsync_disconnectOptions opts = MQTTAsync_disconnectOptions_initializer;
+    opts.timeout = 1000;
+    (void)MQTTAsync_disconnect(client_.get(), &opts);
   }
 }
 
 HostApplication::HostApplication(HostApplication&& other) noexcept {
-  std::scoped_lock lock(other.mutex_);
+  std::scoped_lock lock(other.mutex_, other.node_states_mutex_);
   config_ = std::move(other.config_);
   client_ = std::move(other.client_);
-  is_connected_ = other.is_connected_;
+  is_connected_.store(other.is_connected_.load(std::memory_order_relaxed),
+                      std::memory_order_relaxed);
   node_states_ = std::move(other.node_states_);
-  other.is_connected_ = false;
+  other.is_connected_.store(false, std::memory_order_relaxed);
 }
 
 HostApplication& HostApplication::operator=(HostApplication&& other) noexcept {
   if (this != &other) {
-    // Lock both mutexes with automatic deadlock avoidance
-    std::scoped_lock lock(mutex_, other.mutex_);
+    // Lock all four mutexes with automatic deadlock avoidance
+    std::scoped_lock lock(mutex_, node_states_mutex_, other.mutex_,
+                          other.node_states_mutex_);
 
     config_ = std::move(other.config_);
     client_ = std::move(other.client_);
-    is_connected_ = other.is_connected_;
-    other.is_connected_ = false;
+    is_connected_.store(other.is_connected_.load(std::memory_order_relaxed),
+                        std::memory_order_relaxed);
+    node_states_ = std::move(other.node_states_);
+    ssl_opts_ = other.ssl_opts_;
+    other.is_connected_.store(false, std::memory_order_relaxed);
   }
   return *this;
 }
@@ -105,89 +111,108 @@ void HostApplication::set_log_callback(LogCallback callback) {
 }
 
 stdx::expected<void, std::string> HostApplication::connect() {
-  std::scoped_lock lock(mutex_);
-
-  MQTTAsync raw_client = nullptr;
-  int rc =
-      MQTTAsync_create(&raw_client, config_.broker_url.c_str(), config_.client_id.c_str(),
-                       MQTTCLIENT_PERSISTENCE_NONE, nullptr);
-  if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to create client: {}", rc));
-  }
-  client_ = MQTTAsyncHandle(raw_client);
-
-  rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost, on_message_arrived,
-                              nullptr);
-  if (rc != MQTTASYNC_SUCCESS) {
-    return stdx::unexpected(std::format("Failed to set callbacks: {}", rc));
-  }
-
-  MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
-  conn_opts.keepAliveInterval = config_.keep_alive_interval;
-  conn_opts.cleansession = config_.clean_session;
-  conn_opts.maxInflight = config_.max_inflight;
-
-  if (config_.username.has_value()) {
-    conn_opts.username = config_.username.value().c_str();
-  }
-  if (config_.password.has_value()) {
-    conn_opts.password = config_.password.value().c_str();
-  }
-
-  ssl_opts_ = MQTTAsync_SSLOptions_initializer;
-  if (config_.tls.has_value()) {
-    const auto& tls = config_.tls.value();
-    ssl_opts_.trustStore = tls.trust_store.c_str();
-    ssl_opts_.keyStore = tls.key_store.empty() ? nullptr : tls.key_store.c_str();
-    ssl_opts_.privateKey = tls.private_key.empty() ? nullptr : tls.private_key.c_str();
-    ssl_opts_.privateKeyPassword =
-        tls.private_key_password.empty() ? nullptr : tls.private_key_password.c_str();
-    ssl_opts_.enabledCipherSuites =
-        tls.enabled_cipher_suites.empty() ? nullptr : tls.enabled_cipher_suites.c_str();
-    ssl_opts_.enableServerCertAuth = tls.enable_server_cert_auth;
-    conn_opts.ssl = &ssl_opts_;
-  }
-
+  // Phase 1: Prepare client and initiate async connect under lock.
+  // Lock is released before blocking waits to avoid holding mutex_
+  // while Paho callbacks (which may call log()) could fire.
   std::promise<void> connect_promise;
   auto connect_future = connect_promise.get_future();
+  MQTTAsync client_handle = nullptr;
 
-  conn_opts.context = &connect_promise;
-  conn_opts.onSuccess = on_connect_success;
-  conn_opts.onFailure = on_connect_failure;
+  {
+    std::scoped_lock lock(mutex_);
 
-  rc = MQTTAsync_connect(client_.get(), &conn_opts);
-  if (rc != MQTTASYNC_SUCCESS) {
-    MQTTAsync_setCallbacks(client_.get(), nullptr, nullptr, nullptr, nullptr);
-    return stdx::unexpected(std::format("Failed to connect: {}", rc));
+    MQTTAsync raw_client = nullptr;
+    int rc =
+        MQTTAsync_create(&raw_client, config_.broker_url.c_str(),
+                         config_.client_id.c_str(), MQTTCLIENT_PERSISTENCE_NONE, nullptr);
+    if (rc != MQTTASYNC_SUCCESS) {
+      return stdx::unexpected(std::format("Failed to create client: {}", rc));
+    }
+    client_ = MQTTAsyncHandle(raw_client);
+
+    rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost,
+                                on_message_arrived, nullptr);
+    if (rc != MQTTASYNC_SUCCESS) {
+      return stdx::unexpected(std::format("Failed to set callbacks: {}", rc));
+    }
+
+    MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
+    conn_opts.keepAliveInterval = config_.keep_alive_interval;
+    conn_opts.cleansession = config_.clean_session;
+    conn_opts.maxInflight = config_.max_inflight;
+
+    if (config_.username.has_value()) {
+      conn_opts.username = config_.username.value().c_str();
+    }
+    if (config_.password.has_value()) {
+      conn_opts.password = config_.password.value().c_str();
+    }
+
+    ssl_opts_ = MQTTAsync_SSLOptions_initializer;
+    if (config_.tls.has_value()) {
+      const auto& tls = config_.tls.value();
+      ssl_opts_.trustStore = tls.trust_store.c_str();
+      ssl_opts_.keyStore = tls.key_store.empty() ? nullptr : tls.key_store.c_str();
+      ssl_opts_.privateKey = tls.private_key.empty() ? nullptr : tls.private_key.c_str();
+      ssl_opts_.privateKeyPassword =
+          tls.private_key_password.empty() ? nullptr : tls.private_key_password.c_str();
+      ssl_opts_.enabledCipherSuites =
+          tls.enabled_cipher_suites.empty() ? nullptr : tls.enabled_cipher_suites.c_str();
+      ssl_opts_.enableServerCertAuth = tls.enable_server_cert_auth;
+      conn_opts.ssl = &ssl_opts_;
+    }
+
+    conn_opts.context = &connect_promise;
+    conn_opts.onSuccess = on_connect_success;
+    conn_opts.onFailure = on_connect_failure;
+
+    rc = MQTTAsync_connect(client_.get(), &conn_opts);
+    if (rc != MQTTASYNC_SUCCESS) {
+      MQTTAsync_setCallbacks(client_.get(), nullptr, nullptr, nullptr, nullptr);
+      return stdx::unexpected(std::format("Failed to connect: {}", rc));
+    }
+
+    client_handle = client_.get();
   }
 
+  // Phase 2: Wait for connect completion (no lock held)
   auto status = connect_future.wait_for(std::chrono::milliseconds(CONNECTION_TIMEOUT_MS));
   if (status == std::future_status::timeout) {
-    MQTTAsync_setCallbacks(client_.get(), nullptr, nullptr, nullptr, nullptr);
+    MQTTAsync_setCallbacks(client_handle, nullptr, nullptr, nullptr, nullptr);
     MQTTAsync_disconnectOptions disc_opts = MQTTAsync_disconnectOptions_initializer;
     disc_opts.timeout = 1000;
-    MQTTAsync_disconnect(client_.get(), &disc_opts);
+    MQTTAsync_disconnect(client_handle, &disc_opts);
     return stdx::unexpected("Connection timeout");
   }
 
   try {
     connect_future.get();
   } catch (const std::exception& e) {
-    MQTTAsync_setCallbacks(client_.get(), nullptr, nullptr, nullptr, nullptr);
+    MQTTAsync_setCallbacks(client_handle, nullptr, nullptr, nullptr, nullptr);
     return stdx::unexpected(e.what());
   }
 
-  is_connected_ = true;
+  // Phase 3: Update connected state atomically
+  if (!MQTTAsync_isConnected(client_handle)) {
+    return stdx::unexpected("Connection lost during setup");
+  }
+  is_connected_.store(true, std::memory_order_relaxed);
   return {};
 }
 
 stdx::expected<void, std::string> HostApplication::disconnect() {
-  std::scoped_lock lock(mutex_);
-
-  if (!client_) {
-    return stdx::unexpected("Not connected");
+  // Phase 1: Check state under lock
+  MQTTAsync client_handle = nullptr;
+  {
+    std::scoped_lock lock(mutex_);
+    if (!client_) {
+      return stdx::unexpected("Not connected");
+    }
+    client_handle = client_.get();
   }
 
+  // Phase 2: Wait for disconnect completion (no lock held)
+  // Lock is released to prevent deadlock with on_connection_lost callback.
   std::promise<void> disconnect_promise;
   auto disconnect_future = disconnect_promise.get_future();
 
@@ -197,24 +222,21 @@ stdx::expected<void, std::string> HostApplication::disconnect() {
   opts.onSuccess = on_disconnect_success;
   opts.onFailure = on_disconnect_failure;
 
-  int rc = MQTTAsync_disconnect(client_.get(), &opts);
+  int rc = MQTTAsync_disconnect(client_handle, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
     return stdx::unexpected(std::format("Failed to disconnect: {}", rc));
   }
 
   auto status =
       disconnect_future.wait_for(std::chrono::milliseconds(DISCONNECT_TIMEOUT_MS));
-  if (status == std::future_status::timeout) {
-    is_connected_ = false;
-    return {};
+  if (status != std::future_status::timeout) {
+    try {
+      disconnect_future.get();
+    } catch (const std::exception&) {
+    }
   }
 
-  try {
-    disconnect_future.get();
-  } catch (const std::exception&) {
-  }
-
-  is_connected_ = false;
+  is_connected_.store(false, std::memory_order_relaxed);
   return {};
 }
 
@@ -473,7 +495,7 @@ HostApplication::subscribe_state(std::string_view host_id) {
 std::optional<HostApplication::NodeStateSnapshot>
 HostApplication::get_node_state(std::string_view group_id,
                                 std::string_view edge_node_id) const {
-  std::scoped_lock lock(mutex_);
+  std::scoped_lock lock(node_states_mutex_);
 
   auto it = node_states_.find(std::make_pair(group_id, edge_node_id));
   if (it != node_states_.end()) {
@@ -491,7 +513,7 @@ std::optional<std::string> HostApplication::get_metric_name(std::string_view gro
                                                             std::string_view edge_node_id,
                                                             std::string_view device_id,
                                                             uint64_t alias) const {
-  std::scoped_lock lock(mutex_);
+  std::scoped_lock lock(node_states_mutex_);
 
   auto it = node_states_.find(std::make_pair(group_id, edge_node_id));
   if (it == node_states_.end()) {
@@ -522,8 +544,13 @@ std::optional<std::string> HostApplication::get_metric_name(std::string_view gro
 }
 
 void HostApplication::log(LogLevel level, std::string_view message) const noexcept {
-  if (config_.log_callback) {
-    config_.log_callback(level, message);
+  LogCallback cb;
+  {
+    std::scoped_lock lock(mutex_);
+    cb = config_.log_callback;
+  }
+  if (cb) {
+    cb(level, message);
   }
 }
 
@@ -771,7 +798,7 @@ int HostApplication::on_message_arrived(void* context,
   }
 
   {
-    std::scoped_lock lock(host_app->mutex_);
+    std::scoped_lock lock(host_app->node_states_mutex_);
     host_app->validate_message(*topic_result, payload);
   }
 
@@ -793,10 +820,7 @@ void HostApplication::on_connection_lost(void* context, char* cause) {
     return;
   }
 
-  {
-    std::scoped_lock lock(host_app->mutex_);
-    host_app->is_connected_ = false;
-  }
+  host_app->is_connected_.store(false, std::memory_order_relaxed);
 
   if (cause) {
     host_app->log(LogLevel::WARN, std::format("Connection lost: {}", cause));

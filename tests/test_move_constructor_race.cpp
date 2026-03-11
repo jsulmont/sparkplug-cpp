@@ -163,6 +163,45 @@ void test_host_application_move_under_contention() {
   std::cout << "[OK] HostApplication move under contention: no race\n";
 }
 
+// ---------------------------------------------------------------------------
+// HostApplication: move assignment under contention
+// Exercises the dual-lock (std::scoped_lock(mutex_, other.mutex_)) path
+// under TSan.  A reader thread repeatedly calls get_node_state() on the
+// source while the main thread move-assigns.
+// ---------------------------------------------------------------------------
+void test_host_application_move_assign_under_contention() {
+  auto callback = [](const sparkplug::Topic&, const auto&) {};
+
+  sparkplug::HostApplication::Config config_src{.broker_url = "tcp://localhost:1883",
+                                                .client_id = "test_move_assign_src_ha",
+                                                .host_id = "MoveHost03",
+                                                .message_callback = callback};
+  sparkplug::HostApplication::Config config_dst{.broker_url = "tcp://localhost:1883",
+                                                .client_id = "test_move_assign_dst_ha",
+                                                .host_id = "MoveHost04",
+                                                .message_callback = callback};
+
+  sparkplug::HostApplication src(std::move(config_src));
+  sparkplug::HostApplication dst(std::move(config_dst));
+
+  std::atomic<bool> stop{false};
+
+  std::thread reader([&] {
+    while (!stop.load(std::memory_order_relaxed)) {
+      [[maybe_unused]] auto s = src.get_node_state("g", "n");
+    }
+  });
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+  dst = std::move(src);
+
+  stop.store(true, std::memory_order_relaxed);
+  reader.join();
+
+  std::cout << "[OK] HostApplication move assignment under contention: no race\n";
+}
+
 int main() {
   std::cout << "=== Move Constructor Race Tests ===\n\n";
 
@@ -171,6 +210,7 @@ int main() {
   test_edge_node_move_assign_under_contention();
   test_host_application_move_transfers_state();
   test_host_application_move_under_contention();
+  test_host_application_move_assign_under_contention();
 
   std::cout << "\n=== All move constructor race tests passed! ===\n";
   return 0;
