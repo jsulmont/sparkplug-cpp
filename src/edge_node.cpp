@@ -4,7 +4,6 @@
 #include <cstring>
 #include <format>
 #include <future>
-#include <thread>
 #include <utility>
 
 #include <MQTTAsync.h>
@@ -16,6 +15,26 @@ constexpr int CONNECTION_TIMEOUT_MS = 5000;
 constexpr int DISCONNECT_TIMEOUT_MS = 11000;
 constexpr int SUBSCRIBE_TIMEOUT_MS = 5000;
 constexpr uint64_t SEQ_NUMBER_MAX = 256;
+
+// Parse "online" boolean from Sparkplug STATE JSON, tolerating whitespace.
+std::optional<bool> parse_state_online(std::string_view json) {
+  constexpr std::string_view ws = " \t\n\r";
+  auto key_pos = json.find("\"online\"");
+  if (key_pos == std::string_view::npos)
+    return std::nullopt;
+  auto rest = json.substr(key_pos + 8);
+  auto colon = rest.find_first_not_of(ws);
+  if (colon == std::string_view::npos || rest[colon] != ':')
+    return std::nullopt;
+  auto val = rest.find_first_not_of(ws, colon + 1);
+  if (val == std::string_view::npos)
+    return std::nullopt;
+  if (rest[val] == 't')
+    return true;
+  if (rest[val] == 'f')
+    return false;
+  return std::nullopt;
+}
 
 void on_connect_success(void* context, MQTTAsync_successData* response) {
   (void)response;
@@ -102,10 +121,8 @@ int EdgeNode::on_message_arrived(void* context,
                             message->payloadlen);
 
     std::scoped_lock lock(edge_node->mutex_);
-    if (payload_str.find("\"online\":true") != std::string::npos) {
-      edge_node->primary_host_online_ = true;
-    } else if (payload_str.find("\"online\":false") != std::string::npos) {
-      edge_node->primary_host_online_ = false;
+    if (auto online = parse_state_online(payload_str)) {
+      edge_node->primary_host_online_ = *online;
     }
 
     MQTTAsync_freeMessage(&message);
@@ -144,16 +161,19 @@ EdgeNode::~EdgeNode() {
   }
 }
 
-EdgeNode::EdgeNode(EdgeNode&& other) noexcept
-    : config_(std::move(other.config_)), client_(std::move(other.client_)),
-      seq_num_(other.seq_num_), bd_seq_num_(other.bd_seq_num_),
-      death_payload_data_(std::move(other.death_payload_data_)),
-      last_birth_payload_(std::move(other.last_birth_payload_)),
-      device_states_(std::move(other.device_states_)), is_connected_(other.is_connected_)
-// mutex_ is default-constructed (mutexes are not moveable)
-{
+EdgeNode::EdgeNode(EdgeNode&& other) noexcept {
   std::scoped_lock lock(other.mutex_);
+  config_ = std::move(other.config_);
+  client_ = std::move(other.client_);
+  seq_num_ = other.seq_num_;
+  bd_seq_num_ = other.bd_seq_num_;
+  death_payload_data_ = std::move(other.death_payload_data_);
+  last_birth_payload_ = std::move(other.last_birth_payload_);
+  device_states_ = std::move(other.device_states_);
+  is_connected_ = other.is_connected_;
+  primary_host_online_ = other.primary_host_online_;
   other.is_connected_ = false;
+  other.primary_host_online_ = false;
 }
 
 EdgeNode& EdgeNode::operator=(EdgeNode&& other) noexcept {
@@ -531,7 +551,7 @@ stdx::expected<void, std::string> EdgeNode::publish_death() {
       return stdx::unexpected("Not connected");
     }
 
-    seq_num_ = (seq_num_ + 1) % 256;
+    seq_num_ = (seq_num_ + 1) % SEQ_NUMBER_MAX;
 
     PayloadBuilder death_payload;
     death_payload.add_metric("bdSeq", bd_seq_num_);
@@ -593,8 +613,8 @@ stdx::expected<void, std::string> EdgeNode::rebirth() {
     proto_payload.set_seq(0);
 
     payload_data.resize(proto_payload.ByteSizeLong());
-    proto_payload.SerializeToArray(payload_data.data(),
-                                   static_cast<int>(payload_data.size()));
+    (void)proto_payload.SerializeToArray(payload_data.data(),
+                                         static_cast<int>(payload_data.size()));
     last_birth_payload_ = payload_data;
 
     Topic topic{.group_id = config_.group_id,
@@ -604,12 +624,6 @@ stdx::expected<void, std::string> EdgeNode::rebirth() {
 
     topic_str = topic.to_string();
     qos = config_.data_qos;
-
-    // Update NDEATH Will Testament payload with new bdSeq BEFORE disconnecting
-    // This ensures the Will Testament sent during disconnect has the correct bdSeq
-    PayloadBuilder death_payload;
-    death_payload.add_metric("bdSeq", new_bdseq);
-    death_payload_data_ = death_payload.build();
   }
 
   auto result = disconnect()
@@ -779,7 +793,7 @@ EdgeNode::publish_device_death(std::string_view device_id) {
       return stdx::unexpected(std::format("Unknown device: '{}'", device_id));
     }
 
-    seq_num_ = (seq_num_ + 1) % 256;
+    seq_num_ = (seq_num_ + 1) % SEQ_NUMBER_MAX;
 
     PayloadBuilder death_payload;
     death_payload.set_seq(seq_num_);

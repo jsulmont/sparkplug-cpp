@@ -30,6 +30,30 @@ add_executable(test_command_handling test_command_handling.cpp)
 target_link_libraries(test_command_handling PRIVATE sparkplug_cpp)
 add_test(NAME CommandHandlingTest COMMAND test_command_handling)
 
+# Move constructor race tests
+add_executable(test_move_constructor_race test_move_constructor_race.cpp)
+target_link_libraries(test_move_constructor_race PRIVATE sparkplug_cpp)
+add_test(NAME MoveConstructorRaceTest COMMAND test_move_constructor_race)
+
+# STATE JSON parsing tests
+add_executable(test_state_json_parsing test_state_json_parsing.cpp)
+target_link_libraries(test_state_json_parsing PRIVATE sparkplug_cpp)
+add_test(NAME StateJsonParsingTest COMMAND test_state_json_parsing)
+
+# STATE publish deadlock tests
+add_executable(test_state_publish_deadlock test_state_publish_deadlock.cpp)
+target_link_libraries(test_state_publish_deadlock PRIVATE sparkplug_cpp)
+add_test(NAME StatePublishDeadlockTest COMMAND test_state_publish_deadlock)
+
+# Mutex-escaping reference tests
+add_executable(test_mutex_escaping_refs test_mutex_escaping_refs.cpp)
+target_link_libraries(test_mutex_escaping_refs PRIVATE sparkplug_cpp)
+add_test(NAME MutexEscapingRefsTest COMMAND test_mutex_escaping_refs)
+
+# Soak test (not registered with ctest — run manually)
+add_executable(soak_test soak_test.cpp)
+target_link_libraries(soak_test PRIVATE sparkplug_cpp)
+
 # C API tests
 add_executable(test_c_api test_c_api.c)
 target_link_libraries(test_c_api PRIVATE sparkplug_c)

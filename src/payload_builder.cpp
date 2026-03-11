@@ -14,17 +14,8 @@ PayloadBuilder::PayloadBuilder() {
 }
 
 std::vector<uint8_t> PayloadBuilder::build() const {
-  auto payload_copy = payload_;
-  if (!timestamp_explicitly_set_ && !payload_copy.has_timestamp()) {
-    auto now = std::chrono::system_clock::now();
-    auto timestamp =
-        std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch())
-            .count();
-    payload_copy.set_timestamp(timestamp);
-  }
-
-  std::vector<uint8_t> buffer(payload_copy.ByteSizeLong());
-  payload_copy.SerializeToArray(buffer.data(), static_cast<int>(buffer.size()));
+  std::vector<uint8_t> buffer(payload_.ByteSizeLong());
+  (void)payload_.SerializeToArray(buffer.data(), static_cast<int>(buffer.size()));
   return buffer;
 }
 

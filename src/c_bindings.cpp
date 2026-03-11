@@ -5,7 +5,6 @@
 
 #include <cstring>
 #include <format>
-#include <memory>
 
 struct sparkplug_publisher {
   sparkplug::EdgeNode impl;
@@ -42,7 +41,7 @@ copy_metrics_to_builder(sparkplug::PayloadBuilder& builder,
     case sparkplug::DataType::Int8:
     case sparkplug::DataType::Int16:
     case sparkplug::DataType::Int32:
-      if (alias.has_value() && std::string(name).empty()) {
+      if (alias.has_value() && name[0] == '\0') {
         builder.add_metric_by_alias(*alias, static_cast<int32_t>(metric.int_value()));
       } else if (alias.has_value()) {
         builder.add_metric_with_alias(name, *alias,
@@ -53,7 +52,7 @@ copy_metrics_to_builder(sparkplug::PayloadBuilder& builder,
       break;
 
     case sparkplug::DataType::Int64:
-      if (alias.has_value() && std::string(name).empty()) {
+      if (alias.has_value() && name[0] == '\0') {
         builder.add_metric_by_alias(*alias, metric.long_value());
       } else if (alias.has_value()) {
         builder.add_metric_with_alias(name, *alias, metric.long_value());
@@ -65,7 +64,7 @@ copy_metrics_to_builder(sparkplug::PayloadBuilder& builder,
     case sparkplug::DataType::UInt8:
     case sparkplug::DataType::UInt16:
     case sparkplug::DataType::UInt32:
-      if (alias.has_value() && std::string(name).empty()) {
+      if (alias.has_value() && name[0] == '\0') {
         builder.add_metric_by_alias(*alias, static_cast<uint32_t>(metric.int_value()));
       } else if (alias.has_value()) {
         builder.add_metric_with_alias(name, *alias,
@@ -76,7 +75,7 @@ copy_metrics_to_builder(sparkplug::PayloadBuilder& builder,
       break;
 
     case sparkplug::DataType::UInt64:
-      if (alias.has_value() && std::string(name).empty()) {
+      if (alias.has_value() && name[0] == '\0') {
         builder.add_metric_by_alias(*alias, static_cast<uint64_t>(metric.long_value()));
       } else if (alias.has_value()) {
         builder.add_metric_with_alias(name, *alias,
@@ -87,7 +86,7 @@ copy_metrics_to_builder(sparkplug::PayloadBuilder& builder,
       break;
 
     case sparkplug::DataType::Float:
-      if (alias.has_value() && std::string(name).empty()) {
+      if (alias.has_value() && name[0] == '\0') {
         builder.add_metric_by_alias(*alias, metric.float_value());
       } else if (alias.has_value()) {
         builder.add_metric_with_alias(name, *alias, metric.float_value());
@@ -97,7 +96,7 @@ copy_metrics_to_builder(sparkplug::PayloadBuilder& builder,
       break;
 
     case sparkplug::DataType::Double:
-      if (alias.has_value() && std::string(name).empty()) {
+      if (alias.has_value() && name[0] == '\0') {
         builder.add_metric_by_alias(*alias, metric.double_value());
       } else if (alias.has_value()) {
         builder.add_metric_with_alias(name, *alias, metric.double_value());
@@ -107,7 +106,7 @@ copy_metrics_to_builder(sparkplug::PayloadBuilder& builder,
       break;
 
     case sparkplug::DataType::Boolean:
-      if (alias.has_value() && std::string(name).empty()) {
+      if (alias.has_value() && name[0] == '\0') {
         builder.add_metric_by_alias(*alias, metric.boolean_value());
       } else if (alias.has_value()) {
         builder.add_metric_with_alias(name, *alias, metric.boolean_value());
@@ -118,7 +117,7 @@ copy_metrics_to_builder(sparkplug::PayloadBuilder& builder,
 
     case sparkplug::DataType::String:
     case sparkplug::DataType::Text:
-      if (alias.has_value() && std::string(name).empty()) {
+      if (alias.has_value() && name[0] == '\0') {
         builder.add_metric_by_alias(*alias, metric.string_value());
       } else if (alias.has_value()) {
         builder.add_metric_with_alias(name, *alias, metric.string_value());

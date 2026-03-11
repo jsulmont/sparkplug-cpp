@@ -4,8 +4,7 @@
 #
 # Prerequisites (Alpine):
 #   apk add build-base cmake git bash linux-headers \
-#           openssl-dev openssl-libs-static zlib-static samurai \
-#           protobuf-dev protoc
+#           openssl-dev openssl-libs-static zlib-static samurai
 
 set -e
 
@@ -34,7 +33,6 @@ cmake -S "${PROJECT_ROOT}" -B "${BUILD_DIR}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_STATIC_BUNDLE=ON \
     -DBUILD_SHARED_LIBS=OFF \
-    -DCMAKE_EXE_LINKER_FLAGS="-static" \
     -DCMAKE_FIND_LIBRARY_SUFFIXES=".a"
 
 # Build

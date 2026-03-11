@@ -3,6 +3,7 @@
 # Modern C++-23 linting with focus on correctness, performance, and readability
 
 Checks: >
+  -*,
   bugprone-assert-side-effect,
   bugprone-dangling-handle,
   bugprone-inaccurate-erase,
