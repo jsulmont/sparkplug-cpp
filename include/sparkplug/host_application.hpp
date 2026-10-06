@@ -15,6 +15,8 @@
 #include <span>
 #include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include <MQTTAsync.h>
 
@@ -106,6 +108,7 @@ public:
     std::string
         enabled_cipher_suites; ///< Colon-separated list of cipher suites (optional)
     bool enable_server_cert_auth = true; ///< Verify server certificate (default: true)
+    bool verify_hostname = true; ///< Verify certificate identity matches broker_url host (default: true)
   };
 
   /**
@@ -174,6 +177,9 @@ public:
         password{};                     ///< MQTT password for authentication (optional)
     MessageCallback message_callback{}; ///< Callback for received Sparkplug messages
     LogCallback log_callback{};         ///< Optional callback for library log messages
+    size_t max_payload_bytes = 1 << 20; ///< Max accepted inbound payload size; larger messages are dropped (default 1 MiB, CWE-400)
+    size_t max_tracked_nodes = 4096; ///< Max distinct edge nodes tracked; further nodes are ignored (default 4096, CWE-400)
+    size_t max_metrics_per_birth = 10000; ///< Max aliases recorded per NBIRTH/DBIRTH (default 10000, CWE-400)
   };
 
   /**
@@ -542,6 +548,11 @@ private:
   std::unordered_map<NodeKey, NodeState, NodeKeyHash, NodeKeyEqual> node_states_;
   mutable std::mutex node_states_mutex_; // Protects node_states_ only
 
+  // State-tracking caps copied from Config at construction; written only under
+  // both mutexes (move), read under node_states_mutex_ in validate_message.
+  size_t max_tracked_nodes_{4096};
+  size_t max_metrics_per_birth_{10000};
+
   // Mutex for thread-safe access to config and other mutable state
   mutable std::mutex mutex_;
 
@@ -554,8 +565,12 @@ private:
   [[nodiscard]] stdx::expected<void, std::string>
   publish_command_message(std::string_view topic, std::span<const uint8_t> payload_data);
 
+  // Deferred logs: validate_message runs under node_states_mutex_ and must not
+  // invoke the log callback there (user loggers may call public getters that
+  // take the same mutex — deadlock, CWE-667). Caller flushes after unlock.
   bool validate_message(const Topic& topic,
-                        const org::eclipse::tahu::protobuf::Payload& payload);
+                        const org::eclipse::tahu::protobuf::Payload& payload,
+                        std::vector<std::pair<LogLevel, std::string>>& deferred_logs);
 
   // Static MQTT callback for message arrived
   static int on_message_arrived(void* context,

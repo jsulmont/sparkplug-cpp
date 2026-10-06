@@ -106,6 +106,7 @@ public:
     std::string
         enabled_cipher_suites; ///< Colon-separated list of cipher suites (optional)
     bool enable_server_cert_auth = true; ///< Verify server certificate (default: true)
+    bool verify_hostname = true; ///< Verify certificate identity matches broker_url host (default: true)
   };
 
   /**
@@ -132,6 +133,7 @@ public:
     std::optional<CommandCallback> command_callback{};
     std::optional<std::string> primary_host_id{};
     std::optional<LogCallback> log_callback{};
+    size_t max_payload_bytes = 1 << 20; ///< Max accepted inbound payload size; larger messages are dropped (default 1 MiB, CWE-400)
   };
 
   /**

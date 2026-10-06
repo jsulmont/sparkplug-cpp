@@ -17,39 +17,66 @@ constexpr int CONNECTION_TIMEOUT_MS = 10000; // Increased from 5s to 10s
 constexpr int DISCONNECT_TIMEOUT_MS = 11000;
 constexpr uint64_t SEQ_NUMBER_MAX = 256;
 
+// Heap-allocated so a late Paho response (broker-controlled timing) after a
+// wait_for() timeout cannot touch a destroyed stack promise (CWE-416). The
+// completing callback owns and deletes it; Paho fires exactly one of
+// onSuccess/onFailure per command.
+struct AsyncOp {
+  std::promise<void> promise;
+};
+
+void complete_async_op(void* context) noexcept {
+  auto* op = static_cast<AsyncOp*>(context);
+  try {
+    op->promise.set_value();
+  } catch (...) {
+  }
+  delete op;
+}
+
+void fail_async_op(void* context, std::string_view what, int code) noexcept {
+  auto* op = static_cast<AsyncOp*>(context);
+  try {
+    op->promise.set_exception(std::make_exception_ptr(
+        std::runtime_error(std::format("{} failed: code={}", what, code))));
+  } catch (...) {
+  }
+  delete op;
+}
+
 void on_connect_success(void* context, MQTTAsync_successData* response) {
   (void)response;
-  auto* promise = static_cast<std::promise<void>*>(context);
-  promise->set_value();
+  complete_async_op(context);
 }
 
 void on_connect_failure(void* context, MQTTAsync_failureData* response) {
-  auto* promise = static_cast<std::promise<void>*>(context);
-  std::string error;
+  auto* op = static_cast<AsyncOp*>(context);
+  std::string error = "Connection failed: no response data";
   if (response) {
     error = std::format("Connection failed: code={}, message={}", response->code,
                         response->message ? response->message : "none");
-  } else {
-    error = "Connection failed: no response data";
   }
-  promise->set_exception(std::make_exception_ptr(std::runtime_error(error)));
+  try {
+    op->promise.set_exception(std::make_exception_ptr(std::runtime_error(error)));
+  } catch (...) {
+  }
+  delete op;
 }
 
 void on_disconnect_success(void* context, MQTTAsync_successData* response) {
   (void)response;
-  auto* promise = static_cast<std::promise<void>*>(context);
-  promise->set_value();
+  complete_async_op(context);
 }
 
 void on_disconnect_failure(void* context, MQTTAsync_failureData* response) {
-  auto* promise = static_cast<std::promise<void>*>(context);
-  auto error = std::format("Disconnect failed: code={}", response ? response->code : -1);
-  promise->set_exception(std::make_exception_ptr(std::runtime_error(error)));
+  fail_async_op(context, "Disconnect", response ? response->code : -1);
 }
 
 } // namespace
 
 HostApplication::HostApplication(Config config) : config_(std::move(config)) {
+  max_tracked_nodes_ = config_.max_tracked_nodes;
+  max_metrics_per_birth_ = config_.max_metrics_per_birth;
 }
 
 HostApplication::~HostApplication() {
@@ -68,7 +95,16 @@ HostApplication::HostApplication(HostApplication&& other) noexcept {
   is_connected_.store(other.is_connected_.load(std::memory_order_relaxed),
                       std::memory_order_relaxed);
   node_states_ = std::move(other.node_states_);
+  max_tracked_nodes_ = other.max_tracked_nodes_;
+  max_metrics_per_birth_ = other.max_metrics_per_birth_;
   other.is_connected_.store(false, std::memory_order_relaxed);
+
+  // Rebind Paho callbacks: the client handle still carries the moved-from
+  // object as its context (CWE-416).
+  if (client_) {
+    MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost,
+                           on_message_arrived, nullptr);
+  }
 }
 
 HostApplication& HostApplication::operator=(HostApplication&& other) noexcept {
@@ -82,8 +118,19 @@ HostApplication& HostApplication::operator=(HostApplication&& other) noexcept {
     is_connected_.store(other.is_connected_.load(std::memory_order_relaxed),
                         std::memory_order_relaxed);
     node_states_ = std::move(other.node_states_);
-    ssl_opts_ = other.ssl_opts_;
+    max_tracked_nodes_ = other.max_tracked_nodes_;
+    max_metrics_per_birth_ = other.max_metrics_per_birth_;
+    // Reset rather than shallow-copy: ssl_opts_ holds pointers into the moved
+    // TLS strings; connect() rebuilds it (CWE-416).
+    ssl_opts_ = MQTTAsync_SSLOptions_initializer;
     other.is_connected_.store(false, std::memory_order_relaxed);
+
+    // Rebind Paho callbacks: the client handle still carries the moved-from
+    // object as its context (CWE-416).
+    if (client_) {
+      MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost,
+                             on_message_arrived, nullptr);
+    }
   }
   return *this;
 }
@@ -114,21 +161,27 @@ stdx::expected<void, std::string> HostApplication::connect() {
   // Phase 1: Prepare client and initiate async connect under lock.
   // Lock is released before blocking waits to avoid holding mutex_
   // while Paho callbacks (which may call log()) could fire.
-  std::promise<void> connect_promise;
-  auto connect_future = connect_promise.get_future();
+  auto* connect_op = new AsyncOp{}; // heap op: survives late callbacks after timeout
+  auto connect_future = connect_op->promise.get_future();
+  bool plaintext_creds = false;
   MQTTAsync client_handle = nullptr;
 
   {
     std::scoped_lock lock(mutex_);
 
-    MQTTAsync raw_client = nullptr;
-    int rc =
-        MQTTAsync_create(&raw_client, config_.broker_url.c_str(),
-                         config_.client_id.c_str(), MQTTCLIENT_PERSISTENCE_NONE, nullptr);
-    if (rc != MQTTASYNC_SUCCESS) {
-      return stdx::unexpected(std::format("Failed to create client: {}", rc));
+    // Reuse the client handle across reconnects: recreating it invalidates
+    // raw handles captured by in-flight publish calls (CWE-367).
+    int rc = MQTTASYNC_SUCCESS;
+    if (!client_) {
+      MQTTAsync raw_client = nullptr;
+      rc = MQTTAsync_create(&raw_client, config_.broker_url.c_str(),
+                            config_.client_id.c_str(), MQTTCLIENT_PERSISTENCE_NONE,
+                            nullptr);
+      if (rc != MQTTASYNC_SUCCESS) {
+        return stdx::unexpected(std::format("Failed to create client: {}", rc));
+      }
+      client_ = MQTTAsyncHandle(raw_client);
     }
-    client_ = MQTTAsyncHandle(raw_client);
 
     rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost,
                                 on_message_arrived, nullptr);
@@ -147,6 +200,10 @@ stdx::expected<void, std::string> HostApplication::connect() {
     if (config_.password.has_value()) {
       conn_opts.password = config_.password.value().c_str();
     }
+    // Credentials on a plaintext transport are sniffable (CWE-319).
+    plaintext_creds = config_.username.has_value() &&
+                      !config_.broker_url.starts_with("ssl://") &&
+                      !config_.broker_url.starts_with("wss://");
 
     ssl_opts_ = MQTTAsync_SSLOptions_initializer;
     if (config_.tls.has_value()) {
@@ -159,20 +216,29 @@ stdx::expected<void, std::string> HostApplication::connect() {
       ssl_opts_.enabledCipherSuites =
           tls.enabled_cipher_suites.empty() ? nullptr : tls.enabled_cipher_suites.c_str();
       ssl_opts_.enableServerCertAuth = tls.enable_server_cert_auth;
+      // Paho defaults `verify` to 0 (chain check only); enabling it ties the
+      // certificate identity to broker_url's host (CWE-297).
+      ssl_opts_.verify = tls.verify_hostname ? 1 : 0;
       conn_opts.ssl = &ssl_opts_;
     }
 
-    conn_opts.context = &connect_promise;
+    conn_opts.context = connect_op;
     conn_opts.onSuccess = on_connect_success;
     conn_opts.onFailure = on_connect_failure;
 
     rc = MQTTAsync_connect(client_.get(), &conn_opts);
     if (rc != MQTTASYNC_SUCCESS) {
-      MQTTAsync_setCallbacks(client_.get(), nullptr, nullptr, nullptr, nullptr);
+      delete connect_op; // callbacks never fire on synchronous failure
       return stdx::unexpected(std::format("Failed to connect: {}", rc));
     }
 
     client_handle = client_.get();
+  }
+
+  if (plaintext_creds) {
+    log(LogLevel::WARN,
+        "MQTT username/password configured for a non-TLS broker URL; "
+        "credentials will be sent in cleartext");
   }
 
   // Phase 2: Wait for connect completion (no lock held)
@@ -213,17 +279,18 @@ stdx::expected<void, std::string> HostApplication::disconnect() {
 
   // Phase 2: Wait for disconnect completion (no lock held)
   // Lock is released to prevent deadlock with on_connection_lost callback.
-  std::promise<void> disconnect_promise;
-  auto disconnect_future = disconnect_promise.get_future();
+  auto* disconnect_op = new AsyncOp{};
+  auto disconnect_future = disconnect_op->promise.get_future();
 
   MQTTAsync_disconnectOptions opts = MQTTAsync_disconnectOptions_initializer;
   opts.timeout = DISCONNECT_TIMEOUT_MS;
-  opts.context = &disconnect_promise;
+  opts.context = disconnect_op;
   opts.onSuccess = on_disconnect_success;
   opts.onFailure = on_disconnect_failure;
 
   int rc = MQTTAsync_disconnect(client_handle, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
+    delete disconnect_op;
     return stdx::unexpected(std::format("Failed to disconnect: {}", rc));
   }
 
@@ -344,8 +411,15 @@ HostApplication::publish_raw_message(std::string_view topic,
                                      std::span<const uint8_t> payload_data,
                                      int qos,
                                      bool retain) {
-  if (!client_ || !is_connected_) {
-    return stdx::unexpected("Not connected");
+  // Copy the handle under the lock: unsynchronized reads of client_ race
+  // reconnect/destruction (CWE-362).
+  MQTTAsync client_handle = nullptr;
+  {
+    std::scoped_lock lock(mutex_);
+    if (!client_ || !is_connected_) {
+      return stdx::unexpected("Not connected");
+    }
+    client_handle = client_.get();
   }
 
   MQTTAsync_message msg = MQTTAsync_message_initializer;
@@ -354,24 +428,22 @@ HostApplication::publish_raw_message(std::string_view topic,
   msg.qos = qos;
   msg.retained = retain ? 1 : 0;
 
-  std::promise<void> send_promise;
-  auto send_future = send_promise.get_future();
+  auto* send_op = new AsyncOp{}; // heap op: survives a late PUBACK after timeout
+  auto send_future = send_op->promise.get_future();
 
   MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
-  opts.context = &send_promise;
+  opts.context = send_op;
   opts.onSuccess = [](void* context, MQTTAsync_successData* /*response*/) {
-    auto* promise = static_cast<std::promise<void>*>(context);
-    promise->set_value();
+    complete_async_op(context);
   };
   opts.onFailure = [](void* context, MQTTAsync_failureData* response) {
-    auto* promise = static_cast<std::promise<void>*>(context);
-    std::string error =
-        std::format("Publish failed: code={}", response ? response->code : -1);
-    promise->set_exception(std::make_exception_ptr(std::runtime_error(error)));
+    fail_async_op(context, "Publish", response ? response->code : -1);
   };
 
-  int rc = MQTTAsync_sendMessage(client_.get(), std::string(topic).c_str(), &msg, &opts);
+  int rc = MQTTAsync_sendMessage(client_handle, std::string(topic).c_str(), &msg,
+                                 &opts);
   if (rc != MQTTASYNC_SUCCESS) {
+    delete send_op;
     return stdx::unexpected(std::format("Failed to publish: {}", rc));
   }
 
@@ -392,8 +464,15 @@ HostApplication::publish_raw_message(std::string_view topic,
 stdx::expected<void, std::string>
 HostApplication::publish_command_message(std::string_view topic,
                                          std::span<const uint8_t> payload_data) {
-  if (!client_ || !is_connected_) {
-    return stdx::unexpected("Not connected");
+  // Copy the handle under the lock: unsynchronized reads of client_ race
+  // reconnect/destruction (CWE-362).
+  MQTTAsync client_handle = nullptr;
+  {
+    std::scoped_lock lock(mutex_);
+    if (!client_ || !is_connected_) {
+      return stdx::unexpected("Not connected");
+    }
+    client_handle = client_.get();
   }
 
   MQTTAsync_message msg = MQTTAsync_message_initializer;
@@ -404,7 +483,8 @@ HostApplication::publish_command_message(std::string_view topic,
 
   MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
 
-  int rc = MQTTAsync_sendMessage(client_.get(), std::string(topic).c_str(), &msg, &opts);
+  int rc = MQTTAsync_sendMessage(client_handle, std::string(topic).c_str(), &msg,
+                                 &opts);
   if (rc != MQTTASYNC_SUCCESS) {
     return stdx::unexpected(std::format("Failed to publish: {}", rc));
   }
@@ -550,26 +630,47 @@ void HostApplication::log(LogLevel level, std::string_view message) const noexce
     cb = config_.log_callback;
   }
   if (cb) {
-    cb(level, message);
+    try {
+      // Sanitized: attacker-controlled topics/IDs must not inject log forgeries
+      // or terminal escapes; barrier: a throwing callback is noexcept-fatal.
+      cb(level, sanitize_log_message(message));
+    } catch (...) {
+    }
   }
 }
 
 bool HostApplication::validate_message(
     const Topic& topic,
-    const org::eclipse::tahu::protobuf::Payload& payload) {
+    const org::eclipse::tahu::protobuf::Payload& payload,
+    std::vector<std::pair<LogLevel, std::string>>& deferred_logs) {
   if (!config_.validate_sequence) {
     return true;
   }
 
+  // Bounded state tracking: refuse traffic beyond max_tracked_nodes distinct
+  // nodes rather than growing without limit (CWE-400).
   NodeKey key{topic.group_id, topic.edge_node_id};
-  auto& state = node_states_[key];
+  auto state_it = node_states_.find(key);
+  if (state_it == node_states_.end()) {
+    if (node_states_.size() >= max_tracked_nodes_) {
+      deferred_logs.emplace_back(
+          LogLevel::WARN,
+          std::format("Max tracked nodes ({}) reached; ignoring {}/{}",
+                      max_tracked_nodes_, topic.group_id, topic.edge_node_id));
+      return false;
+    }
+    state_it = node_states_.emplace(std::move(key), NodeState{}).first;
+  }
+  auto& state = state_it->second;
   const std::string node_id = topic.group_id + "/" + topic.edge_node_id;
 
   switch (topic.message_type) {
   case MessageType::NBIRTH: {
     if (payload.has_seq() && payload.seq() != 0) {
-      log(LogLevel::WARN, std::format("NBIRTH for {} has invalid seq: {} (expected 0)",
-                                      node_id, payload.seq()));
+      deferred_logs.emplace_back(
+          LogLevel::WARN,
+          std::format("NBIRTH for {} has invalid seq: {} (expected 0)", node_id,
+                      payload.seq()));
       return false;
     }
 
@@ -584,7 +685,8 @@ bool HostApplication::validate_message(
     }
 
     if (!has_bdseq) {
-      log(LogLevel::WARN,
+      deferred_logs.emplace_back(
+          LogLevel::WARN,
           std::format("NBIRTH for {} missing required bdSeq metric", node_id));
       return false;
     }
@@ -598,6 +700,14 @@ bool HostApplication::validate_message(
     state.alias_map.clear();
     for (const auto& metric : payload.metrics()) {
       if (metric.has_alias() && metric.has_name()) {
+        if (state.alias_map.size() >= max_metrics_per_birth_) {
+          deferred_logs.emplace_back(
+              LogLevel::WARN,
+              std::format("NBIRTH for {} exceeds max_metrics_per_birth ({}); "
+                          "ignoring remaining metrics",
+                          node_id, max_metrics_per_birth_));
+          break;
+        }
         state.alias_map[metric.alias()] = metric.name();
       }
     }
@@ -614,10 +724,15 @@ bool HostApplication::validate_message(
       }
     }
 
+    // Spec: an NDEATH whose bdSeq does not match the last NBIRTH is stale —
+    // ignore it instead of letting a replayed death take the node offline.
     if (state.birth_received && bd_seq != state.bd_seq) {
-      log(LogLevel::WARN,
-          std::format("NDEATH bdSeq mismatch for {} (NDEATH: {}, NBIRTH: {})", node_id,
-                      bd_seq, state.bd_seq));
+      deferred_logs.emplace_back(
+          LogLevel::WARN,
+          std::format("NDEATH bdSeq mismatch for {} (NDEATH: {}, NBIRTH: {}); "
+                      "ignoring stale death",
+                      node_id, bd_seq, state.bd_seq));
+      return false;
     }
 
     state.is_online = false;
@@ -626,7 +741,8 @@ bool HostApplication::validate_message(
 
   case MessageType::NDATA: {
     if (!state.birth_received) {
-      log(LogLevel::WARN, std::format("Received NDATA for {} before NBIRTH", node_id));
+      deferred_logs.emplace_back(
+          LogLevel::WARN, std::format("Received NDATA for {} before NBIRTH", node_id));
       return false;
     }
 
@@ -635,9 +751,10 @@ bool HostApplication::validate_message(
       uint64_t expected_seq = (state.last_seq + 1) % SEQ_NUMBER_MAX;
 
       if (seq != expected_seq) {
-        log(LogLevel::WARN,
-            std::format("Sequence number gap for {} (got {}, expected {})", node_id, seq,
-                        expected_seq));
+        deferred_logs.emplace_back(
+            LogLevel::WARN,
+            std::format("Sequence number gap for {} (got {}, expected {})", node_id,
+                        seq, expected_seq));
       }
 
       state.last_seq = seq;
@@ -648,7 +765,8 @@ bool HostApplication::validate_message(
 
   case MessageType::DBIRTH: {
     if (!state.birth_received) {
-      log(LogLevel::WARN,
+      deferred_logs.emplace_back(
+          LogLevel::WARN,
           std::format("Received DBIRTH for device on {} before node NBIRTH", node_id));
       return false;
     }
@@ -658,7 +776,8 @@ bool HostApplication::validate_message(
       uint64_t expected_seq = (state.last_seq + 1) % SEQ_NUMBER_MAX;
 
       if (seq != expected_seq) {
-        log(LogLevel::WARN,
+        deferred_logs.emplace_back(
+            LogLevel::WARN,
             std::format(
                 "Sequence number gap for DBIRTH device '{}' on {} (got {}, expected {})",
                 topic.device_id, node_id, seq, expected_seq));
@@ -667,7 +786,20 @@ bool HostApplication::validate_message(
       state.last_seq = seq;
     }
 
-    auto& device_state = state.devices[topic.device_id];
+    // Bounded per-node device tracking (CWE-400).
+    auto device_it = state.devices.find(topic.device_id);
+    if (device_it == state.devices.end()) {
+      if (state.devices.size() >= max_tracked_nodes_) {
+        deferred_logs.emplace_back(
+            LogLevel::WARN,
+            std::format("Max tracked devices per node ({}) reached on {}; ignoring "
+                        "device '{}'",
+                        max_tracked_nodes_, node_id, topic.device_id));
+        return false;
+      }
+      device_it = state.devices.try_emplace(std::string(topic.device_id)).first;
+    }
+    auto& device_state = device_it->second;
     device_state.is_online = true;
     device_state.birth_received = true;
     device_state.metrics_stale = false;
@@ -676,6 +808,14 @@ bool HostApplication::validate_message(
     device_state.alias_map.clear();
     for (const auto& metric : payload.metrics()) {
       if (metric.has_alias() && metric.has_name()) {
+        if (device_state.alias_map.size() >= max_metrics_per_birth_) {
+          deferred_logs.emplace_back(
+              LogLevel::WARN,
+              std::format("DBIRTH for device '{}' on {} exceeds max_metrics_per_birth "
+                          "({}); ignoring remaining metrics",
+                          topic.device_id, node_id, max_metrics_per_birth_));
+          break;
+        }
         device_state.alias_map[metric.alias()] = metric.name();
       }
     }
@@ -685,7 +825,8 @@ bool HostApplication::validate_message(
 
   case MessageType::DDATA: {
     if (!state.birth_received) {
-      log(LogLevel::WARN,
+      deferred_logs.emplace_back(
+          LogLevel::WARN,
           std::format("Received DDATA for device '{}' on {} before node NBIRTH",
                       topic.device_id, node_id));
       return false;
@@ -693,7 +834,8 @@ bool HostApplication::validate_message(
 
     auto device_it = state.devices.find(topic.device_id);
     if (device_it == state.devices.end() || !device_it->second.birth_received) {
-      log(LogLevel::WARN,
+      deferred_logs.emplace_back(
+          LogLevel::WARN,
           std::format("Received DDATA for device '{}' on {} before DBIRTH",
                       topic.device_id, node_id));
       return false;
@@ -704,7 +846,8 @@ bool HostApplication::validate_message(
       uint64_t expected_seq = (state.last_seq + 1) % SEQ_NUMBER_MAX;
 
       if (seq != expected_seq) {
-        log(LogLevel::WARN,
+        deferred_logs.emplace_back(
+            LogLevel::WARN,
             std::format("Sequence number gap for device '{}' on {} (got {}, expected {})",
                         topic.device_id, node_id, seq, expected_seq));
       }
@@ -723,10 +866,12 @@ bool HostApplication::validate_message(
         device_it->second.offline_timestamp = payload.timestamp();
       }
       device_it->second.metrics_stale = true;
-      log(LogLevel::DEBUG, std::format("Device {} offline, metrics stale on {}",
+      deferred_logs.emplace_back(
+          LogLevel::DEBUG, std::format("Device {} offline, metrics stale on {}",
                                        topic.device_id, node_id));
     } else {
-      log(LogLevel::WARN, std::format("Received DDEATH for unknown device {} on {}",
+      deferred_logs.emplace_back(
+          LogLevel::WARN, std::format("Received DDEATH for unknown device {} on {}",
                                       topic.device_id, node_id));
     }
     return true;
@@ -756,10 +901,18 @@ int HostApplication::on_message_arrived(void* context,
 
   std::string topic_str(topicName, topicLen > 0 ? topicLen : strlen(topicName));
 
+  // Copy config under the lock: this read must not race concurrent set_*()
+  // calls, and user callbacks must not run while mutex_ is held (CWE-362).
+  MessageCallback message_callback;
+  size_t max_payload_bytes = 0;
+  {
+    std::scoped_lock lock(host_app->mutex_);
+    message_callback = host_app->config_.message_callback;
+    max_payload_bytes = host_app->config_.max_payload_bytes;
+  }
+
   std::string state_prefix = std::format("{}/STATE/", NAMESPACE);
   if (topic_str.starts_with(state_prefix)) {
-    std::string state_value(static_cast<char*>(message->payload), message->payloadlen);
-
     org::eclipse::tahu::protobuf::Payload dummy_payload;
 
     Topic state_topic{.group_id = "",
@@ -767,9 +920,9 @@ int HostApplication::on_message_arrived(void* context,
                       .edge_node_id = topic_str.substr(state_prefix.length()),
                       .device_id = ""};
 
-    if (host_app->config_.message_callback) {
+    if (message_callback) {
       try {
-        host_app->config_.message_callback(state_topic, dummy_payload);
+        message_callback(state_topic, dummy_payload);
       } catch (...) {
       }
     }
@@ -789,6 +942,16 @@ int HostApplication::on_message_arrived(void* context,
     return 1;
   }
 
+  // Drop empty or oversized payloads before protobuf allocates (CWE-400).
+  if (message->payloadlen <= 0 ||
+      static_cast<size_t>(message->payloadlen) > max_payload_bytes) {
+    host_app->log(LogLevel::WARN,
+                  std::format("Dropping oversized payload on {}", topic_str));
+    MQTTAsync_freeMessage(&message);
+    MQTTAsync_free(topicName);
+    return 1;
+  }
+
   org::eclipse::tahu::protobuf::Payload payload;
   if (!payload.ParseFromArray(message->payload, message->payloadlen)) {
     host_app->log(LogLevel::ERROR, "Failed to parse Sparkplug B payload");
@@ -797,14 +960,21 @@ int HostApplication::on_message_arrived(void* context,
     return 1;
   }
 
+  // Deferred logs: validate_message must not invoke the log callback under
+  // node_states_mutex_ (user loggers may call public getters that take the
+  // same mutex — deadlock, CWE-667).
+  std::vector<std::pair<LogLevel, std::string>> deferred_logs;
   {
     std::scoped_lock lock(host_app->node_states_mutex_);
-    host_app->validate_message(*topic_result, payload);
+    host_app->validate_message(*topic_result, payload, deferred_logs);
+  }
+  for (const auto& [level, msg] : deferred_logs) {
+    host_app->log(level, msg);
   }
 
-  if (host_app->config_.message_callback) {
+  if (message_callback) {
     try {
-      host_app->config_.message_callback(*topic_result, payload);
+      message_callback(*topic_result, payload);
     } catch (...) {
     }
   }

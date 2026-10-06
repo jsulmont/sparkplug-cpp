@@ -16,60 +16,197 @@ constexpr int DISCONNECT_TIMEOUT_MS = 11000;
 constexpr int SUBSCRIBE_TIMEOUT_MS = 5000;
 constexpr uint64_t SEQ_NUMBER_MAX = 256;
 
-// Parse "online" boolean from Sparkplug STATE JSON, tolerating whitespace.
-std::optional<bool> parse_state_online(std::string_view json) {
-  constexpr std::string_view ws = " \t\n\r";
-  auto key_pos = json.find("\"online\"");
-  if (key_pos == std::string_view::npos)
-    return std::nullopt;
-  auto rest = json.substr(key_pos + 8);
-  auto colon = rest.find_first_not_of(ws);
-  if (colon == std::string_view::npos || rest[colon] != ':')
-    return std::nullopt;
-  auto val = rest.find_first_not_of(ws, colon + 1);
-  if (val == std::string_view::npos)
-    return std::nullopt;
-  if (rest[val] == 't')
-    return true;
-  if (rest[val] == 'f')
+// Minimal JSON scanner for the STATE payload. Structure-only: string contents
+// are not unescaped, but malformed input is rejected.
+struct JsonCursor {
+  std::string_view s;
+  size_t pos = 0;
+
+  void skip_ws() {
+    while (pos < s.size()) {
+      const char c = s[pos];
+      if (c != ' ' && c != '\t' && c != '\r' && c != '\n') {
+        break;
+      }
+      ++pos;
+    }
+  }
+
+  bool consume(char c) {
+    skip_ws();
+    if (pos < s.size() && s[pos] == c) {
+      ++pos;
+      return true;
+    }
     return false;
-  return std::nullopt;
+  }
+};
+
+bool skip_json_string(JsonCursor& cur, std::string_view* out = nullptr) {
+  if (!cur.consume('"')) {
+    return false;
+  }
+  const size_t start = cur.pos;
+  while (cur.pos < cur.s.size()) {
+    const char c = cur.s[cur.pos];
+    if (c == '"') {
+      if (out) {
+        *out = cur.s.substr(start, cur.pos - start);
+      }
+      ++cur.pos;
+      return true;
+    }
+    cur.pos += (c == '\\') ? 2 : 1; // skip escaped char without interpreting
+  }
+  return false;
+}
+
+bool skip_json_value(JsonCursor& cur) {
+  cur.skip_ws();
+  if (cur.pos >= cur.s.size()) {
+    return false;
+  }
+  const char c = cur.s[cur.pos];
+  if (c == '"') {
+    return skip_json_string(cur);
+  }
+  if (c == '{' || c == '[') {
+    const char open = c;
+    const char close = (c == '{') ? '}' : ']';
+    int depth = 0;
+    while (cur.pos < cur.s.size()) {
+      const char d = cur.s[cur.pos];
+      if (d == '"') {
+        if (!skip_json_string(cur)) {
+          return false;
+        }
+        continue;
+      }
+      ++cur.pos;
+      if (d == open) {
+        ++depth;
+      } else if (d == close && --depth == 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+  // number / true / false / null token
+  const size_t start = cur.pos;
+  while (cur.pos < cur.s.size()) {
+    const char d = cur.s[cur.pos];
+    const bool in_token = (d >= 'a' && d <= 'z') || (d >= '0' && d <= '9') ||
+                          d == '-' || d == '+' || d == '.' || d == 'e' || d == 'E';
+    if (!in_token) {
+      break;
+    }
+    ++cur.pos;
+  }
+  return cur.pos > start;
+}
+
+// Strict parser for the Sparkplug STATE payload: a well-formed JSON object
+// whose "online" member is a JSON boolean. Replaces the substring scan that
+// accepted non-JSON garbage and truncated literals (CWE-20).
+std::optional<bool> parse_state_online(std::string_view json) {
+  JsonCursor cur{json};
+  if (!cur.consume('{')) {
+    return std::nullopt;
+  }
+
+  std::optional<bool> online;
+  if (!cur.consume('}')) {
+    while (true) {
+      std::string_view key;
+      if (!skip_json_string(cur, &key) || !cur.consume(':')) {
+        return std::nullopt;
+      }
+      if (key == "online") {
+        cur.skip_ws();
+        const auto match = [&](std::string_view token) {
+          return cur.pos + token.size() <= cur.s.size() &&
+                 cur.s.substr(cur.pos, token.size()) == token;
+        };
+        if (match("true")) {
+          online = true;
+          cur.pos += 4;
+        } else if (match("false")) {
+          online = false;
+          cur.pos += 5;
+        } else {
+          return std::nullopt; // "online" must be a JSON boolean
+        }
+      } else if (!skip_json_value(cur)) {
+        return std::nullopt;
+      }
+      if (!cur.consume(',')) {
+        break;
+      }
+    }
+    if (!cur.consume('}')) {
+      return std::nullopt;
+    }
+  }
+
+  if (!online.has_value()) {
+    return std::nullopt;
+  }
+  cur.skip_ws();
+  return (cur.pos == json.size()) ? online : std::nullopt;
+}
+
+// Heap-allocated so a late Paho response (broker-controlled timing) after a
+// wait_for() timeout cannot touch a destroyed stack promise (CWE-416). The
+// completing callback owns and deletes it; Paho fires exactly one of
+// onSuccess/onFailure per command.
+struct AsyncOp {
+  std::promise<void> promise;
+};
+
+void complete_async_op(void* context) noexcept {
+  auto* op = static_cast<AsyncOp*>(context);
+  try {
+    op->promise.set_value();
+  } catch (...) {
+  }
+  delete op;
+}
+
+void fail_async_op(void* context, std::string_view what, int code) noexcept {
+  auto* op = static_cast<AsyncOp*>(context);
+  try {
+    op->promise.set_exception(std::make_exception_ptr(
+        std::runtime_error(std::format("{} failed: code={}", what, code))));
+  } catch (...) {
+  }
+  delete op;
 }
 
 void on_connect_success(void* context, MQTTAsync_successData* response) {
   (void)response;
-  auto* promise = static_cast<std::promise<void>*>(context);
-  promise->set_value();
+  complete_async_op(context);
 }
 
 void on_connect_failure(void* context, MQTTAsync_failureData* response) {
-  auto* promise = static_cast<std::promise<void>*>(context);
-  auto error = std::format("Connection failed: code={}", response ? response->code : -1);
-  promise->set_exception(std::make_exception_ptr(std::runtime_error(error)));
+  fail_async_op(context, "Connection", response ? response->code : -1);
 }
 
 void on_disconnect_success(void* context, MQTTAsync_successData* response) {
   (void)response;
-  auto* promise = static_cast<std::promise<void>*>(context);
-  promise->set_value();
+  complete_async_op(context);
 }
 
 void on_disconnect_failure(void* context, MQTTAsync_failureData* response) {
-  auto* promise = static_cast<std::promise<void>*>(context);
-  auto error = std::format("Disconnect failed: code={}", response ? response->code : -1);
-  promise->set_exception(std::make_exception_ptr(std::runtime_error(error)));
+  fail_async_op(context, "Disconnect", response ? response->code : -1);
 }
 
 void on_subscribe_success(void* context, MQTTAsync_successData* response) {
   (void)response;
-  auto* promise = static_cast<std::promise<void>*>(context);
-  promise->set_value();
+  complete_async_op(context);
 }
 
 void on_subscribe_failure(void* context, MQTTAsync_failureData* response) {
-  auto* promise = static_cast<std::promise<void>*>(context);
-  auto error = std::format("Subscribe failed: code={}", response ? response->code : -1);
-  promise->set_exception(std::make_exception_ptr(std::runtime_error(error)));
+  fail_async_op(context, "Subscribe", response ? response->code : -1);
 }
 
 } // namespace
@@ -104,6 +241,13 @@ int EdgeNode::on_message_arrived(void* context,
                                  int topicLen,
                                  MQTTAsync_message* message) {
   auto* edge_node = static_cast<EdgeNode*>(context);
+  if (!edge_node || !topicName || !message) {
+    if (message) {
+      MQTTAsync_freeMessage(&message);
+      MQTTAsync_free(topicName);
+    }
+    return 1;
+  }
 
   std::string topic_str;
   if (topicLen > 0) {
@@ -112,9 +256,27 @@ int EdgeNode::on_message_arrived(void* context,
     topic_str = std::string(topicName);
   }
 
+  // Copy config under the lock: this read must not race concurrent set_*()
+  // calls, and user callbacks must not run while mutex_ is held (CWE-362).
+  std::optional<CommandCallback> command_callback;
+  size_t max_payload_bytes = 0;
+  {
+    std::scoped_lock lock(edge_node->mutex_);
+    command_callback = edge_node->config_.command_callback;
+    max_payload_bytes = edge_node->config_.max_payload_bytes;
+  }
+
+  // Drop empty or oversized payloads before any allocation (CWE-400).
+  if (message->payloadlen <= 0 ||
+      static_cast<size_t>(message->payloadlen) > max_payload_bytes) {
+    MQTTAsync_freeMessage(&message);
+    MQTTAsync_free(topicName);
+    return 1;
+  }
+
   if (topic_str.starts_with("spBv1.0/STATE/")) {
     std::string payload_str(static_cast<const char*>(message->payload),
-                            message->payloadlen);
+                            static_cast<size_t>(message->payloadlen));
 
     if (auto online = parse_state_online(payload_str)) {
       edge_node->primary_host_online_.store(*online, std::memory_order_relaxed);
@@ -136,10 +298,15 @@ int EdgeNode::on_message_arrived(void* context,
 
   if ((topic.message_type == MessageType::NCMD ||
        topic.message_type == MessageType::DCMD) &&
-      edge_node->config_.command_callback) {
+      command_callback) {
     org::eclipse::tahu::protobuf::Payload payload;
     if (payload.ParseFromArray(message->payload, message->payloadlen)) {
-      edge_node->config_.command_callback.value()(topic, payload);
+      // Exception barrier: a throw from user code must not unwind through
+      // Paho's C stack frames (CWE-248).
+      try {
+        command_callback.value()(topic, payload);
+      } catch (...) {
+      }
     }
   }
 
@@ -176,6 +343,13 @@ EdgeNode::EdgeNode(EdgeNode&& other) noexcept {
                              std::memory_order_relaxed);
   other.is_connected_.store(false, std::memory_order_relaxed);
   other.primary_host_online_.store(false, std::memory_order_relaxed);
+
+  // Rebind Paho callbacks: the client handle still carries the moved-from
+  // object as its context (CWE-416).
+  if (client_) {
+    MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost,
+                           on_message_arrived, nullptr);
+  }
 }
 
 EdgeNode& EdgeNode::operator=(EdgeNode&& other) noexcept {
@@ -196,6 +370,13 @@ EdgeNode& EdgeNode::operator=(EdgeNode&& other) noexcept {
                                std::memory_order_relaxed);
     other.is_connected_.store(false, std::memory_order_relaxed);
     other.primary_host_online_.store(false, std::memory_order_relaxed);
+
+    // Rebind Paho callbacks: the client handle still carries the moved-from
+    // object as its context (CWE-416).
+    if (client_) {
+      MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost,
+                             on_message_arrived, nullptr);
+    }
   }
   return *this;
 }
@@ -221,8 +402,9 @@ stdx::expected<void, std::string> EdgeNode::connect() {
   // Phase 1: Prepare client and initiate async connect under lock.
   // Lock is released before any blocking waits to prevent deadlock
   // with on_connection_lost callback.
-  std::promise<void> connect_promise;
-  auto connect_future = connect_promise.get_future();
+  auto* connect_op = new AsyncOp{}; // heap op: survives late callbacks after timeout
+  auto connect_future = connect_op->promise.get_future();
+  bool plaintext_creds = false;
   MQTTAsync client_handle = nullptr;
   std::string group_id;
   std::string edge_node_id;
@@ -231,14 +413,19 @@ stdx::expected<void, std::string> EdgeNode::connect() {
   {
     std::scoped_lock lock(mutex_);
 
-    MQTTAsync raw_client = nullptr;
-    int rc =
-        MQTTAsync_create(&raw_client, config_.broker_url.c_str(),
-                         config_.client_id.c_str(), MQTTCLIENT_PERSISTENCE_NONE, nullptr);
-    if (rc != MQTTASYNC_SUCCESS) {
-      return stdx::unexpected(std::format("Failed to create client: {}", rc));
+    // Reuse the client handle across reconnects: recreating it invalidates
+    // raw handles captured by in-flight publish calls (CWE-367).
+    int rc = MQTTASYNC_SUCCESS;
+    if (!client_) {
+      MQTTAsync raw_client = nullptr;
+      rc = MQTTAsync_create(&raw_client, config_.broker_url.c_str(),
+                            config_.client_id.c_str(), MQTTCLIENT_PERSISTENCE_NONE,
+                            nullptr);
+      if (rc != MQTTASYNC_SUCCESS) {
+        return stdx::unexpected(std::format("Failed to create client: {}", rc));
+      }
+      client_ = MQTTAsyncHandle(raw_client);
     }
-    client_ = MQTTAsyncHandle(raw_client);
 
     rc = MQTTAsync_setCallbacks(client_.get(), this, on_connection_lost,
                                 on_message_arrived, nullptr);
@@ -263,6 +450,10 @@ stdx::expected<void, std::string> EdgeNode::connect() {
     if (config_.password.has_value()) {
       conn_opts.password = config_.password.value().c_str();
     }
+    // Credentials on a plaintext transport are sniffable (CWE-319).
+    plaintext_creds = config_.username.has_value() &&
+                      !config_.broker_url.starts_with("ssl://") &&
+                      !config_.broker_url.starts_with("wss://");
 
     ssl_opts_ = MQTTAsync_SSLOptions_initializer;
     if (config_.tls.has_value()) {
@@ -275,6 +466,9 @@ stdx::expected<void, std::string> EdgeNode::connect() {
       ssl_opts_.enabledCipherSuites =
           tls.enabled_cipher_suites.empty() ? nullptr : tls.enabled_cipher_suites.c_str();
       ssl_opts_.enableServerCertAuth = tls.enable_server_cert_auth;
+      // Paho defaults `verify` to 0 (chain check only); enabling it ties the
+      // certificate identity to broker_url's host (CWE-297).
+      ssl_opts_.verify = tls.verify_hostname ? 1 : 0;
       conn_opts.ssl = &ssl_opts_;
     }
 
@@ -293,12 +487,13 @@ stdx::expected<void, std::string> EdgeNode::connect() {
     will_opts_.qos = config_.death_qos;
 
     conn_opts.will = &will_opts_;
-    conn_opts.context = &connect_promise;
+    conn_opts.context = connect_op;
     conn_opts.onSuccess = on_connect_success;
     conn_opts.onFailure = on_connect_failure;
 
     rc = MQTTAsync_connect(client_.get(), &conn_opts);
     if (rc != MQTTASYNC_SUCCESS) {
+      delete connect_op; // callbacks never fire on synchronous failure
       return stdx::unexpected(std::format("Failed to connect: {}", rc));
     }
 
@@ -311,10 +506,19 @@ stdx::expected<void, std::string> EdgeNode::connect() {
   // Paho copies conn_opts internally; local opts can safely go out of scope.
   // Member variables (will_opts_, ssl_opts_, death_payload_data_, death_topic_str_)
   // remain valid for the async operation.
+  if (plaintext_creds) {
+    log(LogLevel::WARN,
+        "MQTT username/password configured for a non-TLS broker URL; "
+        "credentials will be sent in cleartext");
+  }
 
   // Phase 2: Wait for connect completion (no lock held)
   auto status = connect_future.wait_for(std::chrono::milliseconds(CONNECTION_TIMEOUT_MS));
   if (status == std::future_status::timeout) {
+    // Best-effort teardown; connect_op stays alive for the late callback.
+    MQTTAsync_disconnectOptions disc_opts = MQTTAsync_disconnectOptions_initializer;
+    disc_opts.timeout = 1000;
+    (void)MQTTAsync_disconnect(client_handle, &disc_opts);
     return stdx::unexpected("Connection timeout");
   }
 
@@ -342,16 +546,17 @@ stdx::expected<void, std::string> EdgeNode::connect() {
 
   auto ncmd_topic_str = ncmd_topic.to_string();
 
-  std::promise<void> subscribe_promise;
-  auto subscribe_future = subscribe_promise.get_future();
+  auto* subscribe_op = new AsyncOp{};
+  auto subscribe_future = subscribe_op->promise.get_future();
 
   MQTTAsync_responseOptions sub_opts = MQTTAsync_responseOptions_initializer;
-  sub_opts.context = &subscribe_promise;
+  sub_opts.context = subscribe_op;
   sub_opts.onSuccess = on_subscribe_success;
   sub_opts.onFailure = on_subscribe_failure;
 
   int rc = MQTTAsync_subscribe(client_handle, ncmd_topic_str.c_str(), 1, &sub_opts);
   if (rc != MQTTASYNC_SUCCESS) {
+    delete subscribe_op;
     return stdx::unexpected(std::format("Failed to subscribe to NCMD: {}", rc));
   }
 
@@ -371,16 +576,17 @@ stdx::expected<void, std::string> EdgeNode::connect() {
   if (primary_host_id.has_value()) {
     std::string state_topic = "spBv1.0/STATE/" + primary_host_id.value();
 
-    std::promise<void> state_subscribe_promise;
-    auto state_subscribe_future = state_subscribe_promise.get_future();
+    auto* state_subscribe_op = new AsyncOp{};
+    auto state_subscribe_future = state_subscribe_op->promise.get_future();
 
     MQTTAsync_responseOptions state_sub_opts = MQTTAsync_responseOptions_initializer;
-    state_sub_opts.context = &state_subscribe_promise;
+    state_sub_opts.context = state_subscribe_op;
     state_sub_opts.onSuccess = on_subscribe_success;
     state_sub_opts.onFailure = on_subscribe_failure;
 
     rc = MQTTAsync_subscribe(client_handle, state_topic.c_str(), 1, &state_sub_opts);
     if (rc != MQTTASYNC_SUCCESS) {
+      delete state_subscribe_op;
       return stdx::unexpected(std::format("Failed to subscribe to STATE: {}", rc));
     }
 
@@ -413,17 +619,18 @@ stdx::expected<void, std::string> EdgeNode::disconnect() {
 
   // Phase 2: Wait for disconnect completion (no lock held)
   // Lock is released to prevent deadlock with on_connection_lost callback.
-  std::promise<void> disconnect_promise;
-  auto disconnect_future = disconnect_promise.get_future();
+  auto* disconnect_op = new AsyncOp{};
+  auto disconnect_future = disconnect_op->promise.get_future();
 
   MQTTAsync_disconnectOptions opts = MQTTAsync_disconnectOptions_initializer;
   opts.timeout = DISCONNECT_TIMEOUT_MS;
-  opts.context = &disconnect_promise;
+  opts.context = disconnect_op;
   opts.onSuccess = on_disconnect_success;
   opts.onFailure = on_disconnect_failure;
 
   int rc = MQTTAsync_disconnect(client_handle, &opts);
   if (rc != MQTTASYNC_SUCCESS) {
+    delete disconnect_op;
     return stdx::unexpected(std::format("Failed to disconnect: {}", rc));
   }
 
@@ -719,16 +926,17 @@ EdgeNode::publish_device_birth(std::string_view device_id, PayloadBuilder& paylo
 
   auto dcmd_topic_str = dcmd_topic.to_string();
 
-  std::promise<void> subscribe_promise;
-  auto subscribe_future = subscribe_promise.get_future();
+  auto* subscribe_op = new AsyncOp{};
+  auto subscribe_future = subscribe_op->promise.get_future();
 
   MQTTAsync_responseOptions sub_opts = MQTTAsync_responseOptions_initializer;
-  sub_opts.context = &subscribe_promise;
+  sub_opts.context = subscribe_op;
   sub_opts.onSuccess = on_subscribe_success;
   sub_opts.onFailure = on_subscribe_failure;
 
   int rc = MQTTAsync_subscribe(client, dcmd_topic_str.c_str(), 1, &sub_opts);
   if (rc != MQTTASYNC_SUCCESS) {
+    delete subscribe_op;
     return stdx::unexpected(std::format("Failed to subscribe to DCMD: {}", rc));
   }
 
@@ -919,7 +1127,12 @@ void EdgeNode::log(LogLevel level, std::string_view message) const noexcept {
     cb = config_.log_callback;
   }
   if (cb) {
-    cb.value()(level, message);
+    try {
+      // Sanitized: attacker-controlled topics/IDs must not inject log forgeries
+      // or terminal escapes; barrier: a throwing callback is noexcept-fatal.
+      cb.value()(level, sanitize_log_message(message));
+    } catch (...) {
+    }
   }
 }
 
