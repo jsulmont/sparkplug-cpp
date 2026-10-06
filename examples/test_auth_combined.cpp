@@ -1,6 +1,7 @@
 // examples/test_auth_combined.cpp - Test combined username/password + mTLS authentication
 #include <atomic>
 #include <csignal>
+#include <cstdlib>
 #include <iostream>
 #include <thread>
 
@@ -29,6 +30,10 @@ int main() {
                                       .enabled_cipher_suites = "",
                                       .enable_server_cert_auth = true};
 
+  // Credentials come from MQTT_USERNAME/MQTT_PASSWORD; admin/admin is a
+  // clearly-marked test-only fallback for the local Mosquitto test broker.
+  const char* mqtt_user = std::getenv("MQTT_USERNAME");
+  const char* mqtt_pass = std::getenv("MQTT_PASSWORD");
   sparkplug::EdgeNode::Config config{.broker_url = "ssl://localhost:8883",
                                      .client_id = "test_combined_auth_client",
                                      .group_id = "TestGroup",
@@ -38,8 +43,8 @@ int main() {
                                      .clean_session = true,
                                      .keep_alive_interval = 60,
                                      .tls = tls,
-                                     .username = "admin",
-                                     .password = "admin"};
+                                     .username = mqtt_user ? mqtt_user : "admin",
+                                     .password = mqtt_pass ? mqtt_pass : "admin"};
 
   std::cout << "Configuration:\n";
   std::cout << "  Broker URL: " << config.broker_url << "\n";

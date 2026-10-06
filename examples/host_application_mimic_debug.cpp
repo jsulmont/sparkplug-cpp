@@ -110,6 +110,11 @@ int main() {
   std::cout << "Info: https://mqttlab.iotsim.io/sparkplug/\n";
   std::cout << "=================================================================\n\n";
 
+  // Security notice: the public broker is plaintext and world-readable.
+  std::cerr << "*** WARNING: This demo uses the PUBLIC broker.hivemq.com over\n"
+            << "*** unencrypted MQTT. All traffic is world-readable and must\n"
+            << "*** NEVER be pointed at real devices or production systems.\n\n";
+
   // Use "+" as group_id (MQTT single-level wildcard)
   // This will expand to "spBv1.0/+/#" to catch all groups
   auto message_handler = [](const sparkplug::Topic& topic,
@@ -166,6 +171,7 @@ int main() {
     std::cout << std::endl; // Flush immediately
   };
 
+  // Public plaintext broker: demo only, never real devices (see warning above).
   sparkplug::HostApplication::Config config{
       .broker_url = "tcp://broker.hivemq.com:1883",
       .client_id = "sparkplug_mimic_debug_subscriber",

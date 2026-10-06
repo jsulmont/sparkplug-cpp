@@ -1,6 +1,7 @@
 // examples/test_auth_password.cpp - Test username/password authentication
 #include <atomic>
 #include <csignal>
+#include <cstdlib>
 #include <iostream>
 #include <thread>
 
@@ -21,6 +22,10 @@ int main() {
   std::cout << "Sparkplug B Username/Password Authentication Test\n";
   std::cout << "==================================================\n\n";
 
+  // Credentials come from MQTT_USERNAME/MQTT_PASSWORD; admin/admin is a
+  // clearly-marked test-only fallback for the local Mosquitto test broker.
+  const char* mqtt_user = std::getenv("MQTT_USERNAME");
+  const char* mqtt_pass = std::getenv("MQTT_PASSWORD");
   sparkplug::EdgeNode::Config config{.broker_url = "tcp://localhost:1883",
                                      .client_id = "test_auth_client",
                                      .group_id = "TestGroup",
@@ -30,8 +35,8 @@ int main() {
                                      .clean_session = true,
                                      .keep_alive_interval = 60,
                                      .tls = std::nullopt,
-                                     .username = "admin",
-                                     .password = "admin"};
+                                     .username = mqtt_user ? mqtt_user : "admin",
+                                     .password = mqtt_pass ? mqtt_pass : "admin"};
 
   std::cout << "Configuration:\n";
   std::cout << "  Broker URL: " << config.broker_url << "\n";

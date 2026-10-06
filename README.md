@@ -87,6 +87,8 @@ The compatibility layer uses feature detection macros to select the appropriate 
 
 ## Quick Start
 
+> **Note:** For production deployments, connect with `ssl://` and a configured CA trust store (see [TLS_SETUP.md](TLS_SETUP.md)) — never send Sparkplug traffic over plaintext MQTT.
+
 ### Prerequisites
 
 - C++-23 compatible compiler (Clang 16+ or GCC 14+)
