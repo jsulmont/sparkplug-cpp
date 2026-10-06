@@ -56,6 +56,12 @@ stdx::expected<MessageType, std::string> parse_message_type(std::string_view str
     return MessageType::STATE;
   return stdx::unexpected(std::format("Unknown message type: {}", str));
 }
+
+// Reject empty or oversized ids: these become permanent state keys and log
+// content, so unvalidated attacker input would bloat or poison them.
+bool valid_component(std::string_view id) {
+  return !id.empty() && id.size() <= kMaxComponentLength;
+}
 } // namespace
 
 std::string Topic::to_string() const {
@@ -104,6 +110,12 @@ stdx::expected<Topic, std::string> Topic::parse(std::string_view topic_str) {
       return stdx::unexpected("STATE topic requires host_id");
     }
     std::string_view host_id = *it++;
+    if (it != end) {
+      return stdx::unexpected("Invalid STATE topic: trailing components");
+    }
+    if (!valid_component(host_id)) {
+      return stdx::unexpected("STATE topic has empty or oversized host_id");
+    }
     return Topic{.group_id = "",
                  .message_type = MessageType::STATE,
                  .edge_node_id = std::string(host_id),
@@ -125,9 +137,32 @@ stdx::expected<Topic, std::string> Topic::parse(std::string_view topic_str) {
     return stdx::unexpected(msg_type.error());
   }
 
+  // Reject empty/oversized ids: these become permanent state keys and log content.
+  if (!valid_component(part1) || !valid_component(part3)) {
+    return stdx::unexpected("Topic has empty or oversized group_id/edge_node_id");
+  }
+
+  const bool device_scoped = *msg_type == MessageType::DBIRTH ||
+                             *msg_type == MessageType::DDATA ||
+                             *msg_type == MessageType::DDEATH ||
+                             *msg_type == MessageType::DCMD;
   std::string device_id;
   if (it != end) {
-    device_id = std::string(*it);
+    // A 5th component is only valid for device messages; reject it otherwise.
+    if (!device_scoped) {
+      return stdx::unexpected("Node-level topic must not have a device_id component");
+    }
+    device_id = std::string(*it++);
+    if (!valid_component(device_id)) {
+      return stdx::unexpected("Topic has empty or oversized device_id");
+    }
+  }
+  if (it != end) {
+    return stdx::unexpected("Invalid Sparkplug B topic: trailing components");
+  }
+  if (device_scoped && device_id.empty()) {
+    // Device messages must carry a device id; an empty one would corrupt state keys.
+    return stdx::unexpected("Device-level topic requires a device_id");
   }
 
   return Topic{.group_id = std::string(part1),

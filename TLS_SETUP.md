@@ -16,12 +16,12 @@ The library supports TLS/SSL encryption for secure communication with MQTT broke
 This is the most common setup - the client verifies the broker's identity:
 
 ```cpp
-sparkplug::Publisher::TlsOptions tls{
+sparkplug::EdgeNode::TlsOptions tls{
     .trust_store = "/path/to/ca.crt",          // CA certificate
     .enable_server_cert_auth = true            // Verify server (default)
 };
 
-sparkplug::Publisher::Config config{
+sparkplug::EdgeNode::Config config{
     .broker_url = "ssl://localhost:8883",      // Use ssl:// prefix
     .client_id = "my_client",
     .group_id = "MyGroup",
@@ -35,26 +35,24 @@ sparkplug::Publisher::Config config{
 For environments requiring client certificates:
 
 ```cpp
-sparkplug::Publisher::TlsOptions tls{
+sparkplug::EdgeNode::TlsOptions tls{
     .trust_store = "/path/to/ca.crt",          // CA certificate
     .key_store = "/path/to/client.crt",        // Client certificate
     .private_key = "/path/to/client.key",      // Client private key
     .private_key_password = "key_password",    // If key is encrypted
     .enable_server_cert_auth = true
 };
-```
 
 ### Advanced Options
 
 ```cpp
-sparkplug::Publisher::TlsOptions tls{
+sparkplug::EdgeNode::TlsOptions tls{
     .trust_store = "/path/to/ca.crt",
     .key_store = "/path/to/client.crt",
     .private_key = "/path/to/client.key",
     .enabled_cipher_suites = "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
     .enable_server_cert_auth = true
 };
-```
 
 ## Mosquitto Broker Setup
 
@@ -122,7 +120,7 @@ sudo systemctl restart mosquitto
 # Test server authentication
 mosquitto_pub -h localhost -p 8883 \
     --cafile /path/to/ca.crt \
-    -t test -m "hello" --insecure
+    -t test -m "hello"
 
 # Test mutual TLS
 mosquitto_pub -h localhost -p 8883 \
@@ -145,13 +143,12 @@ cmake --build build
 Edit the examples and replace placeholder paths:
 
 ```cpp
-// In examples/publisher_tls_example.cpp and subscriber_tls_example.cpp
-sparkplug::Publisher::TlsOptions tls{
+// In examples/publisher_tls_example.cpp and examples/host_application_tls.cpp
+sparkplug::EdgeNode::TlsOptions tls{
     .trust_store = "/path/to/ca.crt",           // Update this
     .key_store = "/path/to/client.crt",         // Update this
     .private_key = "/path/to/client.key",       // Update this
 };
-```
 
 ### Run Publisher
 
@@ -162,7 +159,7 @@ sparkplug::Publisher::TlsOptions tls{
 ### Run Subscriber
 
 ```bash
-./build/examples/subscriber_tls_example
+./build/examples/host_application_tls
 ```
 
 ## Troubleshooting

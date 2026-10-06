@@ -71,6 +71,11 @@ int main() {
     std::cout << "\n";
   };
 
+
+  // Security notice: the public broker is plaintext and world-readable.
+  std::cerr << "*** WARNING: This demo uses the PUBLIC broker.hivemq.com over\n"
+            << "*** unencrypted MQTT. All traffic is world-readable and must\n"
+            << "*** NEVER be pointed at real devices or production systems.\n\n";
   sparkplug::EdgeNode::Config config{
       .broker_url = "tcp://broker.hivemq.com:1883",
       .client_id = "sparkplug_cpp_mimic_publisher",

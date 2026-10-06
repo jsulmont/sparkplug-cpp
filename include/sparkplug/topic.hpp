@@ -10,6 +10,10 @@ namespace sparkplug {
 
 inline constexpr std::string_view NAMESPACE = "spBv1.0";
 
+// Maximum length of a topic component (group/edge node/device id); longer
+// values are rejected to keep attacker-controlled ids from bloating state.
+inline constexpr size_t kMaxComponentLength = 128;
+
 /**
  * @brief Sparkplug B message types.
  *

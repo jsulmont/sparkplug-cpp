@@ -1,6 +1,7 @@
 #pragma once
 
 #include "detail/compat.hpp"
+#include "detail/secure_buffer.hpp"
 #include "logging.hpp"
 #include "mqtt_handle.hpp"
 #include "payload_builder.hpp"
@@ -106,6 +107,7 @@ public:
     std::string
         enabled_cipher_suites; ///< Colon-separated list of cipher suites (optional)
     bool enable_server_cert_auth = true; ///< Verify server certificate (default: true)
+    bool verify_hostname = true; ///< Verify certificate identity matches broker_url host (default: true)
   };
 
   /**
@@ -132,6 +134,7 @@ public:
     std::optional<CommandCallback> command_callback{};
     std::optional<std::string> primary_host_id{};
     std::optional<LogCallback> log_callback{};
+    size_t max_payload_bytes = 1 << 20; ///< Max accepted inbound payload size; larger messages are dropped (default 1 MiB, CWE-400)
   };
 
   /**
@@ -444,6 +447,11 @@ private:
   MQTTAsync_willOptions will_opts_; // Will options struct (must outlive async connect)
   MQTTAsync_SSLOptions ssl_opts_{};
 
+  // Secrets adopted from Config into scrub-on-free buffers so plaintext does
+  // not linger in std::string heap (CWE-316).
+  detail::SecureBuffer password_;
+  detail::SecureBuffer tls_key_password_;
+
   // Store last NBIRTH for rebirth command
   std::vector<uint8_t> last_birth_payload_;
 
@@ -472,6 +480,10 @@ private:
 
   // Mutex for thread-safe access to all mutable state
   mutable std::mutex mutex_;
+
+  // Caller must hold mutex_ (or be the constructor). Zeroes the Config
+  // string copies after adopting them into password_/tls_key_password_.
+  void adopt_secrets();
 
   [[nodiscard]] static stdx::expected<void, std::string>
   publish_message(MQTTAsync client,

@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <csignal>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <thread>
@@ -34,6 +35,8 @@ int main(int argc, char* argv[]) {
     } else if (arg == "--username" && i + 1 < argc) {
       config.username = argv[++i];
     } else if (arg == "--password" && i + 1 < argc) {
+      // Passwords passed via argv are visible in process listings; MQTT_PASSWORD is safer.
+      std::cerr << "Warning: --password is visible in process listings; prefer the MQTT_PASSWORD environment variable\n";
       config.password = argv[++i];
     } else if (arg == "--help" || arg == "-h") {
       std::cout << "Usage: " << argv[0] << " [options]\n\n";
@@ -43,7 +46,7 @@ int main(int argc, char* argv[]) {
       std::cout << "  --group-id <id>        Group ID (default: tck_group)\n";
       std::cout << "  --edge-node-id <id>    Edge Node ID (default: tck_edge)\n";
       std::cout << "  --username <user>      MQTT username (optional)\n";
-      std::cout << "  --password <pass>      MQTT password (optional)\n";
+      std::cout << "  --password <pass>      MQTT password (prefer MQTT_PASSWORD env var)\n";
       std::cout << "  --help, -h             Show this help message\n\n";
       std::cout << "Example:\n";
       std::cout << "  " << argv[0]
@@ -54,6 +57,13 @@ int main(int argc, char* argv[]) {
       std::cerr << "Unknown argument: " << arg << "\n";
       std::cerr << "Use --help for usage information\n";
       return 1;
+    }
+  }
+
+  // Prefer MQTT_PASSWORD over argv so credentials never appear in process listings.
+  if (config.password.empty()) {
+    if (const char* env_pass = std::getenv("MQTT_PASSWORD")) {
+      config.password = env_pass;
     }
   }
 

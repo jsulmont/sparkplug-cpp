@@ -6,14 +6,12 @@
  * All functions return 0 on success, -1 on failure (unless otherwise specified).
  *
  * @par Thread Safety
- * All functions in this API are thread-safe. Multiple threads may call any
- * function concurrently on the same or different handles. Internal synchronization
- * is handled automatically via mutex locking in the underlying C++ implementation.
- *
- * This enables safe usage in multi-threaded applications, including:
- * - Publishing from multiple threads simultaneously
- * - Sharing publisher/subscriber handles across threads
- * - Concurrent calls to get_seq(), get_bd_seq(), etc.
+ * Thread safety varies by handle type:
+ * - HostApplication and Publisher handle methods are thread-safe; the underlying
+ *   C++ classes synchronize access to shared state.
+ * - sparkplug_payload_* handles are NOT thread-safe (the underlying PayloadBuilder is
+ *   unsynchronized); do not call payload functions concurrently on the same handle.
+ * - destroy() must not be called concurrently with any other call on the same handle.
  *
  * @par Example Usage
  * @code
@@ -923,8 +921,8 @@ bool sparkplug_payload_get_seq(const sparkplug_payload_t* payload, uint64_t* out
  *
  * @param payload Payload handle
  *
- * @return UUID string (owned by payload, valid until sparkplug_payload_destroy()), or
- * NULL if not present
+ * @return UUID string (owned by payload, valid only until the payload is next
+ * mutated (any add_* or set_timestamp call) or destroyed), or NULL if not present
  */
 const char* sparkplug_payload_get_uuid(const sparkplug_payload_t* payload);
 
@@ -976,14 +974,15 @@ typedef union {
   double double_value;
   bool boolean_value;
   const char*
-      string_value; /** Owned by payload, valid until sparkplug_payload_destroy() */
+      string_value; /** Owned by payload, valid only until the payload is next
+                     * mutated (any add_* or set_timestamp call) or destroyed */
 } sparkplug_metric_value_t;
 
 /**
  * @brief Metric information struct.
  *
- * @note String pointers (name, string_value) are owned by the payload and valid until
- * sparkplug_payload_destroy() is called.
+ * @note String pointers (name, string_value) are owned by the payload and valid only
+ * until the payload is next mutated (any add_* or set_timestamp call) or destroyed.
  */
 typedef struct {
   const char* name;               /** Metric name, or NULL if not present */
@@ -1006,8 +1005,8 @@ typedef struct {
  *
  * @return true on success, false if index is out of bounds or payload is NULL
  *
- * @note The returned pointers in out_metric are valid until sparkplug_payload_destroy()
- * is called.
+ * @note The returned pointers in out_metric are valid only until the payload is next
+ * mutated (any add_* or set_timestamp call) or destroyed.
  *
  * @par Example
  * @code
