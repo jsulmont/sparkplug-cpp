@@ -234,6 +234,7 @@ void MQTTAsyncHandle::reset() noexcept {
 
 EdgeNode::EdgeNode(Config config) : config_(std::move(config)) {
   will_opts_ = MQTTAsync_willOptions_initializer;
+  adopt_secrets(); // construction: no other thread can race us
 }
 
 int EdgeNode::on_message_arrived(void* context,
@@ -337,6 +338,8 @@ EdgeNode::EdgeNode(EdgeNode&& other) noexcept {
   death_payload_data_ = std::move(other.death_payload_data_);
   last_birth_payload_ = std::move(other.last_birth_payload_);
   device_states_ = std::move(other.device_states_);
+  password_ = std::move(other.password_);
+  tls_key_password_ = std::move(other.tls_key_password_);
   is_connected_.store(other.is_connected_.load(std::memory_order_relaxed),
                       std::memory_order_relaxed);
   primary_host_online_.store(other.primary_host_online_.load(std::memory_order_relaxed),
@@ -364,6 +367,8 @@ EdgeNode& EdgeNode::operator=(EdgeNode&& other) noexcept {
     death_payload_data_ = std::move(other.death_payload_data_);
     last_birth_payload_ = std::move(other.last_birth_payload_);
     device_states_ = std::move(other.device_states_);
+    password_ = std::move(other.password_);
+    tls_key_password_ = std::move(other.tls_key_password_);
     is_connected_.store(other.is_connected_.load(std::memory_order_relaxed),
                         std::memory_order_relaxed);
     primary_host_online_.store(other.primary_host_online_.load(std::memory_order_relaxed),
@@ -386,11 +391,30 @@ void EdgeNode::set_credentials(std::optional<std::string> username,
   std::scoped_lock lock(mutex_);
   config_.username = std::move(username);
   config_.password = std::move(password);
+  adopt_secrets();
 }
 
 void EdgeNode::set_tls(std::optional<TlsOptions> tls) {
   std::scoped_lock lock(mutex_);
   config_.tls = std::move(tls);
+  adopt_secrets();
+}
+
+void EdgeNode::adopt_secrets() {
+  if (config_.password.has_value()) {
+    password_.assign(*config_.password);
+    detail::SecureBuffer::scrub_string(*config_.password);
+    config_.password.reset();
+  }
+  if (config_.tls.has_value()) {
+    auto& key_password = config_.tls->private_key_password;
+    if (!key_password.empty()) {
+      tls_key_password_.assign(key_password);
+      detail::SecureBuffer::scrub_string(key_password);
+    } else {
+      tls_key_password_.clear();
+    }
+  }
 }
 
 void EdgeNode::set_log_callback(std::optional<LogCallback> callback) {
@@ -447,9 +471,10 @@ stdx::expected<void, std::string> EdgeNode::connect() {
     if (config_.username.has_value()) {
       conn_opts.username = config_.username.value().c_str();
     }
-    if (config_.password.has_value()) {
-      conn_opts.password = config_.password.value().c_str();
-    }
+    // Password comes from the scrubbed buffer; Paho retains its own copy for
+    // the connection (CWE-316).
+    conn_opts.password = password_.c_str();
+
     // Credentials on a plaintext transport are sniffable (CWE-319).
     plaintext_creds = config_.username.has_value() &&
                       !config_.broker_url.starts_with("ssl://") &&
@@ -461,8 +486,7 @@ stdx::expected<void, std::string> EdgeNode::connect() {
       ssl_opts_.trustStore = tls.trust_store.c_str();
       ssl_opts_.keyStore = tls.key_store.empty() ? nullptr : tls.key_store.c_str();
       ssl_opts_.privateKey = tls.private_key.empty() ? nullptr : tls.private_key.c_str();
-      ssl_opts_.privateKeyPassword =
-          tls.private_key_password.empty() ? nullptr : tls.private_key_password.c_str();
+      ssl_opts_.privateKeyPassword = tls_key_password_.c_str();
       ssl_opts_.enabledCipherSuites =
           tls.enabled_cipher_suites.empty() ? nullptr : tls.enabled_cipher_suites.c_str();
       ssl_opts_.enableServerCertAuth = tls.enable_server_cert_auth;

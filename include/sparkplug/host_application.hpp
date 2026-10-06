@@ -1,6 +1,7 @@
 #pragma once
 
 #include "detail/compat.hpp"
+#include "detail/secure_buffer.hpp"
 #include "logging.hpp"
 #include "mqtt_handle.hpp"
 #include "payload_builder.hpp"
@@ -504,6 +505,11 @@ private:
   // MQTT connection options that must outlive async operations
   MQTTAsync_SSLOptions ssl_opts_{};
 
+  // Secrets adopted from Config into scrub-on-free buffers so plaintext does
+  // not linger in std::string heap (CWE-316).
+  detail::SecureBuffer password_;
+  detail::SecureBuffer tls_key_password_;
+
   // Node state tracking
   struct NodeKey {
     std::string group_id;
@@ -555,6 +561,10 @@ private:
 
   // Mutex for thread-safe access to config and other mutable state
   mutable std::mutex mutex_;
+
+  // Caller must hold mutex_ (or be the constructor). Zeroes the Config
+  // string copies after adopting them into password_/tls_key_password_.
+  void adopt_secrets();
 
   [[nodiscard]] stdx::expected<void, std::string>
   publish_raw_message(std::string_view topic,

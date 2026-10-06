@@ -77,6 +77,7 @@ void on_disconnect_failure(void* context, MQTTAsync_failureData* response) {
 HostApplication::HostApplication(Config config) : config_(std::move(config)) {
   max_tracked_nodes_ = config_.max_tracked_nodes;
   max_metrics_per_birth_ = config_.max_metrics_per_birth;
+  adopt_secrets(); // construction: no other thread can race us
 }
 
 HostApplication::~HostApplication() {
@@ -97,6 +98,8 @@ HostApplication::HostApplication(HostApplication&& other) noexcept {
   node_states_ = std::move(other.node_states_);
   max_tracked_nodes_ = other.max_tracked_nodes_;
   max_metrics_per_birth_ = other.max_metrics_per_birth_;
+  password_ = std::move(other.password_);
+  tls_key_password_ = std::move(other.tls_key_password_);
   other.is_connected_.store(false, std::memory_order_relaxed);
 
   // Rebind Paho callbacks: the client handle still carries the moved-from
@@ -120,6 +123,8 @@ HostApplication& HostApplication::operator=(HostApplication&& other) noexcept {
     node_states_ = std::move(other.node_states_);
     max_tracked_nodes_ = other.max_tracked_nodes_;
     max_metrics_per_birth_ = other.max_metrics_per_birth_;
+    password_ = std::move(other.password_);
+    tls_key_password_ = std::move(other.tls_key_password_);
     // Reset rather than shallow-copy: ssl_opts_ holds pointers into the moved
     // TLS strings; connect() rebuilds it (CWE-416).
     ssl_opts_ = MQTTAsync_SSLOptions_initializer;
@@ -140,11 +145,30 @@ void HostApplication::set_credentials(std::optional<std::string> username,
   std::scoped_lock lock(mutex_);
   config_.username = std::move(username);
   config_.password = std::move(password);
+  adopt_secrets();
 }
 
 void HostApplication::set_tls(std::optional<TlsOptions> tls) {
   std::scoped_lock lock(mutex_);
   config_.tls = std::move(tls);
+  adopt_secrets();
+}
+
+void HostApplication::adopt_secrets() {
+  if (config_.password.has_value()) {
+    password_.assign(*config_.password);
+    detail::SecureBuffer::scrub_string(*config_.password);
+    config_.password.reset();
+  }
+  if (config_.tls.has_value()) {
+    auto& key_password = config_.tls->private_key_password;
+    if (!key_password.empty()) {
+      tls_key_password_.assign(key_password);
+      detail::SecureBuffer::scrub_string(key_password);
+    } else {
+      tls_key_password_.clear();
+    }
+  }
 }
 
 void HostApplication::set_message_callback(MessageCallback callback) {
@@ -197,9 +221,10 @@ stdx::expected<void, std::string> HostApplication::connect() {
     if (config_.username.has_value()) {
       conn_opts.username = config_.username.value().c_str();
     }
-    if (config_.password.has_value()) {
-      conn_opts.password = config_.password.value().c_str();
-    }
+    // Password comes from the scrubbed buffer; Paho retains its own copy for
+    // the connection (CWE-316).
+    conn_opts.password = password_.c_str();
+
     // Credentials on a plaintext transport are sniffable (CWE-319).
     plaintext_creds = config_.username.has_value() &&
                       !config_.broker_url.starts_with("ssl://") &&
@@ -211,8 +236,7 @@ stdx::expected<void, std::string> HostApplication::connect() {
       ssl_opts_.trustStore = tls.trust_store.c_str();
       ssl_opts_.keyStore = tls.key_store.empty() ? nullptr : tls.key_store.c_str();
       ssl_opts_.privateKey = tls.private_key.empty() ? nullptr : tls.private_key.c_str();
-      ssl_opts_.privateKeyPassword =
-          tls.private_key_password.empty() ? nullptr : tls.private_key_password.c_str();
+      ssl_opts_.privateKeyPassword = tls_key_password_.c_str();
       ssl_opts_.enabledCipherSuites =
           tls.enabled_cipher_suites.empty() ? nullptr : tls.enabled_cipher_suites.c_str();
       ssl_opts_.enableServerCertAuth = tls.enable_server_cert_auth;
